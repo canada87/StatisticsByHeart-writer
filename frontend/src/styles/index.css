@@ -1,0 +1,257 @@
+@import 'tailwindcss';
+@import '@fontsource/share-tech-mono/latin-400.css';
+@import '@fontsource/fira-code/latin-400.css';
+@import '@fontsource/fira-code/latin-600.css';
+
+/*
+ * Design tokens: single source of truth (also read by src/lib/contrast.test.ts and the charts).
+ * Dark only: the HUD / sci-fi style has no light theme. Contrast of every text/background pair
+ * is asserted by tests (>= 4.5:1 text, >= 3:1 UI components), see design-system/.../MASTER.md.
+ */
+@theme {
+  --color-bg: #0b0b10;
+  --color-bg-deep: #05070d;
+  --color-surface: #1e1e23;
+  --color-surface-muted: #232328;
+  --color-border: #1e293b; /* decorative hairlines only */
+  --color-border-control: #64748b; /* inputs, buttons, focusable edges (>= 3:1) */
+  --color-fg: #f8fafc;
+  --color-fg-muted: #94a3b8;
+  --color-accent: #3b82f6; /* fill / indicator, not body text on surface-muted */
+  --color-accent-text: #60a5fa;
+  --color-accent-glow: #22d3ee;
+  --color-danger: #ef4444;
+  --color-danger-text: #f87171;
+  --color-warn: #fbbf24;
+  --color-ok: #34d399;
+  --color-m-heart: #ff3b6b;
+  --color-m-sleep: #8b5cf6;
+  --color-m-sleep-text: #a78bfa;
+  --color-m-activity: #22d3ee;
+  --color-m-energy: #fbbf24;
+  --color-m-vitals: #34d399;
+
+  --font-display: 'Share Tech Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --font-body: 'Fira Code', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  /* motion tokens: one set for the whole app (PROJECT_GUIDE 8.4) */
+  --duration-micro: 120ms;
+  --duration-state: 240ms;
+  --duration-enter: 380ms;
+  --ease-hud: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    background: var(--color-bg);
+  }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background:
+      linear-gradient(var(--color-bg), var(--color-bg-deep)) fixed,
+      var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* very faint blueprint grid, <= 4% opacity */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(to right, rgb(34 211 238 / 0.035) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(34 211 238 / 0.035) 1px, transparent 1px);
+    background-size: 32px 32px;
+    z-index: 0;
+  }
+  #root {
+    position: relative;
+    z-index: 1;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: 0.02em;
+  }
+  /* focus ring: always visible, 3px, >= 3:1 against every surface */
+  :focus-visible {
+    outline: 3px solid var(--color-accent-glow);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+  button,
+  [role='tab'],
+  [role='radio'],
+  select,
+  summary,
+  a {
+    cursor: pointer;
+  }
+  ::selection {
+    background: rgb(34 211 238 / 0.35);
+  }
+}
+
+@layer components {
+  /* HUD panel: 1px hairline + corner brackets, translucent, no blur */
+  .hud-panel {
+    position: relative;
+    background: rgb(30 30 35 / 0.82);
+    border: 1px solid var(--color-border);
+    padding: 12px;
+  }
+  .hud-panel::before,
+  .hud-panel::after {
+    content: '';
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    pointer-events: none;
+    border-color: var(--color-accent-glow);
+    border-style: solid;
+    border-width: 0;
+  }
+  .hud-panel::before {
+    top: -1px;
+    left: -1px;
+    border-top-width: 2px;
+    border-left-width: 2px;
+  }
+  .hud-panel::after {
+    right: -1px;
+    bottom: -1px;
+    border-right-width: 2px;
+    border-bottom-width: 2px;
+  }
+  .hud-label {
+    font-family: var(--font-display);
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-fg-muted);
+  }
+  .hud-number {
+    font-family: var(--font-display);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0 16px;
+    border: 1px solid var(--color-border-control);
+    background: transparent;
+    color: var(--color-fg);
+    font-family: var(--font-display);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    transition:
+      background-color var(--duration-micro) linear,
+      border-color var(--duration-micro) linear;
+  }
+  .btn:hover {
+    background: rgb(34 211 238 / 0.1);
+    border-color: var(--color-accent-glow);
+  }
+  .btn-primary {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: #000;
+    font-weight: 600;
+  }
+  .btn-primary:hover {
+    background: #5b9bf8;
+    border-color: #5b9bf8;
+  }
+  .input {
+    min-height: 44px;
+    width: 100%;
+    padding: 0 12px;
+    border: 1px solid var(--color-border-control);
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font: inherit;
+  }
+  .live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    background: var(--color-ok);
+    box-shadow: 0 0 8px var(--color-ok);
+    animation: blink 2.4s ease-in-out infinite;
+  }
+  @keyframes blink {
+    50% {
+      opacity: 0.35;
+    }
+  }
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--color-surface-muted),
+      #2c2c33 50%,
+      var(--color-surface-muted)
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.6s linear infinite;
+  }
+  @keyframes shimmer {
+    to {
+      background-position: -200% 0;
+    }
+  }
+  .scanline::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(transparent 0 48%, rgb(34 211 238 / 0.04) 50%, transparent 52% 100%);
+    background-size: 100% 220%;
+    animation: scan 7s linear infinite;
+  }
+  @keyframes scan {
+    from {
+      background-position: 0 100%;
+    }
+    to {
+      background-position: 0 -100%;
+    }
+  }
+}
+
+/* Reduced motion: final state at once, no scanlines/pulses/shimmer. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .scanline::after {
+    display: none;
+  }
+}
+
+.sr-only-focusable:not(:focus):not(:focus-within) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
