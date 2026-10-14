@@ -1,0 +1,53 @@
+# Local DEVELOPMENT stack (builds the image, seeds SYNTHETIC data, hot reload).
+#   docker compose -f docker/compose.dev.yml up --build
+# API: http://127.0.0.1:8000  (login admin / dev-password-change-me, see container logs for the dev token)
+# Never use this file on the server: production is docker/compose.yml.
+name: statisticsbyheart-dev
+
+services:
+  sbh-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: sbh
+      POSTGRES_USER: sbh
+      POSTGRES_PASSWORD: dev-only-password
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - sbh-dev-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sbh -d sbh"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  sbh-api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: statisticsbyheart-writer:dev
+    depends_on:
+      sbh-db:
+        condition: service_healthy
+    environment:
+      SBH_DB_HOST: sbh-db
+      SBH_DB_NAME: sbh
+      SBH_DB_USER: sbh
+      SBH_DB_PASSWORD: dev-only-password
+      SBH_COOKIE_SECURE: "false" # plain http on localhost
+      SBH_DEV_BOOTSTRAP: "true"
+      SBH_SEED_DAYS: "30"
+      SBH_DEV_ADMIN_PASSWORD: dev-password-change-me
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ../backend/app:/app/app:ro
+    command:
+      [
+        "uvicorn", "app.main:create_app", "--factory",
+        "--host", "0.0.0.0", "--port", "8000",
+        "--reload", "--reload-dir", "/app/app",
+      ]
+
+volumes:
+  sbh-dev-db:
