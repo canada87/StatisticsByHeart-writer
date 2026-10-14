@@ -17,8 +17,9 @@ from app.middleware import BodyGuardMiddleware
 from app.ratelimit import LoginLimiter
 from app.routers import admin, auth, dashboard, ingest, public
 from app.scheduler import build_scheduler
+from app.spa import install_spa
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 
 class SecurityHeadersMiddleware:
@@ -35,11 +36,13 @@ class SecurityHeadersMiddleware:
         async def wrapped(message: Message) -> None:
             if message["type"] == "http.response.start":
                 headers = list(message.get("headers", []))
+                present = {k.lower() for k, _ in headers}
                 headers += [
                     (b"x-content-type-options", b"nosniff"),
-                    (b"cache-control", b"no-store"),
                     (b"referrer-policy", b"no-referrer"),
                 ]
+                if b"cache-control" not in present:
+                    headers.append((b"cache-control", b"no-store"))
                 message = {**message, "headers": headers}
             await send(message)
 
@@ -90,6 +93,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     if settings.enable_docs:
         _install_docs(app)
+    install_spa(app, settings.static_dir)  # last: its catch-all route must not shadow the API
     return app
 
 

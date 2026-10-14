@@ -28,3 +28,7 @@ docker/.env.*
 # Frontend (later phase)
 node_modules/
 frontend/dist/
+
+# Playwright
+frontend/test-results/
+frontend/playwright-report/

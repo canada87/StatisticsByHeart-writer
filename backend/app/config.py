@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     # Behaviour toggles.
     enable_scheduler: bool = True
     enable_docs: bool = True
+    static_dir: str = "/app/static"  # built dashboard; absent = API only
 
     @computed_field  # type: ignore[prop-decorator]
     @property
