@@ -44,7 +44,7 @@ def database_url() -> Iterator[str]:
     if explicit:
         yield explicit
         return
-    from testcontainers.postgres import PostgresContainer
+    from testcontainers.community.postgres import PostgresContainer
 
     with PostgresContainer("postgres:16-alpine", driver="psycopg") as pg:
         yield pg.get_connection_url()

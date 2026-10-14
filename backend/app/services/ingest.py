@@ -53,7 +53,7 @@ async def _lock(session: AsyncSession) -> None:
 async def register_sync(
     session: AsyncSession,
     *,
-    token_id: uuid.UUID,
+    token_id: uuid.UUID | None,
     device_id: uuid.UUID,
     sync_id: uuid.UUID,
     meta: DeviceMeta | None,
@@ -162,7 +162,7 @@ async def _sample_days(session: AsyncSession, record_ids: list[int]) -> set[Type
 async def ingest_records(
     session: AsyncSession,
     settings: Settings,
-    token_id: uuid.UUID,
+    token_id: uuid.UUID | None,
     batch: RecordsBatch,
 ) -> RecordsResult:
     now = datetime.now(UTC)
@@ -295,7 +295,7 @@ def _sample_rows(
 async def ingest_deletions(
     session: AsyncSession,
     settings: Settings,
-    token_id: uuid.UUID,
+    token_id: uuid.UUID | None,
     batch: DeletionsBatch,
 ) -> DeletionsResult:
     now = datetime.now(UTC)
@@ -394,7 +394,7 @@ def _official_unit(type_: str) -> str | None:
 async def ingest_daily_aggregates(
     session: AsyncSession,
     settings: Settings,
-    token_id: uuid.UUID,
+    token_id: uuid.UUID | None,
     batch: DailyAggregatesBatch,
 ) -> DailyAggregatesResult:
     now = datetime.now(UTC)
@@ -501,7 +501,7 @@ async def ingest_daily_aggregates(
 
 
 async def ingest_sync_report(
-    session: AsyncSession, token_id: uuid.UUID, report: SyncReport
+    session: AsyncSession, token_id: uuid.UUID | None, report: SyncReport
 ) -> None:
     now = datetime.now(UTC)
     await _lock(session)
