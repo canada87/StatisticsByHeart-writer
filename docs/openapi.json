@@ -1,6 +1,62 @@
 {
   "components": {
     "schemas": {
+      "ActivityItem": {
+        "properties": {
+          "duration_s": {
+            "title": "Duration S",
+            "type": "number"
+          },
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "has_route": {
+            "default": false,
+            "title": "Has Route",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "source_package": {
+            "title": "Source Package",
+            "type": "string"
+          },
+          "start": {
+            "format": "date-time",
+            "title": "Start",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "start",
+          "end",
+          "duration_s",
+          "source_package"
+        ],
+        "title": "ActivityItem",
+        "type": "object"
+      },
       "DailyAggregateItem": {
         "additionalProperties": false,
         "properties": {
@@ -388,6 +444,67 @@
         "title": "DeviceMeta",
         "type": "object"
       },
+      "DeviceRow": {
+        "properties": {
+          "app_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "App Version"
+          },
+          "first_seen_at": {
+            "format": "date-time",
+            "title": "First Seen At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "format": "date-time",
+            "title": "Last Seen At",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "model",
+          "app_version",
+          "first_seen_at",
+          "last_seen_at"
+        ],
+        "title": "DeviceRow",
+        "type": "object"
+      },
       "ErrorBody": {
         "properties": {
           "code": {
@@ -458,6 +575,132 @@
         "title": "HealthResult",
         "type": "object"
       },
+      "HeartSummary": {
+        "properties": {
+          "avg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LatestSample"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Most recent heart-rate sample ever stored"
+          },
+          "max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          },
+          "resting": {
+            "$ref": "#/components/schemas/MetricValue"
+          },
+          "samples": {
+            "default": 0,
+            "title": "Samples",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "current",
+          "resting"
+        ],
+        "title": "HeartSummary",
+        "type": "object"
+      },
+      "InventoryResponse": {
+        "properties": {
+          "deleted": {
+            "title": "Deleted",
+            "type": "integer"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "records": {
+            "title": "Records",
+            "type": "integer"
+          },
+          "samples": {
+            "title": "Samples",
+            "type": "integer"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceTotals"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "types": {
+            "items": {
+              "$ref": "#/components/schemas/TypeInventory"
+            },
+            "title": "Types",
+            "type": "array"
+          }
+        },
+        "required": [
+          "generated_at",
+          "records",
+          "deleted",
+          "samples",
+          "types",
+          "sources"
+        ],
+        "title": "InventoryResponse",
+        "type": "object"
+      },
+      "LatestSample": {
+        "properties": {
+          "time": {
+            "format": "date-time",
+            "title": "Time",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "time",
+          "value"
+        ],
+        "title": "LatestSample",
+        "type": "object"
+      },
       "LoginRequest": {
         "additionalProperties": false,
         "properties": {
@@ -479,6 +722,89 @@
           "password"
         ],
         "title": "LoginRequest",
+        "type": "object"
+      },
+      "MetricValue": {
+        "description": "A daily number with both views kept visible: official = Health Connect aggregate.",
+        "properties": {
+          "computed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Computed"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Local day the value belongs to",
+            "title": "Date"
+          },
+          "official": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Official"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "hc_official",
+                  "computed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "official if present, else computed",
+            "title": "Value"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "title": "MetricValue",
         "type": "object"
       },
       "PingLimits": {
@@ -547,6 +873,198 @@
           "prefix"
         ],
         "title": "PingToken",
+        "type": "object"
+      },
+      "ReconciliationResponse": {
+        "properties": {
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/ReconciliationRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/ReconciliationSummary"
+          },
+          "to": {
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          },
+          "types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Types",
+            "type": "array"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "types",
+          "rows",
+          "summary"
+        ],
+        "title": "ReconciliationResponse",
+        "type": "object"
+      },
+      "ReconciliationRow": {
+        "properties": {
+          "computed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Computed"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "diff": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "computed - official",
+            "title": "Diff"
+          },
+          "diff_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Diff Pct"
+          },
+          "naive": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Blind sum of every source: what double counting gives",
+            "title": "Naive"
+          },
+          "naive_exceeds_official": {
+            "description": "True when summing all sources would overshoot the official value by >5%",
+            "title": "Naive Exceeds Official",
+            "type": "boolean"
+          },
+          "official": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Official"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceBreakdown"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "match",
+              "diff",
+              "no_official",
+              "no_computed",
+              "no_data"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "date",
+          "type",
+          "unit",
+          "official",
+          "computed",
+          "naive",
+          "diff",
+          "diff_pct",
+          "status",
+          "naive_exceeds_official",
+          "sources"
+        ],
+        "title": "ReconciliationRow",
+        "type": "object"
+      },
+      "ReconciliationSummary": {
+        "properties": {
+          "diffs": {
+            "title": "Diffs",
+            "type": "integer"
+          },
+          "matches": {
+            "title": "Matches",
+            "type": "integer"
+          },
+          "no_official": {
+            "title": "No Official",
+            "type": "integer"
+          },
+          "overlap_rows": {
+            "title": "Overlap Rows",
+            "type": "integer"
+          },
+          "rows": {
+            "title": "Rows",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rows",
+          "matches",
+          "diffs",
+          "no_official",
+          "overlap_rows"
+        ],
+        "title": "ReconciliationSummary",
         "type": "object"
       },
       "RecordIn": {
@@ -778,6 +1296,255 @@
         "title": "Rejection",
         "type": "object"
       },
+      "RejectionTally": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "reason",
+          "count"
+        ],
+        "title": "RejectionTally",
+        "type": "object"
+      },
+      "SeriesPoint": {
+        "properties": {
+          "n": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Samples/records behind the value, if known",
+            "title": "N"
+          },
+          "t": {
+            "description": "Local day (YYYY-MM-DD) or local datetime with offset",
+            "title": "T",
+            "type": "string"
+          },
+          "v": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "V"
+          }
+        },
+        "required": [
+          "t",
+          "v"
+        ],
+        "title": "SeriesPoint",
+        "type": "object"
+      },
+      "SeriesResponse": {
+        "properties": {
+          "agg": {
+            "enum": [
+              "sum",
+              "avg",
+              "min",
+              "max",
+              "count"
+            ],
+            "title": "Agg",
+            "type": "string"
+          },
+          "bucket": {
+            "enum": [
+              "15min",
+              "hour",
+              "day",
+              "week",
+              "month"
+            ],
+            "title": "Bucket",
+            "type": "string"
+          },
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/SeriesPoint"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "source": {
+            "enum": [
+              "auto",
+              "official",
+              "computed"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "source_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Days served by hc_official / computed (day-level buckets only)",
+            "title": "Source Counts",
+            "type": "object"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/SeriesSummary"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "to": {
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "type",
+          "unit",
+          "bucket",
+          "agg",
+          "from",
+          "to",
+          "timezone",
+          "source",
+          "source_counts",
+          "points",
+          "summary"
+        ],
+        "title": "SeriesResponse",
+        "type": "object"
+      },
+      "SeriesSummary": {
+        "properties": {
+          "avg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg"
+          },
+          "first": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First"
+          },
+          "last": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last"
+          },
+          "max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          },
+          "points": {
+            "description": "Buckets with a value",
+            "title": "Points",
+            "type": "integer"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          }
+        },
+        "required": [
+          "points"
+        ],
+        "title": "SeriesSummary",
+        "type": "object"
+      },
       "SessionInfo": {
         "properties": {
           "expires_at": {
@@ -795,6 +1562,140 @@
           "expires_at"
         ],
         "title": "SessionInfo",
+        "type": "object"
+      },
+      "SleepSummary": {
+        "properties": {
+          "asleep_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "official if present, else computed",
+            "title": "Asleep S"
+          },
+          "computed_asleep_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Computed Asleep S"
+          },
+          "date": {
+            "description": "Wake-up day",
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End"
+          },
+          "in_bed_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "In Bed S"
+          },
+          "official_asleep_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Official Asleep S"
+          },
+          "sessions": {
+            "default": 0,
+            "title": "Sessions",
+            "type": "integer"
+          },
+          "stages_s": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "default": {},
+            "title": "Stages S",
+            "type": "object"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          }
+        },
+        "required": [
+          "date",
+          "asleep_s"
+        ],
+        "title": "SleepSummary",
+        "type": "object"
+      },
+      "SourceBreakdown": {
+        "properties": {
+          "counted": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Share kept after de-duplication (cumulative types only)",
+            "title": "Counted"
+          },
+          "package": {
+            "title": "Package",
+            "type": "string"
+          },
+          "raw": {
+            "description": "Sum of this source's records, ignoring all others",
+            "title": "Raw",
+            "type": "number"
+          },
+          "records": {
+            "title": "Records",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "package",
+          "records",
+          "raw"
+        ],
+        "title": "SourceBreakdown",
         "type": "object"
       },
       "SourceIn": {
@@ -832,6 +1733,102 @@
           "package"
         ],
         "title": "SourceIn",
+        "type": "object"
+      },
+      "SourceInventory": {
+        "properties": {
+          "first": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First"
+          },
+          "last": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last"
+          },
+          "package": {
+            "title": "Package",
+            "type": "string"
+          },
+          "records": {
+            "title": "Records",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "package",
+          "records",
+          "first",
+          "last"
+        ],
+        "title": "SourceInventory",
+        "type": "object"
+      },
+      "SourceTotals": {
+        "properties": {
+          "first": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First"
+          },
+          "last": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last"
+          },
+          "package": {
+            "title": "Package",
+            "type": "string"
+          },
+          "records": {
+            "title": "Records",
+            "type": "integer"
+          },
+          "types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Types",
+            "type": "array"
+          }
+        },
+        "required": [
+          "package",
+          "records",
+          "types",
+          "first",
+          "last"
+        ],
+        "title": "SourceTotals",
         "type": "object"
       },
       "SyncErrorIn": {
@@ -1096,6 +2093,296 @@
         "title": "SyncRunInfo",
         "type": "object"
       },
+      "SyncRunRow": {
+        "properties": {
+          "aggregates": {
+            "title": "Aggregates",
+            "type": "integer"
+          },
+          "deletions": {
+            "title": "Deletions",
+            "type": "integer"
+          },
+          "device_id": {
+            "title": "Device Id",
+            "type": "string"
+          },
+          "device_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Name"
+          },
+          "duration_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S"
+          },
+          "errors": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "inserted": {
+            "title": "Inserted",
+            "type": "integer"
+          },
+          "last_activity_at": {
+            "format": "date-time",
+            "title": "Last Activity At",
+            "type": "string"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          },
+          "received": {
+            "title": "Received",
+            "type": "integer"
+          },
+          "rejected": {
+            "title": "Rejected",
+            "type": "integer"
+          },
+          "rejections": {
+            "items": {
+              "$ref": "#/components/schemas/RejectionTally"
+            },
+            "title": "Rejections",
+            "type": "array"
+          },
+          "reported_counts": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reported Counts"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "sync_id": {
+            "title": "Sync Id",
+            "type": "string"
+          },
+          "unchanged": {
+            "title": "Unchanged",
+            "type": "integer"
+          },
+          "updated": {
+            "title": "Updated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sync_id",
+          "device_id",
+          "device_name",
+          "mode",
+          "status",
+          "started_at",
+          "finished_at",
+          "duration_s",
+          "last_activity_at",
+          "received",
+          "inserted",
+          "updated",
+          "unchanged",
+          "rejected",
+          "deletions",
+          "aggregates",
+          "reported_counts",
+          "rejections",
+          "errors"
+        ],
+        "title": "SyncRunRow",
+        "type": "object"
+      },
+      "SyncStatusResponse": {
+        "properties": {
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/DeviceRow"
+            },
+            "title": "Devices",
+            "type": "array"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "last_activity_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Activity At"
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/SyncRunRow"
+            },
+            "title": "Runs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "generated_at",
+          "last_success_at",
+          "last_activity_at",
+          "devices",
+          "runs"
+        ],
+        "title": "SyncStatusResponse",
+        "type": "object"
+      },
+      "TodaySummary": {
+        "properties": {
+          "active_kcal": {
+            "$ref": "#/components/schemas/MetricValue"
+          },
+          "activities": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityItem"
+            },
+            "title": "Activities",
+            "type": "array"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "distance_m": {
+            "$ref": "#/components/schemas/MetricValue"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "heart": {
+            "$ref": "#/components/schemas/HeartSummary"
+          },
+          "hrv": {
+            "$ref": "#/components/schemas/MetricValue"
+          },
+          "last_sync_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Sync At"
+          },
+          "sleep": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SleepSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "spo2": {
+            "$ref": "#/components/schemas/MetricValue"
+          },
+          "steps": {
+            "$ref": "#/components/schemas/MetricValue"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "total_kcal": {
+            "$ref": "#/components/schemas/MetricValue"
+          }
+        },
+        "required": [
+          "date",
+          "timezone",
+          "generated_at",
+          "steps",
+          "distance_m",
+          "active_kcal",
+          "total_kcal",
+          "heart",
+          "sleep",
+          "spo2",
+          "hrv",
+          "activities",
+          "last_sync_at"
+        ],
+        "title": "TodaySummary",
+        "type": "object"
+      },
       "TokenCreate": {
         "additionalProperties": false,
         "properties": {
@@ -1228,6 +2515,95 @@
           "revoked_at"
         ],
         "title": "TokenInfo",
+        "type": "object"
+      },
+      "TypeInventory": {
+        "properties": {
+          "computed_days": {
+            "title": "Computed Days",
+            "type": "integer"
+          },
+          "deleted": {
+            "title": "Deleted",
+            "type": "integer"
+          },
+          "first": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First"
+          },
+          "last": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last"
+          },
+          "official_days": {
+            "title": "Official Days",
+            "type": "integer"
+          },
+          "records": {
+            "title": "Records",
+            "type": "integer"
+          },
+          "samples": {
+            "title": "Samples",
+            "type": "integer"
+          },
+          "shape": {
+            "title": "Shape",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceInventory"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "type",
+          "unit",
+          "shape",
+          "records",
+          "deleted",
+          "samples",
+          "first",
+          "last",
+          "official_days",
+          "computed_days",
+          "sources"
+        ],
+        "title": "TypeInventory",
         "type": "object"
       },
       "ValidationError": {
@@ -1624,6 +3000,132 @@
         ]
       }
     },
+    "/api/v1/data/inventory": {
+      "get": {
+        "operationId": "data_inventory_api_v1_data_inventory_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          }
+        },
+        "summary": "What is stored: counts per type and per source, first/last record",
+        "tags": [
+          "dashboard"
+        ]
+      }
+    },
+    "/api/v1/data/reconciliation": {
+      "get": {
+        "operationId": "data_reconciliation_api_v1_data_reconciliation_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "description": "Comma-separated record types",
+            "in": "query",
+            "name": "types",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated record types",
+              "title": "Types"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReconciliationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Official Health Connect daily totals vs totals computed from raw records",
+        "tags": [
+          "dashboard"
+        ]
+      }
+    },
     "/api/v1/health": {
       "get": {
         "operationId": "health_api_v1_health_get",
@@ -1889,6 +3391,158 @@
         ]
       }
     },
+    "/api/v1/metrics/{type_name}/series": {
+      "get": {
+        "operationId": "metric_series_api_v1_metrics__type_name__series_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "type_name",
+            "required": true,
+            "schema": {
+              "title": "Type Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "bucket",
+            "required": false,
+            "schema": {
+              "default": "auto",
+              "enum": [
+                "auto",
+                "15min",
+                "hour",
+                "day",
+                "week",
+                "month"
+              ],
+              "title": "Bucket",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "agg",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "sum",
+                    "avg",
+                    "min",
+                    "max",
+                    "count"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agg"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "default": "auto",
+              "enum": [
+                "auto",
+                "official",
+                "computed"
+              ],
+              "title": "Source",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Bucketed time series for one record type",
+        "tags": [
+          "dashboard"
+        ]
+      }
+    },
     "/api/v1/ping": {
       "get": {
         "operationId": "ping_api_v1_ping_get",
@@ -1917,6 +3571,121 @@
         "summary": "Check connectivity and ingest token",
         "tags": [
           "public"
+        ]
+      }
+    },
+    "/api/v1/summary/today": {
+      "get": {
+        "operationId": "summary_today_api_v1_summary_today_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TodaySummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Snapshot of a local day (default: today, Europe/Rome)",
+        "tags": [
+          "dashboard"
+        ]
+      }
+    },
+    "/api/v1/sync/status": {
+      "get": {
+        "operationId": "sync_status_api_v1_sync_status_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Devices and recent sync runs (with refused records and Reader errors)",
+        "tags": [
+          "dashboard"
         ]
       }
     }

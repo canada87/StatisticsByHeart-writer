@@ -80,6 +80,22 @@ async def _bump(session: AsyncSession, sync_id: uuid.UUID, **deltas: int) -> Non
     )
 
 
+async def _record_rejections(
+    session: AsyncSession, sync_id: uuid.UUID, rejected: list[Rejection]
+) -> None:
+    """Tally refused items per (type, reason): counts + first message, never values."""
+    if not rejected:
+        return
+    current = (
+        await session.execute(select(SyncRun.rejections).where(SyncRun.id == sync_id))
+    ).scalar_one_or_none() or {}
+    for r in rejected:
+        key = f"{r.type or '?'}|{r.reason}"
+        entry = current.setdefault(key, {"count": 0, "detail": r.detail})
+        entry["count"] += 1
+    await session.execute(update(SyncRun).where(SyncRun.id == sync_id).values(rejections=current))
+
+
 def _reject(index: int, raw: Any, exc: ValidationError | None, model: type[BaseModel]) -> Rejection:
     hc_id = raw.get("hc_id") if isinstance(raw, dict) else None
     type_ = raw.get("type") if isinstance(raw, dict) else None
@@ -247,6 +263,7 @@ async def ingest_records(
     await recompute_days(session, touched, settings)
 
     inserted, updated = len(to_insert), len(to_update)
+    await _record_rejections(session, batch.sync_id, rejected)
     await _bump(
         session,
         batch.sync_id,
@@ -374,6 +391,7 @@ async def ingest_deletions(
         )
         await recompute_days(session, touched, settings)
 
+    await _record_rejections(session, batch.sync_id, rejected)
     await _bump(
         session,
         batch.sync_id,
@@ -508,6 +526,7 @@ async def ingest_daily_aggregates(
             )
         )
 
+    await _record_rejections(session, batch.sync_id, rejected)
     await _bump(
         session, batch.sync_id, aggregates_upserted=len(rows), records_rejected=len(rejected)
     )

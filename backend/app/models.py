@@ -110,6 +110,8 @@ class SyncRun(Base):
     # What the Reader reported in /ingest/sync-report.
     reported_counts: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     errors: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
+    # Records refused by the writer: {"<type>|<reason>": {"count": n, "detail": "first message"}}.
+    rejections: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
 
     __table_args__ = (
         CheckConstraint(

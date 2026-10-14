@@ -117,14 +117,16 @@ def _num(data: dict[str, Any], key: str) -> float:
     return float(v) if isinstance(v, int | float) else 0.0
 
 
-def sum_for_day(rows: list[Row], key: str, priority: list[str]) -> Metric:
+def counted_values(
+    rows: list[Row], key: str, priority: list[str]
+) -> tuple[list[tuple[Row, float, float]], dict[str, dict[str, float]]]:
+    """(row, counted value, counted fraction) per record after de-dup, plus per-source stats."""
     grouped = _by_source(rows)
     totals = {p: sum(_num(r.data, key) for r in rs) for p, rs in grouped.items()}
     ranks = rank_sources(totals, priority)
     coverage = Coverage()
     by_source: dict[str, dict[str, float]] = {}
-    total = 0.0
-    counted_records = 0
+    counted_rows: list[tuple[Row, float, float]] = []
     for source in sorted(grouped, key=lambda p: ranks[p]):
         counted = 0.0
         for r in grouped[source]:
@@ -133,19 +135,23 @@ def sum_for_day(rows: list[Row], key: str, priority: list[str]) -> Metric:
                 fraction = 1.0 - coverage.overlap(s, e) / (e - s)
             else:
                 fraction = 0.0 if coverage.covers_point(s) else 1.0
-            if fraction > 0:
-                counted_records += 1
-            counted += _num(r.data, key) * fraction
+            value = _num(r.data, key) * fraction
+            counted += value
+            counted_rows.append((r, value, fraction))
         coverage.add_all(_span(r) for r in grouped[source])
-        total += counted
         by_source[source] = {
             "records": len(grouped[source]),
             "raw": round(totals[source], 4),
             "counted": round(counted, 4),
         }
+    return counted_rows, by_source
+
+
+def sum_for_day(rows: list[Row], key: str, priority: list[str]) -> Metric:
+    counted_rows, by_source = counted_values(rows, key, priority)
     return Metric(
-        sum=total,
-        count=counted_records,
+        sum=sum(v for _, v, _f in counted_rows),
+        count=sum(1 for _, _v, f in counted_rows if f > 0),
         detail={"method": "priority_interval_subtraction", "by_source": by_source},
     )
 

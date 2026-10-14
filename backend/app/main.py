@@ -15,7 +15,7 @@ from app.deps import require_admin
 from app.errors import install_error_handlers
 from app.middleware import BodyGuardMiddleware
 from app.ratelimit import LoginLimiter
-from app.routers import admin, auth, ingest, public
+from app.routers import admin, auth, dashboard, ingest, public
 from app.scheduler import build_scheduler
 
 VERSION = "0.1.0"
@@ -86,6 +86,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(ingest.router)
     app.include_router(auth.router)
     app.include_router(admin.router)
+    app.include_router(dashboard.router)
 
     if settings.enable_docs:
         _install_docs(app)
