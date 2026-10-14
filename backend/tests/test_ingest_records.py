@@ -30,7 +30,12 @@ async def test_same_batch_twice_creates_no_duplicates(
     client: httpx.AsyncClient, auth: dict[str, str], app: FastAPI
 ) -> None:
     first = await post_records(client, auth, _batch())
-    assert (first["received"], first["inserted"], first["updated"], first["unchanged"]) == (3, 3, 0, 0)
+    assert (first["received"], first["inserted"], first["updated"], first["unchanged"]) == (
+        3,
+        3,
+        0,
+        0,
+    )
     assert first["rejected"] == []
 
     second = await post_records(client, auth, _batch())
@@ -79,7 +84,9 @@ async def test_invalid_records_are_rejected_individually(
     unknown_field["data"]["secret_extra"] = 1
 
     result = await post_records(
-        client, auth, [bad_value, good, bad_type, naive, missing_end, unknown_field, {"nonsense": True}]
+        client,
+        auth,
+        [bad_value, good, bad_type, naive, missing_end, unknown_field, {"nonsense": True}],
     )
     assert result["received"] == 7 and result["inserted"] == 1
     by_index = {r["index"]: r for r in result["rejected"]}
@@ -101,9 +108,7 @@ async def test_duplicate_inside_batch_keeps_latest(
     assert await scalar(app, "SELECT (data->>'value')::float FROM health_record") == 120
 
 
-async def test_batch_over_limit_is_413(
-    client: httpx.AsyncClient, auth: dict[str, str]
-) -> None:
+async def test_batch_over_limit_is_413(client: httpx.AsyncClient, auth: dict[str, str]) -> None:
     body = records_body([steps(f"s{i}", *A, 1) for i in range(501)])
     r = await post(client, auth, "records", body)
     assert r.status_code == 413
@@ -127,7 +132,9 @@ async def test_invalid_json_and_corrupt_gzip(
     client: httpx.AsyncClient, auth: dict[str, str]
 ) -> None:
     r = await client.post(
-        "/api/v1/ingest/records", content=b"{nope", headers={**auth, "Content-Type": "application/json"}
+        "/api/v1/ingest/records",
+        content=b"{nope",
+        headers={**auth, "Content-Type": "application/json"},
     )
     assert r.status_code == 422  # FastAPI's JSON decode error is a validation error
     r = await client.post(
@@ -146,7 +153,10 @@ async def test_heart_rate_samples_are_exploded_and_idempotent(
     ]
     samples.append(samples[0])  # duplicate timestamp inside the record collapses
     hr = record(
-        "HeartRate", "hr1", "2026-10-14T10:00:00+02:00", "2026-10-14T10:30:00+02:00",
+        "HeartRate",
+        "hr1",
+        "2026-10-14T10:00:00+02:00",
+        "2026-10-14T10:30:00+02:00",
         {"samples": samples},
     )
     assert (await post_records(client, auth, [hr]))["inserted"] == 1
@@ -157,8 +167,12 @@ async def test_heart_rate_samples_are_exploded_and_idempotent(
 
     # a modified record replaces its samples (no leftovers)
     hr2 = record(
-        "HeartRate", "hr1", "2026-10-14T10:00:00+02:00", "2026-10-14T10:30:00+02:00",
-        {"samples": samples[:2]}, last_modified="2026-10-14T22:00:00Z",
+        "HeartRate",
+        "hr1",
+        "2026-10-14T10:00:00+02:00",
+        "2026-10-14T10:30:00+02:00",
+        {"samples": samples[:2]},
+        last_modified="2026-10-14T22:00:00Z",
     )
     assert (await post_records(client, auth, [hr2]))["updated"] == 1
     assert await scalar(app, "SELECT count(*) FROM health_sample") == 2
@@ -168,15 +182,28 @@ async def test_deletion_soft_deletes_and_recomputes(
     client: httpx.AsyncClient, auth: dict[str, str], app: FastAPI
 ) -> None:
     hr = record(
-        "HeartRate", "hr1", "2026-10-14T10:00:00+02:00", "2026-10-14T10:10:00+02:00",
+        "HeartRate",
+        "hr1",
+        "2026-10-14T10:00:00+02:00",
+        "2026-10-14T10:10:00+02:00",
         {"samples": [{"time": "2026-10-14T10:00:00+02:00", "value": 70}]},
     )
     await post_records(client, auth, [steps("s1", *A, 100), steps("s2", *A, 50, pkg="pkg.b"), hr])
 
     r = await post(
-        client, auth, "deletions",
-        {"device_id": DEVICE, "sync_id": SYNC,
-         "items": [{"hc_id": "s1"}, {"hc_id": "hr1", "type": "HeartRate"}, {"hc_id": "ghost"}, {"nonsense": True}]},
+        client,
+        auth,
+        "deletions",
+        {
+            "device_id": DEVICE,
+            "sync_id": SYNC,
+            "items": [
+                {"hc_id": "s1"},
+                {"hc_id": "hr1", "type": "HeartRate"},
+                {"hc_id": "ghost"},
+                {"nonsense": True},
+            ],
+        },
     )
     assert r.status_code == 200, r.text
     body = r.json()
@@ -191,7 +218,10 @@ async def test_deletion_soft_deletes_and_recomputes(
 
     # deleting again is reported, not an error
     again = await post(
-        client, auth, "deletions", {"device_id": DEVICE, "sync_id": SYNC, "items": [{"hc_id": "s1"}]}
+        client,
+        auth,
+        "deletions",
+        {"device_id": DEVICE, "sync_id": SYNC, "items": [{"hc_id": "s1"}]},
     )
     assert again.json()["already_deleted"] == 1 and again.json()["deleted"] == 0
 
@@ -201,13 +231,20 @@ async def test_deleted_record_is_not_resurrected_by_stale_resend(
 ) -> None:
     rec = steps("s1", *A, 100)
     await post_records(client, auth, [rec])
-    await post(client, auth, "deletions", {"device_id": DEVICE, "sync_id": SYNC, "items": [{"hc_id": "s1"}]})
+    await post(
+        client,
+        auth,
+        "deletions",
+        {"device_id": DEVICE, "sync_id": SYNC, "items": [{"hc_id": "s1"}]},
+    )
 
     stale = await post_records(client, auth, [rec])  # same last_modified: a retried old batch
     assert stale["unchanged"] == 1
     assert await scalar(app, "SELECT deleted_at IS NOT NULL FROM health_record") is True
 
-    revived = await post_records(client, auth, [steps("s1", *A, 100, last_modified="2026-10-15T00:00:00Z")])
+    revived = await post_records(
+        client, auth, [steps("s1", *A, 100, last_modified="2026-10-15T00:00:00Z")]
+    )
     assert revived["updated"] == 1
     assert await scalar(app, "SELECT deleted_at IS NULL FROM health_record") is True
     assert await scalar(app, "SELECT sum_value FROM daily_metric WHERE type='Steps'") == 100
@@ -218,11 +255,19 @@ async def test_sync_run_counters_and_report(
 ) -> None:
     await post_records(client, auth, [steps("s1", *A, 1), {"bad": 1}])
     r = await post(
-        client, auth, "sync-report",
-        {"device_id": DEVICE, "sync_id": SYNC, "mode": "incremental", "status": "partial",
-         "started_at": "2026-10-14T08:00:00Z", "finished_at": "2026-10-14T08:00:05Z",
-         "counts": {"records_sent": 2},
-         "errors": [{"code": "type_read_failed", "type": "Power", "count": 1}]},
+        client,
+        auth,
+        "sync-report",
+        {
+            "device_id": DEVICE,
+            "sync_id": SYNC,
+            "mode": "incremental",
+            "status": "partial",
+            "started_at": "2026-10-14T08:00:00Z",
+            "finished_at": "2026-10-14T08:00:05Z",
+            "counts": {"records_sent": 2},
+            "errors": [{"code": "type_read_failed", "type": "Power", "count": 1}],
+        },
     )
     assert r.status_code == 200 and r.json() == {"ok": True, "sync_id": SYNC}
     run = (

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter
 
 from app.config import Settings
@@ -20,7 +22,7 @@ from app.services import ingest as svc
 
 router = APIRouter(prefix="/api/v1/ingest", tags=["ingest"])
 
-_ERRORS = {
+_ERRORS: dict[int | str, dict[str, Any]] = {
     401: {"model": ErrorResponse},
     413: {"model": ErrorResponse},
     422: {"model": ErrorResponse},

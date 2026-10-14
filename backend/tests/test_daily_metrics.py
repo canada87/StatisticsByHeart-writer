@@ -29,9 +29,13 @@ async def test_identical_overlapping_sources_are_not_double_counted(
 ) -> None:
     a = ("2026-10-14T08:00:00+02:00", "2026-10-14T08:15:00+02:00")
     await post_records(
-        client, auth,
-        [steps("fit", *a, 1000, pkg="fit"), steps("feelfit", *a, 900, pkg="feelfit"),
-         steps("withings", *a, 1000, pkg="withings")],
+        client,
+        auth,
+        [
+            steps("fit", *a, 1000, pkg="fit"),
+            steps("feelfit", *a, 900, pkg="feelfit"),
+            steps("withings", *a, 1000, pkg="withings"),
+        ],
     )
     row = await computed(app, "Steps", DAY)
     assert row[0] == 1000
@@ -44,10 +48,17 @@ async def test_partial_overlap_counts_only_the_uncovered_share(
     client: httpx.AsyncClient, auth: dict[str, str], app: FastAPI
 ) -> None:
     await post_records(
-        client, auth,
-        [steps("phone", "2026-10-14T08:00:00+02:00", "2026-10-14T08:15:00+02:00", 1000, pkg="phone"),
-         # watch covers 08:07:30-08:22:30: half of it overlaps the phone
-         steps("watch", "2026-10-14T08:07:30+02:00", "2026-10-14T08:22:30+02:00", 600, pkg="watch")],
+        client,
+        auth,
+        [
+            steps(
+                "phone", "2026-10-14T08:00:00+02:00", "2026-10-14T08:15:00+02:00", 1000, pkg="phone"
+            ),
+            # watch covers 08:07:30-08:22:30: half of it overlaps the phone
+            steps(
+                "watch", "2026-10-14T08:07:30+02:00", "2026-10-14T08:22:30+02:00", 600, pkg="watch"
+            ),
+        ],
     )
     assert (await computed(app, "Steps", DAY))[0] == pytest.approx(1000 + 300)
 
@@ -56,9 +67,16 @@ async def test_disjoint_sources_add_up(
     client: httpx.AsyncClient, auth: dict[str, str], app: FastAPI
 ) -> None:
     await post_records(
-        client, auth,
-        [steps("phone", "2026-10-14T08:00:00+02:00", "2026-10-14T08:15:00+02:00", 1000, pkg="phone"),
-         steps("watch", "2026-10-14T09:00:00+02:00", "2026-10-14T09:15:00+02:00", 500, pkg="watch")],
+        client,
+        auth,
+        [
+            steps(
+                "phone", "2026-10-14T08:00:00+02:00", "2026-10-14T08:15:00+02:00", 1000, pkg="phone"
+            ),
+            steps(
+                "watch", "2026-10-14T09:00:00+02:00", "2026-10-14T09:15:00+02:00", 500, pkg="watch"
+            ),
+        ],
     )
     assert (await computed(app, "Steps", DAY))[0] == 1500
 
@@ -81,13 +99,22 @@ async def test_official_aggregates_are_stored_apart_and_idempotent(
     await post_records(client, auth, [steps("fit", *a, 1000, pkg="fit")])
 
     def body(value: float, snapshot: str) -> dict:
-        return {"device_id": DEVICE, "sync_id": SYNC, "items": [
-            {"date": DAY, "type": "Steps", "sum": value, "data_origins": ["fit"],
-             "snapshot_at": snapshot},
-            {"date": DAY, "type": "SleepSession", "sum": 26340},
-            {"date": DAY, "type": "Steps"},  # no stats: rejected
-            {"date": DAY, "type": "Nope", "sum": 1},
-        ]}
+        return {
+            "device_id": DEVICE,
+            "sync_id": SYNC,
+            "items": [
+                {
+                    "date": DAY,
+                    "type": "Steps",
+                    "sum": value,
+                    "data_origins": ["fit"],
+                    "snapshot_at": snapshot,
+                },
+                {"date": DAY, "type": "SleepSession", "sum": 26340},
+                {"date": DAY, "type": "Steps"},  # no stats: rejected
+                {"date": DAY, "type": "Nope", "sum": 1},
+            ],
+        }
 
     r1 = (await post(client, auth, "daily-aggregates", body(1200, "2026-10-14T20:00:00Z"))).json()
     assert (r1["received"], r1["upserted"], r1["unchanged"], len(r1["rejected"])) == (4, 2, 0, 2)
@@ -105,7 +132,9 @@ async def test_official_aggregates_are_stored_apart_and_idempotent(
     assert stale["upserted"] == 0
     assert (await computed(app, "Steps", DAY, "hc_official"))[0] == 1200
 
-    newer = (await post(client, auth, "daily-aggregates", body(1300, "2026-10-14T23:00:00Z"))).json()
+    newer = (
+        await post(client, auth, "daily-aggregates", body(1300, "2026-10-14T23:00:00Z"))
+    ).json()
     assert newer["upserted"] == 1
     assert (await computed(app, "Steps", DAY, "hc_official"))[0] == 1300
 
@@ -114,14 +143,38 @@ async def test_sleep_sessions_from_two_sources_count_once(
     client: httpx.AsyncClient, auth: dict[str, str], app: FastAPI
 ) -> None:
     stages = [
-        {"stage": "light", "start_time": "2026-10-13T23:00:00+02:00", "end_time": "2026-10-14T02:00:00+02:00"},
-        {"stage": "awake", "start_time": "2026-10-14T02:00:00+02:00", "end_time": "2026-10-14T02:30:00+02:00"},
-        {"stage": "deep", "start_time": "2026-10-14T02:30:00+02:00", "end_time": "2026-10-14T06:30:00+02:00"},
+        {
+            "stage": "light",
+            "start_time": "2026-10-13T23:00:00+02:00",
+            "end_time": "2026-10-14T02:00:00+02:00",
+        },
+        {
+            "stage": "awake",
+            "start_time": "2026-10-14T02:00:00+02:00",
+            "end_time": "2026-10-14T02:30:00+02:00",
+        },
+        {
+            "stage": "deep",
+            "start_time": "2026-10-14T02:30:00+02:00",
+            "end_time": "2026-10-14T06:30:00+02:00",
+        },
     ]
-    watch = record("SleepSession", "w", "2026-10-13T23:00:00+02:00", "2026-10-14T06:30:00+02:00",
-                   {"stages": stages}, pkg="watch")
-    phone = record("SleepSession", "p", "2026-10-13T23:10:00+02:00", "2026-10-14T06:20:00+02:00",
-                   {}, pkg="phone")
+    watch = record(
+        "SleepSession",
+        "w",
+        "2026-10-13T23:00:00+02:00",
+        "2026-10-14T06:30:00+02:00",
+        {"stages": stages},
+        pkg="watch",
+    )
+    phone = record(
+        "SleepSession",
+        "p",
+        "2026-10-13T23:10:00+02:00",
+        "2026-10-14T06:20:00+02:00",
+        {},
+        pkg="phone",
+    )
     await post_records(client, auth, [watch, phone])
     row = await computed(app, "SleepSession", DAY)
     assert row[0] == (3 + 4) * 3600  # awake time excluded, phone duplicate dropped
@@ -134,10 +187,13 @@ async def test_same_weight_mirrored_by_two_apps_counts_once(
 ) -> None:
     t = "2026-10-14T07:10:00+02:00"
     await post_records(
-        client, auth,
-        [record("Weight", "a", t, None, {"value": 78.0}, pkg="scale"),
-         record("Weight", "b", t, None, {"value": 78.0}, pkg="phone"),
-         record("Weight", "c", "2026-10-14T21:00:00+02:00", None, {"value": 79.0}, pkg="scale")],
+        client,
+        auth,
+        [
+            record("Weight", "a", t, None, {"value": 78.0}, pkg="scale"),
+            record("Weight", "b", t, None, {"value": 78.0}, pkg="phone"),
+            record("Weight", "c", "2026-10-14T21:00:00+02:00", None, {"value": 79.0}, pkg="scale"),
+        ],
     )
     row = await computed(app, "Weight", DAY)
     assert row[4] == 2  # count
@@ -148,15 +204,27 @@ async def test_same_weight_mirrored_by_two_apps_counts_once(
 async def test_heart_rate_daily_stats_and_exercise_dedupe(
     client: httpx.AsyncClient, auth: dict[str, str], app: FastAPI
 ) -> None:
-    hr = record("HeartRate", "hr", "2026-10-14T10:00:00+02:00", "2026-10-14T10:10:00+02:00",
-                {"samples": [{"time": f"2026-10-14T10:0{i}:00+02:00", "value": v}
-                             for i, v in enumerate([50, 70, 90])]})
+    hr = record(
+        "HeartRate",
+        "hr",
+        "2026-10-14T10:00:00+02:00",
+        "2026-10-14T10:10:00+02:00",
+        {
+            "samples": [
+                {"time": f"2026-10-14T10:0{i}:00+02:00", "value": v}
+                for i, v in enumerate([50, 70, 90])
+            ]
+        },
+    )
     walk = ("2026-10-14T18:00:00+02:00", "2026-10-14T18:30:00+02:00")
     await post_records(
-        client, auth,
-        [hr,
-         record("ExerciseSession", "e1", *walk, {"exercise_type": "WALKING"}, pkg="watch"),
-         record("ExerciseSession", "e2", *walk, {"exercise_type": "WALKING"}, pkg="phone")],
+        client,
+        auth,
+        [
+            hr,
+            record("ExerciseSession", "e1", *walk, {"exercise_type": "WALKING"}, pkg="watch"),
+            record("ExerciseSession", "e2", *walk, {"exercise_type": "WALKING"}, pkg="phone"),
+        ],
     )
     row = await computed(app, "HeartRate", DAY)
     assert (row[1], row[2], row[3], row[4]) == (70, 50, 90, 3)

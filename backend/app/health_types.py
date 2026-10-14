@@ -45,7 +45,9 @@ class _Strict(BaseModel):
 # --------------------------------------------------------------------------- data models
 
 
-def _scalar(name: str, lo: float, hi: float, **extra: tuple[type | object, object]) -> type[BaseModel]:
+def _scalar(
+    name: str, lo: float, hi: float, **extra: tuple[type | object, object]
+) -> type[BaseModel]:
     """``{"value": float}`` bounded to [lo, hi], plus optional extra fields."""
     fields: dict[str, tuple[type | object, object]] = {
         "value": (Annotated[float, Field(ge=lo, le=hi, allow_inf_nan=False)], ...),
@@ -108,7 +110,9 @@ class NutritionData(_Strict):
     energy_kcal: Annotated[float, Field(ge=0, le=100_000, allow_inf_nan=False)] | None = None
     protein_g: Annotated[float, Field(ge=0, le=10_000, allow_inf_nan=False)] | None = None
     total_fat_g: Annotated[float, Field(ge=0, le=10_000, allow_inf_nan=False)] | None = None
-    total_carbohydrate_g: Annotated[float, Field(ge=0, le=10_000, allow_inf_nan=False)] | None = None
+    total_carbohydrate_g: Annotated[float, Field(ge=0, le=10_000, allow_inf_nan=False)] | None = (
+        None
+    )
     dietary_fiber_g: Annotated[float, Field(ge=0, le=10_000, allow_inf_nan=False)] | None = None
     sugar_g: Annotated[float, Field(ge=0, le=10_000, allow_inf_nan=False)] | None = None
 
@@ -159,7 +163,9 @@ def _cumulative(name: str, unit: str, hi: float) -> None:
     _register(name, Shape.INTERVAL, DailyKind.SUM, unit, _scalar(f"{name}Data", 0, hi))
 
 
-def _instant(name: str, unit: str, lo: float, hi: float, **extra: tuple[type | object, object]) -> None:
+def _instant(
+    name: str, unit: str, lo: float, hi: float, **extra: tuple[type | object, object]
+) -> None:
     _register(name, Shape.INSTANT, DailyKind.INSTANT, unit, _scalar(f"{name}Data", lo, hi, **extra))
 
 
@@ -217,9 +223,7 @@ _instant(
 _instant("BodyTemperature", "celsius", 20, 50, measurement_location=_OPT_STR)
 _series("SkinTemperature", "celsius_delta")
 _cumulative("Hydration", "L", 1_000)
-_register(
-    "Nutrition", Shape.INTERVAL, DailyKind.SUM, "kcal", NutritionData, ("energy_kcal",)
-)
+_register("Nutrition", Shape.INTERVAL, DailyKind.SUM, "kcal", NutritionData, ("energy_kcal",))
 _register("MindfulnessSession", Shape.SESSION, DailyKind.SESSION, None, MindfulnessData, ())
 
 # Sleep stages that do not count as "asleep" when summing sleep time.

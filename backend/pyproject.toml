@@ -56,6 +56,7 @@ filterwarnings = ["ignore::DeprecationWarning:testcontainers.*"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
+files = ["app"]
 plugins = ["pydantic.mypy"]
 exclude = ["alembic/versions/"]
 

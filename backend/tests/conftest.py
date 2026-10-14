@@ -1,4 +1,4 @@
-"""Test harness: real PostgreSQL 16 (testcontainers, or SBH_TEST_DATABASE_URL), migrated by Alembic."""
+"""Test harness: real PostgreSQL 16 (testcontainers or SBH_TEST_DATABASE_URL), Alembic-migrated."""
 
 from __future__ import annotations
 
@@ -12,11 +12,11 @@ from pathlib import Path
 import httpx
 import pytest
 import pytest_asyncio
-from alembic import command
 from alembic.config import Config
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
+from alembic import command
 from app.config import Settings
 from app.main import create_app
 from app.models import IngestToken
@@ -97,9 +97,7 @@ async def client(app) -> AsyncIterator[httpx.AsyncClient]:  # type: ignore[no-un
 async def token(app) -> str:  # type: ignore[no-untyped-def]
     plaintext, token_hash, prefix = new_ingest_token()
     async with app.state.sessionmaker() as s:
-        s.add(
-            IngestToken(id=uuid.uuid4(), name="test", token_hash=token_hash, token_prefix=prefix)
-        )
+        s.add(IngestToken(id=uuid.uuid4(), name="test", token_hash=token_hash, token_prefix=prefix))
         await s.commit()
     return plaintext
 

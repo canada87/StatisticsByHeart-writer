@@ -38,16 +38,16 @@ async def test_steps_are_attributed_to_the_local_day_of_the_record(
     # 23:30 CEST on the 14th = 21:30Z: the 14th locally, whatever the offset says elsewhere.
     rome_evening = steps("a", "2026-10-14T23:30:00+02:00", "2026-10-14T23:45:00+02:00", 100)
     # 01:00Z on the 15th, but the phone was in UTC-5: still the 14th for the user.
-    traveller = steps(
-        "b", "2026-10-15T01:00:00Z", "2026-10-15T01:15:00Z", 40, offset=-5 * 3600
-    )
+    traveller = steps("b", "2026-10-15T01:00:00Z", "2026-10-15T01:15:00Z", 40, offset=-5 * 3600)
     # no offset: falls back to Rome (CEST): 22:30Z on the 14th is 00:30 on the 15th.
     no_offset = steps("c", "2026-10-14T22:30:00Z", "2026-10-14T22:45:00Z", 7, offset=None)
     await post_records(client, auth, [rome_evening, traveller, no_offset])
 
     by_day = {
         str(d): v
-        for d, v in await rows(app, "SELECT local_date, sum_value FROM daily_metric WHERE type='Steps'")
+        for d, v in await rows(
+            app, "SELECT local_date, sum_value FROM daily_metric WHERE type='Steps'"
+        )
     }
     assert by_day == {"2026-10-14": 140, "2026-10-15": 7}
     assert await scalar(app, "SELECT start_offset_s FROM health_record WHERE hc_id='b'") == -18000
@@ -74,15 +74,22 @@ async def test_heart_rate_samples_get_their_own_local_day(
     client: httpx.AsyncClient, auth: dict[str, str], app: FastAPI
 ) -> None:
     hr = record(
-        "HeartRate", "hr", "2026-10-14T23:55:00+02:00", "2026-10-15T00:05:00+02:00",
-        {"samples": [
-            {"time": "2026-10-14T23:58:00+02:00", "value": 60},
-            {"time": "2026-10-15T00:02:00+02:00", "value": 80},
-        ]},
+        "HeartRate",
+        "hr",
+        "2026-10-14T23:55:00+02:00",
+        "2026-10-15T00:05:00+02:00",
+        {
+            "samples": [
+                {"time": "2026-10-14T23:58:00+02:00", "value": 60},
+                {"time": "2026-10-15T00:02:00+02:00", "value": 80},
+            ]
+        },
     )
     await post_records(client, auth, [hr])
     got = {
         str(d): c
-        for d, c in await rows(app, "SELECT local_date, count FROM daily_metric WHERE type='HeartRate'")
+        for d, c in await rows(
+            app, "SELECT local_date, count FROM daily_metric WHERE type='HeartRate'"
+        )
     }
     assert got == {"2026-10-14": 1, "2026-10-15": 1}

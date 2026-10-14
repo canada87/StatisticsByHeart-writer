@@ -173,8 +173,11 @@ def instant_for_day(rows: list[Row], keys: tuple[str, ...], priority: list[str])
     if not primary:
         return Metric(count=0, detail=detail)
     return Metric(
-        avg=sum(primary) / len(primary), min=min(primary), max=max(primary),
-        count=len(primary), detail=detail,
+        avg=sum(primary) / len(primary),
+        min=min(primary),
+        max=max(primary),
+        count=len(primary),
+        detail=detail,
     )
 
 
@@ -240,7 +243,9 @@ def session_for_day(rows: list[Row], priority: list[str]) -> Metric:
     by_kind: dict[str, int] = defaultdict(int)
     by_source: dict[str, int] = defaultdict(int)
     for r in accepted:
-        by_kind[str(r.data.get("exercise_type") or r.data.get("mindfulness_type") or "unknown")] += 1
+        by_kind[
+            str(r.data.get("exercise_type") or r.data.get("mindfulness_type") or "unknown")
+        ] += 1
         by_source[r.source] += 1
     return Metric(
         sum=sum(_session_seconds(r) for r in accepted),
@@ -383,8 +388,15 @@ async def recompute_days(
                 set_={
                     c: stmt.excluded[c]
                     for c in (
-                        "sum_value", "avg_value", "min_value", "max_value", "count", "unit",
-                        "detail", "snapshot_at", "updated_at",
+                        "sum_value",
+                        "avg_value",
+                        "min_value",
+                        "max_value",
+                        "count",
+                        "unit",
+                        "detail",
+                        "snapshot_at",
+                        "updated_at",
                     )
                 },
             )

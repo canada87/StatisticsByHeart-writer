@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Query
 from sqlalchemy import select, update
@@ -13,7 +14,10 @@ from app.schemas import ErrorResponse, SyncRunInfo, TokenCreate, TokenCreated, T
 from app.security import new_ingest_token
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
-_AUTH = {401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}}
+_AUTH: dict[int | str, dict[str, Any]] = {
+    401: {"model": ErrorResponse},
+    403: {"model": ErrorResponse},
+}
 
 
 def _info(t: IngestToken) -> dict[str, object]:
@@ -40,13 +44,15 @@ async def create_token(body: TokenCreate, _: AdminAuth, session: Db) -> TokenCre
     session.add(token)
     await session.commit()
     await session.refresh(token)
-    return TokenCreated(**_info(token), token=plaintext)  # type: ignore[arg-type]
+    return TokenCreated(**_info(token), token=plaintext)
 
 
-@router.get("/tokens", response_model=list[TokenInfo], summary="List ingest tokens", responses=_AUTH)
+@router.get(
+    "/tokens", response_model=list[TokenInfo], summary="List ingest tokens", responses=_AUTH
+)
 async def list_tokens(_: AdminAuth, session: Db) -> list[TokenInfo]:
     rows = (await session.execute(select(IngestToken).order_by(IngestToken.created_at))).scalars()
-    return [TokenInfo(**_info(t)) for t in rows]  # type: ignore[arg-type]
+    return [TokenInfo(**_info(t)) for t in rows]
 
 
 @router.delete(
@@ -61,7 +67,9 @@ async def revoke_token(token_id: uuid.UUID, _: AdminAuth, session: Db) -> None:
         raise ApiError(404, "not_found", "No such token")
     if token.revoked_at is None:
         await session.execute(
-            update(IngestToken).where(IngestToken.id == token_id).values(revoked_at=datetime.now(UTC))
+            update(IngestToken)
+            .where(IngestToken.id == token_id)
+            .values(revoked_at=datetime.now(UTC))
         )
         await session.commit()
 
@@ -76,7 +84,9 @@ async def list_sync_runs(
     _: AdminAuth, session: Db, limit: int = Query(50, ge=1, le=200)
 ) -> list[SyncRunInfo]:
     rows = (
-        await session.execute(select(SyncRun).order_by(SyncRun.last_activity_at.desc()).limit(limit))
+        await session.execute(
+            select(SyncRun).order_by(SyncRun.last_activity_at.desc()).limit(limit)
+        )
     ).scalars()
     return [
         SyncRunInfo(

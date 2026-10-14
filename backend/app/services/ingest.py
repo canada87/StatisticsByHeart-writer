@@ -62,9 +62,7 @@ async def register_sync(
     values = meta.model_dump(exclude_none=True) if meta else {}
     dev = pg_insert(Device).values(id=device_id, first_seen_at=now, last_seen_at=now, **values)
     await session.execute(
-        dev.on_conflict_do_update(
-            index_elements=[Device.id], set_={"last_seen_at": now, **values}
-        )
+        dev.on_conflict_do_update(index_elements=[Device.id], set_={"last_seen_at": now, **values})
     )
     run = pg_insert(SyncRun).values(
         id=sync_id, device_id=device_id, token_id=token_id, started_at=now, last_activity_at=now
@@ -259,8 +257,15 @@ async def ingest_records(
         records_rejected=len(rejected),
     )
     log.info(
-        "ingest.records sync=%s received=%d inserted=%d updated=%d unchanged=%d rejected=%d days=%d",
-        batch.sync_id, len(batch.records), inserted, updated, unchanged, len(rejected), len(touched),
+        "ingest.records sync=%s received=%d inserted=%d updated=%d unchanged=%d rejected=%d"
+        " days=%d",
+        batch.sync_id,
+        len(batch.records),
+        inserted,
+        updated,
+        unchanged,
+        len(rejected),
+        len(touched),
     )
     return RecordsResult(
         received=len(batch.records),
@@ -284,7 +289,13 @@ def _sample_rows(
         ld = local_date(ts, values["start_offset_s"], settings.tz)
         touched.add((values["type"], ld))
         rows.append(
-            {"record_id": record_id, "ts": ts, "type": values["type"], "value": value, "local_date": ld}
+            {
+                "record_id": record_id,
+                "ts": ts,
+                "type": values["type"],
+                "value": value,
+                "local_date": ld,
+            }
         )
     return rows
 
@@ -372,7 +383,12 @@ async def ingest_deletions(
     )
     log.info(
         "ingest.deletions sync=%s received=%d deleted=%d already=%d not_found=%d rejected=%d",
-        batch.sync_id, len(batch.items), deleted, already, not_found, len(rejected),
+        batch.sync_id,
+        len(batch.items),
+        deleted,
+        already,
+        not_found,
+        len(rejected),
     )
     return DeletionsResult(
         received=len(batch.items),
@@ -478,8 +494,15 @@ async def ingest_daily_aggregates(
                 set_={
                     c: stmt2.excluded[c]
                     for c in (
-                        "sum_value", "avg_value", "min_value", "max_value", "count", "unit",
-                        "detail", "snapshot_at", "updated_at",
+                        "sum_value",
+                        "avg_value",
+                        "min_value",
+                        "max_value",
+                        "count",
+                        "unit",
+                        "detail",
+                        "snapshot_at",
+                        "updated_at",
                     )
                 },
             )
@@ -490,7 +513,11 @@ async def ingest_daily_aggregates(
     )
     log.info(
         "ingest.aggregates sync=%s received=%d upserted=%d unchanged=%d rejected=%d",
-        batch.sync_id, len(batch.items), len(rows), unchanged, len(rejected),
+        batch.sync_id,
+        len(batch.items),
+        len(rows),
+        unchanged,
+        len(rejected),
     )
     return DailyAggregatesResult(
         received=len(batch.items), upserted=len(rows), unchanged=unchanged, rejected=rejected
@@ -526,4 +553,6 @@ async def ingest_sync_report(
             errors=[e.model_dump(exclude_none=True) for e in report.errors] or None,
         )
     )
-    log.info("ingest.sync_report sync=%s status=%s mode=%s", report.sync_id, report.status, report.mode)
+    log.info(
+        "ingest.sync_report sync=%s status=%s mode=%s", report.sync_id, report.status, report.mode
+    )

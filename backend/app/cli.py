@@ -9,10 +9,13 @@ import json
 import os
 import sys
 import uuid
+from collections.abc import Awaitable, Callable, Coroutine
 from datetime import date, timedelta
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.config import Settings, get_settings
 from app.db import make_engine, make_sessionmaker
@@ -24,14 +27,16 @@ from app.services import maintenance
 
 MIN_PASSWORD_LEN = 12
 
+SessionMaker = async_sessionmaker[AsyncSession]
 
-def _run(coro):  # type: ignore[no-untyped-def]
+
+def _run[T](coro: Coroutine[Any, Any, T]) -> T:
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     return asyncio.run(coro)
 
 
-async def _with_db(settings: Settings, fn):  # type: ignore[no-untyped-def]
+async def _with_db[T](settings: Settings, fn: Callable[[SessionMaker], Awaitable[T]]) -> T:
     engine = make_engine(settings.sqlalchemy_url)
     try:
         return await fn(make_sessionmaker(engine))
@@ -48,7 +53,7 @@ def cmd_create_admin(args: argparse.Namespace, settings: Settings) -> int:
         print("Passwords differ.", file=sys.stderr)
         return 2
 
-    async def go(sm):  # type: ignore[no-untyped-def]
+    async def go(sm: SessionMaker) -> None:
         async with sm() as s:
             user = (
                 await s.execute(select(AdminUser).where(AdminUser.username == args.username))
@@ -67,7 +72,7 @@ def cmd_create_admin(args: argparse.Namespace, settings: Settings) -> int:
 
 
 def cmd_create_token(args: argparse.Namespace, settings: Settings) -> int:
-    async def go(sm):  # type: ignore[no-untyped-def]
+    async def go(sm: SessionMaker) -> None:
         plaintext, token_hash, prefix = new_ingest_token()
         async with sm() as s:
             s.add(
@@ -83,7 +88,7 @@ def cmd_create_token(args: argparse.Namespace, settings: Settings) -> int:
 
 
 def cmd_seed(args: argparse.Namespace, settings: Settings) -> int:
-    async def go(sm):  # type: ignore[no-untyped-def]
+    async def go(sm: SessionMaker) -> None:
         async with sm() as s:
             if args.if_empty and (await s.execute(select(func.count(HealthRecord.id)))).scalar():
                 print("Database already has records: skipping seed.")
@@ -100,7 +105,7 @@ def cmd_dev_bootstrap(args: argparse.Namespace, settings: Settings) -> int:
     """DEV ONLY: create a throw-away admin and ingest token so the stack is usable at once."""
     password = os.environ.get("SBH_DEV_ADMIN_PASSWORD", "dev-password-change-me")
 
-    async def go(sm):  # type: ignore[no-untyped-def]
+    async def go(sm: SessionMaker) -> None:
         async with sm() as s:
             if not (await s.execute(select(func.count(AdminUser.id)))).scalar():
                 s.add(AdminUser(username="admin", password_hash=hash_password(password)))
@@ -121,10 +126,12 @@ def cmd_dev_bootstrap(args: argparse.Namespace, settings: Settings) -> int:
 
 def cmd_recompute(args: argparse.Namespace, settings: Settings) -> int:
     today = date.today()
-    first = date.fromisoformat(args.date_from) if args.date_from else today - timedelta(days=args.days)
+    first = (
+        date.fromisoformat(args.date_from) if args.date_from else today - timedelta(days=args.days)
+    )
     last = date.fromisoformat(args.date_to) if args.date_to else today
 
-    async def go(sm):  # type: ignore[no-untyped-def]
+    async def go(sm: SessionMaker) -> None:
         async with sm() as s:
             n = await maintenance.recompute_range(s, settings, first, last)
             print(f"Recomputed {n} daily metrics ({first}..{last}).")
@@ -137,7 +144,9 @@ def cmd_export_openapi(args: argparse.Namespace, settings: Settings) -> int:
     from app.main import create_app
 
     schema = create_app(settings).openapi()
-    Path(args.path).write_text(json.dumps(schema, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    Path(args.path).write_text(
+        json.dumps(schema, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     print(f"Wrote {args.path}")
     return 0
 

@@ -1,0 +1,1924 @@
+{
+  "components": {
+    "schemas": {
+      "DailyAggregateItem": {
+        "additionalProperties": false,
+        "properties": {
+          "avg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg"
+          },
+          "count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
+          "data_origins": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Packages HC reports as contributing to the aggregate",
+            "title": "Data Origins"
+          },
+          "date": {
+            "description": "Local calendar day, as defined by the Reader's HC period",
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          },
+          "snapshot_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the Reader computed it; older snapshots never overwrite",
+            "title": "Snapshot At"
+          },
+          "sum": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sum"
+          },
+          "type": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "type"
+        ],
+        "title": "DailyAggregateItem",
+        "type": "object"
+      },
+      "DailyAggregatesBatch": {
+        "additionalProperties": false,
+        "properties": {
+          "device": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeviceMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "device_id": {
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/DailyAggregateItem"
+                },
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              ]
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "sync_id": {
+            "format": "uuid",
+            "title": "Sync Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "device_id",
+          "sync_id",
+          "items"
+        ],
+        "title": "DailyAggregatesBatch",
+        "type": "object"
+      },
+      "DailyAggregatesResult": {
+        "properties": {
+          "received": {
+            "title": "Received",
+            "type": "integer"
+          },
+          "rejected": {
+            "items": {
+              "$ref": "#/components/schemas/Rejection"
+            },
+            "title": "Rejected",
+            "type": "array"
+          },
+          "unchanged": {
+            "title": "Unchanged",
+            "type": "integer"
+          },
+          "upserted": {
+            "title": "Upserted",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "received",
+          "upserted",
+          "unchanged",
+          "rejected"
+        ],
+        "title": "DailyAggregatesResult",
+        "type": "object"
+      },
+      "DeletionItem": {
+        "additionalProperties": false,
+        "properties": {
+          "hc_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Hc Id",
+            "type": "string"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional: Health Connect's DeletionChange carries only the record id.",
+            "title": "Type"
+          }
+        },
+        "required": [
+          "hc_id"
+        ],
+        "title": "DeletionItem",
+        "type": "object"
+      },
+      "DeletionsBatch": {
+        "additionalProperties": false,
+        "properties": {
+          "device": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeviceMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "device_id": {
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/DeletionItem"
+                },
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              ]
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "sync_id": {
+            "format": "uuid",
+            "title": "Sync Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "device_id",
+          "sync_id",
+          "items"
+        ],
+        "title": "DeletionsBatch",
+        "type": "object"
+      },
+      "DeletionsResult": {
+        "properties": {
+          "already_deleted": {
+            "title": "Already Deleted",
+            "type": "integer"
+          },
+          "deleted": {
+            "description": "Records soft-deleted by this call",
+            "title": "Deleted",
+            "type": "integer"
+          },
+          "not_found": {
+            "description": "No stored record with that id (ignored)",
+            "title": "Not Found",
+            "type": "integer"
+          },
+          "received": {
+            "title": "Received",
+            "type": "integer"
+          },
+          "rejected": {
+            "items": {
+              "$ref": "#/components/schemas/Rejection"
+            },
+            "title": "Rejected",
+            "type": "array"
+          }
+        },
+        "required": [
+          "received",
+          "deleted",
+          "already_deleted",
+          "not_found",
+          "rejected"
+        ],
+        "title": "DeletionsResult",
+        "type": "object"
+      },
+      "DeviceInfoIn": {
+        "additionalProperties": false,
+        "properties": {
+          "manufacturer": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manufacturer"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          }
+        },
+        "title": "DeviceInfoIn",
+        "type": "object"
+      },
+      "DeviceMeta": {
+        "additionalProperties": false,
+        "properties": {
+          "app_version": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "App Version"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "DeviceMeta",
+        "type": "object"
+      },
+      "ErrorBody": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorBody",
+        "type": "object"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorBody"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HealthResult": {
+        "properties": {
+          "status": {
+            "const": "ok",
+            "default": "ok",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "title": "HealthResult",
+        "type": "object"
+      },
+      "LoginRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "password": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          },
+          "username": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "LoginRequest",
+        "type": "object"
+      },
+      "PingLimits": {
+        "properties": {
+          "max_batch_records": {
+            "title": "Max Batch Records",
+            "type": "integer"
+          },
+          "max_body_bytes": {
+            "title": "Max Body Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "max_batch_records",
+          "max_body_bytes"
+        ],
+        "title": "PingLimits",
+        "type": "object"
+      },
+      "PingResult": {
+        "properties": {
+          "api_version": {
+            "title": "Api Version",
+            "type": "string"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/PingLimits"
+          },
+          "ok": {
+            "default": true,
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          },
+          "token": {
+            "$ref": "#/components/schemas/PingToken"
+          }
+        },
+        "required": [
+          "api_version",
+          "server_time",
+          "token",
+          "limits"
+        ],
+        "title": "PingResult",
+        "type": "object"
+      },
+      "PingToken": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "prefix": {
+            "title": "Prefix",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "prefix"
+        ],
+        "title": "PingToken",
+        "type": "object"
+      },
+      "RecordIn": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "additionalProperties": true,
+            "title": "Data",
+            "type": "object"
+          },
+          "end_offset_s": {
+            "anyOf": [
+              {
+                "maximum": 64800.0,
+                "minimum": -64800.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Offset S"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time"
+          },
+          "hc_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Hc Id",
+            "type": "string"
+          },
+          "last_modified": {
+            "format": "date-time",
+            "title": "Last Modified",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceIn"
+          },
+          "start_offset_s": {
+            "anyOf": [
+              {
+                "maximum": 64800.0,
+                "minimum": -64800.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Offset S"
+          },
+          "start_time": {
+            "format": "date-time",
+            "title": "Start Time",
+            "type": "string"
+          },
+          "type": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "hc_id",
+          "start_time",
+          "source",
+          "last_modified"
+        ],
+        "title": "RecordIn",
+        "type": "object"
+      },
+      "RecordsBatch": {
+        "additionalProperties": false,
+        "properties": {
+          "device": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeviceMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "device_id": {
+            "description": "Stable per-install UUID generated by the Reader",
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "records": {
+            "description": "Up to 500 records. Invalid ones are reported in `rejected`, not fatal.",
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/RecordIn"
+                },
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              ]
+            },
+            "title": "Records",
+            "type": "array"
+          },
+          "sync_id": {
+            "description": "UUID of the sync run; shared by all requests of a run",
+            "format": "uuid",
+            "title": "Sync Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "device_id",
+          "sync_id",
+          "records"
+        ],
+        "title": "RecordsBatch",
+        "type": "object"
+      },
+      "RecordsResult": {
+        "properties": {
+          "inserted": {
+            "title": "Inserted",
+            "type": "integer"
+          },
+          "received": {
+            "title": "Received",
+            "type": "integer"
+          },
+          "rejected": {
+            "items": {
+              "$ref": "#/components/schemas/Rejection"
+            },
+            "title": "Rejected",
+            "type": "array"
+          },
+          "unchanged": {
+            "description": "Already stored with the same or newer last_modified",
+            "title": "Unchanged",
+            "type": "integer"
+          },
+          "updated": {
+            "title": "Updated",
+            "type": "integer"
+          },
+          "upserted": {
+            "description": "inserted + updated",
+            "title": "Upserted",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "received",
+          "inserted",
+          "updated",
+          "upserted",
+          "unchanged",
+          "rejected"
+        ],
+        "title": "RecordsResult",
+        "type": "object"
+      },
+      "Rejection": {
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Human text, never contains health values",
+            "title": "Detail"
+          },
+          "hc_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hc Id"
+          },
+          "index": {
+            "description": "Position of the item in the request array (0-based)",
+            "title": "Index",
+            "type": "integer"
+          },
+          "reason": {
+            "description": "Machine code: invalid_record | unsupported_type",
+            "title": "Reason",
+            "type": "string"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          }
+        },
+        "required": [
+          "index",
+          "reason"
+        ],
+        "title": "Rejection",
+        "type": "object"
+      },
+      "SessionInfo": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "expires_at"
+        ],
+        "title": "SessionInfo",
+        "type": "object"
+      },
+      "SourceIn": {
+        "additionalProperties": false,
+        "properties": {
+          "device": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeviceInfoIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "package": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Package",
+            "type": "string"
+          },
+          "recording_method": {
+            "default": "unknown",
+            "enum": [
+              "unknown",
+              "active",
+              "automatic",
+              "manual"
+            ],
+            "title": "Recording Method",
+            "type": "string"
+          }
+        },
+        "required": [
+          "package"
+        ],
+        "title": "SourceIn",
+        "type": "object"
+      },
+      "SyncErrorIn": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Never include health values",
+            "title": "Message"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "SyncErrorIn",
+        "type": "object"
+      },
+      "SyncReport": {
+        "additionalProperties": false,
+        "properties": {
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "default": {},
+            "maxProperties": 50,
+            "propertyNames": {
+              "maxLength": 64
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "device": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeviceMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "device_id": {
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "errors": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SyncErrorIn"
+            },
+            "maxItems": 50,
+            "title": "Errors",
+            "type": "array"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "mode": {
+            "enum": [
+              "backfill",
+              "incremental"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "completed",
+              "partial",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "sync_id": {
+            "format": "uuid",
+            "title": "Sync Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "device_id",
+          "sync_id",
+          "mode",
+          "status",
+          "started_at"
+        ],
+        "title": "SyncReport",
+        "type": "object"
+      },
+      "SyncReportResult": {
+        "properties": {
+          "ok": {
+            "default": true,
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "sync_id": {
+            "format": "uuid",
+            "title": "Sync Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sync_id"
+        ],
+        "title": "SyncReportResult",
+        "type": "object"
+      },
+      "SyncRunInfo": {
+        "properties": {
+          "device_id": {
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "errors": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errors"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "last_activity_at": {
+            "format": "date-time",
+            "title": "Last Activity At",
+            "type": "string"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          },
+          "reported_counts": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reported Counts"
+          },
+          "server_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Server Counts",
+            "type": "object"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "sync_id": {
+            "format": "uuid",
+            "title": "Sync Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sync_id",
+          "device_id",
+          "mode",
+          "status",
+          "started_at",
+          "finished_at",
+          "last_activity_at",
+          "server_counts",
+          "reported_counts",
+          "errors"
+        ],
+        "title": "SyncRunInfo",
+        "type": "object"
+      },
+      "TokenCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "TokenCreate",
+        "type": "object"
+      },
+      "TokenCreated": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "prefix": {
+            "title": "Prefix",
+            "type": "string"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "token": {
+            "description": "Plaintext token. Shown once, never stored.",
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "created_at",
+          "last_used_at",
+          "revoked_at",
+          "token"
+        ],
+        "title": "TokenCreated",
+        "type": "object"
+      },
+      "TokenInfo": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "prefix": {
+            "title": "Prefix",
+            "type": "string"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "created_at",
+          "last_used_at",
+          "revoked_at"
+        ],
+        "title": "TokenInfo",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Ingest API (contract v1: docs/api-contract.md) and admin endpoints.",
+    "title": "StatisticsByHeart Writer",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/admin/sync-runs": {
+      "get": {
+        "operationId": "list_sync_runs_api_v1_admin_sync_runs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SyncRunInfo"
+                  },
+                  "title": "Response List Sync Runs Api V1 Admin Sync Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Recent sync runs (server-side counters vs Reader report)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/tokens": {
+      "get": {
+        "operationId": "list_tokens_api_v1_admin_tokens_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TokenInfo"
+                  },
+                  "title": "Response List Tokens Api V1 Admin Tokens Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          }
+        },
+        "summary": "List ingest tokens",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "create_token_api_v1_admin_tokens_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenCreated"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create an ingest token (plaintext shown once)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/tokens/{token_id}": {
+      "delete": {
+        "operationId": "revoke_token_api_v1_admin_tokens__token_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Token Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke an ingest token (idempotent)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "operationId": "login_api_v1_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "summary": "Admin login (sets an HttpOnly session cookie)",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "logout_api_v1_auth_logout_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Revoke the current session",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "operationId": "me_api_v1_auth_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          }
+        },
+        "summary": "Current session",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "operationId": "health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Liveness (no auth)",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/api/v1/ingest/daily-aggregates": {
+      "post": {
+        "operationId": "ingest_daily_aggregates_api_v1_ingest_daily_aggregates_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DailyAggregatesBatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyAggregatesResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Store official Health Connect daily aggregates",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
+    "/api/v1/ingest/deletions": {
+      "post": {
+        "operationId": "ingest_deletions_api_v1_ingest_deletions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeletionsBatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionsResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Soft-delete records deleted in Health Connect",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
+    "/api/v1/ingest/records": {
+      "post": {
+        "operationId": "ingest_records_api_v1_ingest_records_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordsBatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordsResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Upsert Health Connect records (idempotent)",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
+    "/api/v1/ingest/sync-report": {
+      "post": {
+        "operationId": "ingest_sync_report_api_v1_ingest_sync_report_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncReport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncReportResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Close a sync run",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
+    "/api/v1/ping": {
+      "get": {
+        "operationId": "ping_api_v1_ping_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PingResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          }
+        },
+        "summary": "Check connectivity and ingest token",
+        "tags": [
+          "public"
+        ]
+      }
+    }
+  }
+}

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -75,7 +74,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.engine = engine
     app.state.sessionmaker = make_sessionmaker(engine)
-    app.state.login_limiter = LoginLimiter(settings.login_max_failures, settings.login_window_seconds)
+    app.state.login_limiter = LoginLimiter(
+        settings.login_max_failures, settings.login_window_seconds
+    )
 
     install_error_handlers(app)
     app.add_middleware(BodyGuardMiddleware, max_body_bytes=settings.max_body_bytes)

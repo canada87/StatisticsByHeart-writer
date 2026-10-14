@@ -54,7 +54,7 @@ class _Builder:
     def __init__(self, cfg: SeedConfig) -> None:
         self.cfg = cfg
         self.tz = ZoneInfo(cfg.tz)
-        self.rng = random.Random(cfg.seed)  # noqa: S311
+        self.rng = random.Random(cfg.seed)
         self.records: list[dict[str, Any]] = []
 
     def add(
@@ -126,16 +126,19 @@ class _Builder:
             for minute in range(0, 60, step):
                 bpm = round(base + rng.gauss(0, 4) + (35 if rng.random() < 0.02 else 0))
                 samples.append(
-                    {"time": _iso(start + timedelta(minutes=minute)), "value": max(40, min(bpm, 190))}
+                    {
+                        "time": _iso(start + timedelta(minutes=minute)),
+                        "value": max(40, min(bpm, 190)),
+                    }
                 )
             self.add("HeartRate", WATCH, start, end, {"samples": samples})
 
     def night(self, day: date) -> None:
         """Sleep that ends on ``day`` morning (attributed to ``day``), plus night vitals."""
         rng = self.rng
-        bedtime = datetime.combine(day - timedelta(days=1), time(23, 0), tzinfo=self.tz) + timedelta(
-            minutes=rng.randint(-30, 60)
-        )
+        bedtime = datetime.combine(
+            day - timedelta(days=1), time(23, 0), tzinfo=self.tz
+        ) + timedelta(minutes=rng.randint(-30, 60))
         wake = self.at(day, 6, 30) + timedelta(minutes=rng.randint(-20, 40))
         stages = []
         t = bedtime
@@ -182,16 +185,28 @@ class _Builder:
             lat += rng.gauss(0.00005, 0.00002)
             lon += rng.gauss(0.00005, 0.00002)
             route.append(
-                {"time": _iso(start + timedelta(minutes=k)), "lat": round(lat, 6),
-                 "lon": round(lon, 6), "alt_m": round(10 + rng.gauss(0, 1), 1)}
+                {
+                    "time": _iso(start + timedelta(minutes=k)),
+                    "lat": round(lat, 6),
+                    "lon": round(lon, 6),
+                    "alt_m": round(10 + rng.gauss(0, 1), 1),
+                }
             )
-        data = {"exercise_type": "WALKING", "exercise_type_id": 79, "title": "Evening walk",
-                "route": route}
+        data = {
+            "exercise_type": "WALKING",
+            "exercise_type_id": 79,
+            "title": "Evening walk",
+            "route": route,
+        }
         self.add("ExerciseSession", WATCH, start, end, data, method="active")
         # phone logs the same walk without the route
         self.add(
-            "ExerciseSession", PHONE, start, end,
-            {"exercise_type": "WALKING", "exercise_type_id": 79}, method="active",
+            "ExerciseSession",
+            PHONE,
+            start,
+            end,
+            {"exercise_type": "WALKING", "exercise_type_id": 79},
+            method="active",
         )
 
     # ----------------------------------------------------------------- official aggregates
@@ -215,12 +230,28 @@ class _Builder:
                 if r["type"] == "HeartRate" and r["start_time"].startswith(day.isoformat())
                 for s in r["data"]["samples"]
             ]
-            out.append({"date": day.isoformat(), "type": "Steps", "sum": steps,
-                        "data_origins": [PHONE], "snapshot_at": snap})
+            out.append(
+                {
+                    "date": day.isoformat(),
+                    "type": "Steps",
+                    "sum": steps,
+                    "data_origins": [PHONE],
+                    "snapshot_at": snap,
+                }
+            )
             if hr:
-                out.append({"date": day.isoformat(), "type": "HeartRate",
-                            "avg": round(sum(hr) / len(hr), 2), "min": min(hr), "max": max(hr),
-                            "count": len(hr), "data_origins": [WATCH], "snapshot_at": snap})
+                out.append(
+                    {
+                        "date": day.isoformat(),
+                        "type": "HeartRate",
+                        "avg": round(sum(hr) / len(hr), 2),
+                        "min": min(hr),
+                        "max": max(hr),
+                        "count": len(hr),
+                        "data_origins": [WATCH],
+                        "snapshot_at": snap,
+                    }
+                )
         return out
 
 

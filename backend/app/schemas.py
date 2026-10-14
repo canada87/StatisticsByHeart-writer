@@ -173,7 +173,7 @@ class DeletionsResult(BaseModel):
     rejected: list[Rejection]
 
 
-# --------------------------------------------------------------------------- /ingest/daily-aggregates
+# --------------------------------------------------------------------------- /ingest/aggregates
 
 
 class DailyAggregateItem(_Strict):

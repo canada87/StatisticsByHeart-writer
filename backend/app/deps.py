@@ -81,7 +81,7 @@ async def require_admin(request: Request, session: Db, settings: SettingsDep) ->
     if row is None or row[0].revoked_at is not None or row[0].expires_at <= now:
         raise ApiError(401, "not_authenticated", "Session expired or invalid")
     if request.method not in SAFE_METHODS and not request.headers.get(CSRF_HEADER):
-        # Cross-site forms cannot set custom headers without a CORS preflight (which we never allow).
+        # Cross-site forms cannot set custom headers without a CORS preflight (never allowed).
         raise ApiError(403, "csrf", f"Missing {CSRF_HEADER} header")
     user_session, user = row
     if now - user_session.last_seen_at > LAST_USED_THROTTLE:

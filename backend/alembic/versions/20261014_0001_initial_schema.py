@@ -6,8 +6,9 @@ Create Date: 2026-10-14
 """
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "0001"
 down_revision = None
@@ -116,9 +117,7 @@ def upgrade() -> None:
         sa.Column("start_offset_s", sa.Integer),
         sa.Column("end_offset_s", sa.Integer),
         sa.Column("local_date", sa.Date, nullable=False),
-        sa.Column(
-            "data", postgresql.JSONB, server_default=sa.text("'{}'::jsonb"), nullable=False
-        ),
+        sa.Column("data", postgresql.JSONB, server_default=sa.text("'{}'::jsonb"), nullable=False),
         sa.Column("source_package", sa.String(255), nullable=False),
         sa.Column("source_device", postgresql.JSONB),
         sa.Column("recording_method", sa.String(16), server_default="unknown", nullable=False),
