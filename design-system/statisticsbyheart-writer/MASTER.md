@@ -231,3 +231,26 @@ Before delivering any UI code, verify:
 - [ ] Responsive: 375px, 768px, 1024px, 1440px
 - [ ] No content hidden behind fixed navbars
 - [ ] No horizontal scroll on mobile
+
+---
+
+## Project overrides (win over everything above)
+
+The generator output above is a generic starting point. For this project the binding decisions are in
+`PROJECT_GUIDE.md` §8, refined while building the dashboard (tokens live in `frontend/src/styles/index.css`
+and are verified by `frontend/src/lib/contrast.test.ts`):
+
+- **Fonts are self-hosted** (`@fontsource/share-tech-mono`, `@fontsource/fira-code`). Never use the Google Fonts
+  `@import` shown in the Typography section (PROJECT_GUIDE §7: no external CDN).
+- **Dark only.** No light theme.
+- **Borders of controls**: `--color-border-control #64748B` (>= 3:1). `--color-border #1E293B` is decorative only.
+- **Text variants**: `--color-danger-text #F87171` for red text, `--color-m-sleep-text #A78BFA` for violet text,
+  `--color-accent-text #60A5FA` for blue text; the raw `--color-accent #3B82F6` is a fill/indicator.
+- **Motion**: durations 120/240/380 ms, `cubic-bezier(.22,1,.36,1)`; only transform/opacity; **no `back.out`/overshoot**
+  (the generated GSAP snippet is not used; Motion `motion/react` is). `prefers-reduced-motion` => final state, no
+  scanline/pulse/shimmer.
+- **Panels** are hairline + corner brackets, translucent, no blur. Cards do not lift on hover (no layout shift).
+- **Every chart** has a text summary above it and a "Mostra tabella" alternative below it.
+- **Status is never colour only**: badges always carry an icon and a text label.
+- **Layout**: sidebar from 1024 px, bottom nav below; the 12-column bento grid only from 1280 px (the sidebar
+  leaves ~784 px of content at 1024), 2 columns from 768 px, 1 column on phones.
