@@ -2,20 +2,18 @@
 #
 # StatisticsByHeart writer image. Build context = repository ROOT:
 #
-#   docker build -f docker/Dockerfile -t statisticsbyheart-writer:0.1.0 .
+#   docker build -f docker/Dockerfile -t statisticsbyheart-writer:0.2.0 .
 #
-# Stages: (1) frontend SPA build [placeholder, phase 4]  (2) Python deps  (3) slim runtime.
+# Stages: (1) frontend SPA build  (2) Python deps  (3) slim runtime serving API + SPA.
 
 # --------------------------------------------------------------------------- 1. frontend
-# Phase 4 (React + Vite dashboard). When the SPA exists, uncomment this stage and the
-# `COPY --from=frontend` line in the runtime stage; FastAPI will serve /app/static.
-#
-# FROM node:22-alpine AS frontend
-# WORKDIR /frontend
-# COPY frontend/package.json frontend/package-lock.json ./
-# RUN npm ci
-# COPY frontend/ ./
-# RUN npm run build
+# React + Vite dashboard -> static files that FastAPI serves from /app/static.
+FROM node:22-alpine AS frontend
+WORKDIR /frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
 
 # --------------------------------------------------------------------------- 2. python deps
 FROM python:3.12-slim AS builder
@@ -48,7 +46,7 @@ RUN groupadd --system --gid 10001 sbh \
 
 WORKDIR /app
 COPY --from=builder --chown=sbh:sbh /app /app
-# COPY --from=frontend --chown=sbh:sbh /frontend/dist /app/static
+COPY --from=frontend --chown=sbh:sbh /frontend/dist /app/static
 
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 # Normalise line endings (a Windows checkout would otherwise break the shebang).
