@@ -17,7 +17,7 @@ questo documento e va aperto un bug sul writer.
 
 | Aspetto | Valore |
 |---|---|
-| Base URL | l'origine configurata nel Reader, es. `https://sbh.local.smarthomeformyhouse.loan`; tutti i path sotto sono relativi, es. `{base}/api/v1/ping` |
+| Base URL | l'origine configurata nel Reader, es. `https://sbh.example.lan`; tutti i path sotto sono relativi, es. `{base}/api/v1/ping` |
 | Auth ingest | `Authorization: Bearer <token>` (token `sbh_…`, creato dall'admin web, mostrato **una sola volta**, revocabile) |
 | Formato | JSON UTF‑8, `Content-Type: application/json` |
 | Compressione | Richiesta: `Content-Encoding: gzip` **accettato** (consigliato per i batch). Risposte non compresse |

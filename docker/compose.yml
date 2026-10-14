@@ -1,8 +1,8 @@
-# StatisticsByHeart writer: PRODUCTION stack (VM docker2404-real, deployed from Portainer).
+# StatisticsByHeart writer: PRODUCTION stack (deployed as a Portainer stack on the Docker VM).
 #
-# No `build:` here on purpose: build the image on the VM first (exact command in README.md):
-#   docker build -f docker/Dockerfile -t statisticsbyheart-writer:0.1.0 .
-# then paste this file as a Portainer stack and set the variables from docker/.env.example.
+# No `build:` here on purpose: the image is built by GitHub Actions on every `vX.Y.Z` tag and
+# published to GHCR; Portainer just pulls it (see README.md). Paste this file as a stack and set
+# the variables from docker/.env.example.
 #
 # Networks: sbh-internal has NO route to the outside and carries the DB; only sbh-api is also on
 # sbh-public, which is what lets it publish its port. The DB never publishes a port on the host.
@@ -41,7 +41,7 @@ services:
     mem_limit: 384m
 
   sbh-api:
-    image: statisticsbyheart-writer:${SBH_IMAGE_TAG:-0.1.0}
+    image: ghcr.io/canada87/statisticsbyheart-writer:${SBH_IMAGE_TAG:-0.2.0}
     restart: unless-stopped
     depends_on:
       sbh-db:
@@ -67,57 +67,6 @@ services:
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     mem_limit: 384m
-
-  # Optional nightly pg_dump to the NAS. Enable with COMPOSE_PROFILES=backup AFTER checking that
-  # ${SBH_BACKUP_DIR} exists and is mounted (otherwise Docker would create an empty local dir).
-  sbh-backup:
-    image: postgres:16-alpine
-    profiles: ["backup"]
-    restart: unless-stopped
-    depends_on:
-      sbh-db:
-        condition: service_healthy
-    environment:
-      TZ: Europe/Rome
-      PGHOST: sbh-db
-      PGUSER: sbh
-      PGDATABASE: sbh
-      PGPASSWORD: ${SBH_DB_PASSWORD}
-      BACKUP_HOUR: ${SBH_BACKUP_HOUR:-3}
-      BACKUP_KEEP_DAYS: ${SBH_BACKUP_KEEP_DAYS:-14}
-      BACKUP_ON_START: ${SBH_BACKUP_ON_START:-false}
-    volumes:
-      - ${SBH_BACKUP_DIR:-/mnt/StatisticsByHeart}:/backups
-    networks: [sbh-internal]
-    mem_limit: 128m
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        set -eu
-        umask 077
-        dump() {
-          ts=$$(date +%Y%m%d_%H%M%S)
-          tmp="/backups/.sbh_$$ts.dump.tmp"
-          if pg_dump --format=custom --no-owner --file="$$tmp"; then
-            mv "$$tmp" "/backups/sbh_$$ts.dump"
-            echo "[backup] ok sbh_$$ts.dump"
-            find /backups -maxdepth 1 -name 'sbh_*.dump' -mtime +"$$BACKUP_KEEP_DAYS" -delete
-          else
-            rm -f "$$tmp"
-            echo "[backup] FAILED" >&2
-          fi
-        }
-        echo "[backup] daily at $${BACKUP_HOUR}:00 ($$TZ), keeping $${BACKUP_KEEP_DAYS} days"
-        if [ "$$BACKUP_ON_START" = "true" ]; then dump; fi
-        while true; do
-          h=$$(date +%H | sed 's/^0//'); m=$$(date +%M | sed 's/^0//'); s=$$(date +%S | sed 's/^0//')
-          now=$$(( $${h:-0} * 3600 + $${m:-0} * 60 + $${s:-0} ))
-          wait=$$(( ( $$BACKUP_HOUR * 3600 - now + 86400 ) % 86400 ))
-          [ "$$wait" -lt 60 ] && wait=$$(( wait + 86400 ))
-          echo "[backup] next dump in $$wait s"
-          sleep "$$wait"
-          dump
-        done
 
 networks:
   sbh-internal:
