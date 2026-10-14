@@ -75,7 +75,7 @@ export function baseOption(
       type: 'value',
       name: opts.unit && opts.unit !== 'count' ? opts.unit : undefined,
       nameTextStyle: { color: p.muted, align: 'left' },
-      axisLabel: { color: p.muted, formatter: (v: number) => fmtNumber(v) },
+      axisLabel: { color: p.muted, formatter: (v: number) => fmtNumber(v, 1) },
       scale: series.every((s) => s.kind === 'line'),
       splitLine: { lineStyle: { color: p.grid } },
     },
