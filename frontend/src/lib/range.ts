@@ -1,6 +1,6 @@
 import { addDays, daysBetween, isDay, todayLocal } from './format'
 
-export const PRESETS = ['24h', '7d', '30d', '90d', '1y', 'custom'] as const
+export const PRESETS = ['24h', '7d', '30d', '90d', '1y', 'all', 'custom'] as const
 export type RangePreset = (typeof PRESETS)[number]
 
 /** The global range lives in the URL: ?r=30d  or  ?r=custom&from=2026-09-01&to=2026-09-30 */
@@ -30,7 +30,7 @@ export function parseRangeSearch(raw: Record<string, unknown>): RangeSearch {
   return out
 }
 
-const OFFSETS: Record<Exclude<RangePreset, 'custom'>, number> = {
+const OFFSETS: Record<Exclude<RangePreset, 'custom' | 'all'>, number> = {
   '24h': 0,
   '7d': 6,
   '30d': 29,
@@ -38,13 +38,26 @@ const OFFSETS: Record<Exclude<RangePreset, 'custom'>, number> = {
   '1y': 364,
 }
 
-export function resolveRange(search: RangeSearch, today: string = todayLocal()): ResolvedRange {
+/**
+ * `firstDay` is the first day with data (from /data/bounds); it feeds the "all" preset.
+ * Until it is known "all" shows the last year, so the page never waits on it.
+ */
+export function resolveRange(
+  search: RangeSearch,
+  today: string = todayLocal(),
+  firstDay?: string | null,
+): ResolvedRange {
+  if (search.r === 'all') {
+    const from = firstDay && firstDay <= today ? firstDay : addDays(today, -364)
+    return { preset: 'all', from, to: today, days: daysBetween(from, today) + 1 }
+  }
   if (search.r === 'custom' && search.from && search.to && search.from <= search.to) {
     const days = daysBetween(search.from, search.to) + 1
     if (days <= MAX_CUSTOM_DAYS) return { preset: 'custom', from: search.from, to: search.to, days }
   }
   const r = search.r
-  const preset: Exclude<RangePreset, 'custom'> = r !== undefined && r !== 'custom' ? r : DEFAULT_PRESET
+  const preset: keyof typeof OFFSETS =
+    r !== undefined && r !== 'custom' ? r : DEFAULT_PRESET
   return { preset, from: addDays(today, -OFFSETS[preset]), to: today, days: OFFSETS[preset] + 1 }
 }
 

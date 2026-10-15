@@ -3,9 +3,14 @@ import { api, withQuery } from './client'
 import type {
   Agg,
   Bucket,
+  DataBounds,
+  ExerciseResponse,
   InventoryResponse,
   ReconciliationResponse,
+  ReportDailyResponse,
+  ReportResponse,
   SeriesResponse,
+  SleepNightsResponse,
   SessionInfo,
   SyncStatusResponse,
   TodaySummary,
@@ -35,6 +40,10 @@ export interface SeriesParams {
   bucket?: Bucket
   agg?: Agg
   source?: 'auto' | 'official' | 'computed'
+  field?: 'systolic' | 'diastolic'
+  band?: boolean
+  compare?: boolean
+  ma?: boolean
 }
 
 export const seriesQuery = (p: SeriesParams) =>
@@ -48,6 +57,10 @@ export const seriesQuery = (p: SeriesParams) =>
           bucket: p.bucket,
           agg: p.agg,
           source: p.source,
+          field: p.field,
+          band: p.band ? 'true' : undefined,
+          compare: p.compare ? 'true' : undefined,
+          ma: p.ma ? 'true' : undefined,
         }),
       ),
   })
@@ -69,4 +82,41 @@ export const syncStatusQuery = () =>
     queryKey: ['sync-status'],
     queryFn: () => api<SyncStatusResponse>('/api/v1/sync/status'),
     refetchInterval: REFRESH_MS,
+  })
+
+export const boundsQuery = () =>
+  queryOptions({
+    queryKey: ['bounds'],
+    queryFn: () => api<DataBounds>('/api/v1/data/bounds'),
+    staleTime: 5 * 60_000,
+  })
+
+interface Window {
+  from: string
+  to: string
+}
+
+export const sleepNightsQuery = (w: Window) =>
+  queryOptions({
+    queryKey: ['sleep-nights', w],
+    queryFn: () => api<SleepNightsResponse>(withQuery('/api/v1/sleep/nights', { ...w })),
+  })
+
+export const exerciseQuery = (w: Window) =>
+  queryOptions({
+    queryKey: ['exercise', w],
+    queryFn: () => api<ExerciseResponse>(withQuery('/api/v1/exercise/sessions', { ...w })),
+  })
+
+export const reportQuery = (w: Window) =>
+  queryOptions({
+    queryKey: ['report', w],
+    queryFn: () => api<ReportResponse>(withQuery('/api/v1/report', { ...w })),
+  })
+
+export const reportDailyQuery = (w: Window, enabled = true) =>
+  queryOptions({
+    queryKey: ['report-daily', w],
+    queryFn: () => api<ReportDailyResponse>(withQuery('/api/v1/report/daily', { ...w })),
+    enabled,
   })

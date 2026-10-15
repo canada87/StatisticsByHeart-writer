@@ -36,7 +36,7 @@ services:
       SBH_DB_PASSWORD: dev-only-password
       SBH_COOKIE_SECURE: "false" # plain http on localhost
       SBH_DEV_BOOTSTRAP: "true"
-      SBH_SEED_DAYS: "30"
+      SBH_SEED_DAYS: "90"
       SBH_DEV_ADMIN_PASSWORD: dev-password-change-me
     ports:
       - "127.0.0.1:8000:8000"

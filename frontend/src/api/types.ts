@@ -71,6 +71,10 @@ export interface SeriesPoint {
   t: string
   v: number | null
   n: number | null
+  lo?: number | null
+  hi?: number | null
+  ma?: number | null
+  prev?: number | null
 }
 
 export interface SeriesSummary {
@@ -93,6 +97,12 @@ export interface SeriesResponse {
   timezone: string
   source: 'auto' | 'official' | 'computed'
   source_counts: Record<string, number>
+  field: string | null
+  coarsened: boolean
+  ma_window: number | null
+  previous_from: string | null
+  previous_to: string | null
+  previous_summary: SeriesSummary | null
   points: SeriesPoint[]
   summary: SeriesSummary
 }
@@ -221,4 +231,123 @@ export interface SyncStatusResponse {
 export interface SessionInfo {
   username: string
   expires_at: string
+}
+
+export interface DataBounds {
+  first: string | null
+  last: string | null
+}
+
+export interface SleepNight {
+  date: string
+  asleep_s: number | null
+  in_bed_s: number | null
+  stages_s: Record<string, number>
+  start: string | null
+  end: string | null
+  bedtime_min: number | null
+  wake_min: number | null
+}
+
+export interface SleepStats {
+  nights: number
+  avg_asleep_s: number | null
+  avg_in_bed_s: number | null
+  bedtime_avg_min: number | null
+  wake_avg_min: number | null
+  bedtime_sd_min: number | null
+  wake_sd_min: number | null
+}
+
+export interface SleepNightsResponse {
+  from: string
+  to: string
+  nights: SleepNight[]
+  summary: SleepStats
+  previous: SleepStats
+}
+
+export interface ExerciseRow {
+  id: number
+  type: string
+  title: string | null
+  start: string
+  end: string
+  duration_s: number
+  kcal: number | null
+  avg_hr: number | null
+  source_package: string
+  has_route: boolean
+}
+
+export interface ExerciseStats {
+  count: number
+  duration_s: number
+  avg_duration_s: number | null
+  kcal: number | null
+  by_type: Record<string, number>
+}
+
+export interface ExerciseResponse {
+  from: string
+  to: string
+  sessions: ExerciseRow[]
+  weekly: { week_start: string; count: number; duration_s: number; kcal: number }[]
+  summary: ExerciseStats
+  previous: ExerciseStats
+}
+
+export interface PeriodStats {
+  days: number
+  total: number | null
+  avg: number | null
+  min: number | null
+  max: number | null
+}
+
+export interface ReportMetric {
+  key: string
+  type: string
+  unit: string | null
+  kind: 'sum' | 'avg' | 'range'
+  days_with_data: number
+  current: PeriodStats
+  previous: PeriodStats
+  delta_abs: number | null
+  delta_pct: number | null
+  higher_is_better: boolean | null
+  best_day: { date: string; value: number } | null
+  worst_day: { date: string; value: number } | null
+  first: number | null
+  last: number | null
+  spark: (number | null)[]
+  spark_bucket: 'day' | 'week' | 'month'
+  diastolic: PeriodStats | null
+  sessions: number | null
+}
+
+export interface ReportResponse {
+  from: string
+  to: string
+  days: number
+  previous_from: string
+  previous_to: string
+  generated_at: string
+  timezone: string
+  metrics: ReportMetric[]
+  sleep_regularity: SleepStats | null
+  workouts: {
+    count: number
+    duration_s: number
+    avg_duration_s: number | null
+    per_week: number | null
+    by_type: Record<string, number>
+  }
+}
+
+export interface ReportDailyResponse {
+  from: string
+  to: string
+  columns: { key: string; label: string; unit: string | null }[]
+  rows: { date: string; values: Record<string, number | null> }[]
 }

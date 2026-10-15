@@ -255,3 +255,92 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* ------------------------------------------------------------------------------------------
+ * Print: light background, no HUD effects, sensible page breaks. The report page's
+ * "Stampa / Salva PDF" uses the browser print dialog (no server-side PDF).
+ * ---------------------------------------------------------------------------------------- */
+@page {
+  size: A4;
+  margin: 14mm;
+}
+@media print {
+  :root {
+    color-scheme: light;
+    --color-bg: #ffffff;
+    --color-bg-deep: #ffffff;
+    --color-surface: #ffffff;
+    --color-surface-muted: #f1f5f9;
+    --color-border: #cbd5e1;
+    --color-border-control: #64748b;
+    --color-fg: #0f172a;
+    --color-fg-muted: #475569;
+    --color-accent: #1d4ed8;
+    --color-accent-text: #1d4ed8;
+    --color-accent-glow: #0e7490;
+    --color-danger-text: #b91c1c;
+    --color-warn: #92400e;
+    --color-ok: #047857;
+    --color-m-heart: #be123c;
+    --color-m-sleep-text: #6d28d9;
+    --color-m-energy: #b45309;
+    --color-m-vitals: #047857;
+    --color-m-activity: #0e7490;
+  }
+  html,
+  body {
+    background: #fff !important;
+    color: #0f172a !important;
+    font-size: 11pt;
+  }
+  body::before,
+  .scanline::after {
+    display: none !important;
+  }
+  .no-print,
+  aside,
+  [data-app-header],
+  nav {
+    display: none !important;
+  }
+  .app-grid {
+    display: block !important;
+  }
+  main {
+    padding: 0 !important;
+    min-height: 0 !important;
+  }
+  .hud-panel {
+    background: #fff !important;
+    border: 1px solid #cbd5e1 !important;
+    break-inside: avoid;
+  }
+  .hud-panel::before,
+  .hud-panel::after {
+    display: none !important;
+  }
+  .print-break-before {
+    break-before: page;
+  }
+  .print-avoid-break {
+    break-inside: avoid;
+  }
+  table {
+    break-inside: auto;
+  }
+  tr {
+    break-inside: avoid;
+  }
+  a {
+    color: inherit !important;
+    text-decoration: none !important;
+  }
+}
+.print-only {
+  display: none;
+}
+@media print {
+  .print-only {
+    display: block;
+  }
+}

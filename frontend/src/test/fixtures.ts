@@ -92,6 +92,12 @@ export function series(type: string, values: (number | null)[]): SeriesResponse 
     timezone: 'Europe/Rome',
     source: 'auto',
     source_counts: { hc_official: nums.length },
+    field: null,
+    coarsened: false,
+    ma_window: 7,
+    previous_from: '2026-10-02',
+    previous_to: '2026-10-08',
+    previous_summary: { points: 0, min: null, max: null, avg: null, total: null, first: null, last: null },
     points: pts,
     summary: {
       points: nums.length,

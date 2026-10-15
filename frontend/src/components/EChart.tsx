@@ -1,10 +1,27 @@
 import { BarChart, LineChart } from 'echarts/charts'
-import { GridComponent, LegendComponent, MarkLineComponent, TooltipComponent } from 'echarts/components'
+import {
+  AriaComponent,
+  GridComponent,
+  LegendComponent,
+  MarkAreaComponent,
+  MarkLineComponent,
+  TooltipComponent,
+} from 'echarts/components'
 import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { useEffect, useRef } from 'react'
 
-echarts.use([BarChart, LineChart, GridComponent, LegendComponent, TooltipComponent, MarkLineComponent, CanvasRenderer])
+echarts.use([
+  AriaComponent,
+  BarChart,
+  LineChart,
+  GridComponent,
+  LegendComponent,
+  TooltipComponent,
+  MarkAreaComponent,
+  MarkLineComponent,
+  CanvasRenderer,
+])
 
 interface EChartProps {
   option: echarts.EChartsCoreOption
@@ -12,10 +29,12 @@ interface EChartProps {
   /** Text equivalent of the chart (role=img). */
   label: string
   describedBy?: string
+  /** Index of the data point whose tooltip is shown (driven by the keyboard cursor). */
+  activeIndex?: number | null
 }
 
 /** Thin ECharts wrapper: init once, resize with the container, dispose on unmount. */
-export function EChart({ option, height, label, describedBy }: EChartProps) {
+export function EChart({ option, height, label, describedBy, activeIndex = null }: EChartProps) {
   const ref = useRef<HTMLDivElement>(null)
   const chart = useRef<echarts.ECharts | null>(null)
 
@@ -36,6 +55,13 @@ export function EChart({ option, height, label, describedBy }: EChartProps) {
   useEffect(() => {
     chart.current?.setOption(option, { notMerge: true })
   }, [option])
+
+  useEffect(() => {
+    const c = chart.current
+    if (!c) return
+    if (activeIndex === null) c.dispatchAction({ type: 'hideTip' })
+    else c.dispatchAction({ type: 'showTip', seriesIndex: 0, dataIndex: activeIndex })
+  }, [activeIndex, option])
 
   return (
     <div

@@ -285,7 +285,7 @@ export function OverviewPage() {
           </Panel>
         </div>
 
-        <Panel title={t('activities.title')} icon={PersonSimpleRun} accent="activity" className="md:col-span-2 xl:col-span-4" index={5} testId="panel-activities">
+        <Panel title={t('activities.title')} icon={PersonSimpleRun} accent="activity" className="md:col-span-2 xl:col-span-8" index={5} testId="panel-activities">
           <Async query={summary} skeleton={panelSkeleton}>
             {(s) => <ActivitiesPanel s={s} />}
           </Async>

@@ -9,12 +9,16 @@ interface Props {
   onChange: (next: { preset: RangePreset; from?: string; to?: string }) => void
 }
 
-const LABEL: Record<RangePreset, 'range.24h' | 'range.7d' | 'range.30d' | 'range.90d' | 'range.1y' | 'range.custom'> = {
+const LABEL: Record<
+  RangePreset,
+  'range.24h' | 'range.7d' | 'range.30d' | 'range.90d' | 'range.1y' | 'range.all' | 'range.custom'
+> = {
   '24h': 'range.24h',
   '7d': 'range.7d',
   '30d': 'range.30d',
   '90d': 'range.90d',
   '1y': 'range.1y',
+  all: 'range.all',
   custom: 'range.custom',
 }
 

@@ -39,13 +39,16 @@ export interface ChartSeries {
   kind: 'bar' | 'line'
   data: (number | null)[]
   dashed?: boolean
+  dotted?: boolean
+  /** Short direct label drawn at the end of a line (in addition to the legend). */
+  short?: string
 }
 
 /** Shared axis/grid/tooltip styling so every chart in the app looks like one system. */
 export function baseOption(
   categories: string[],
   series: ChartSeries[],
-  opts: { unit?: string; showLegend?: boolean; reducedMotion?: boolean } = {},
+  opts: { unit?: string; showLegend?: boolean; reducedMotion?: boolean; endLabels?: boolean } = {},
 ) {
   const p = palette()
   const unit = opts.unit ? ` ${opts.unit}` : ''
@@ -53,7 +56,13 @@ export function baseOption(
     animation: !opts.reducedMotion,
     animationDuration: 300,
     textStyle: { fontFamily: "'Fira Code', ui-monospace, monospace", color: p.muted },
-    grid: { left: 8, right: 12, top: opts.showLegend ? 36 : 12, bottom: 4, containLabel: true },
+    grid: {
+      left: 8,
+      right: opts.endLabels ? 68 : 12,
+      top: opts.showLegend ? 36 : 12,
+      bottom: 4,
+      containLabel: true,
+    },
     legend: opts.showLegend
       ? { top: 0, textStyle: { color: p.fg, fontFamily: "'Fira Code', monospace" }, icon: 'rect' }
       : { show: false },
@@ -84,9 +93,25 @@ export function baseOption(
       type: s.kind,
       data: s.data,
       itemStyle: { color: s.color },
-      lineStyle: { color: s.color, width: 2, type: s.dashed ? 'dashed' : 'solid' },
-      areaStyle: s.kind === 'line' && !s.dashed ? { color: s.color, opacity: 0.2 } : undefined,
+      lineStyle: {
+        color: s.color,
+        width: 2,
+        type: s.dashed ? 'dashed' : s.dotted ? 'dotted' : 'solid',
+      },
+      areaStyle:
+        s.kind === 'line' && !s.dashed && !s.dotted ? { color: s.color, opacity: 0.2 } : undefined,
+      endLabel:
+        opts.endLabels && s.kind === 'line'
+          ? {
+              show: true,
+              formatter: s.short ?? (s.name.length > 11 ? `${s.name.slice(0, 10)}…` : s.name),
+              color: s.color,
+              fontSize: 11,
+              fontFamily: "'Fira Code', monospace",
+            }
+          : undefined,
       showSymbol: s.kind === 'line' && categories.length <= 31,
+      symbol: s.dashed || s.dotted ? 'none' : 'circle',
       symbolSize: 5,
       barMaxWidth: 28,
       connectNulls: false,
