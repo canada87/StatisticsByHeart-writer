@@ -170,6 +170,37 @@ async def _sleep_summary(session: AsyncSession, day: date) -> SleepSummary | Non
     )
 
 
+def dedupe_exercise(rows: Sequence[HealthRecord], settings: Settings) -> list[HealthRecord]:
+    """A workout logged by two apps appears once: best-ranked copy wins (tie: has a route)."""
+    counts: dict[str, float] = defaultdict(float)
+    for r in rows:
+        counts[r.source_package] += 1
+    ranks = rank_sources(counts, settings.source_priority_list)
+    coverage = Coverage()
+    kept: list[HealthRecord] = []
+    for r in sorted(rows, key=lambda r: (ranks[r.source_package], "route" not in r.data)):
+        s, e = r.start_ts.timestamp(), (r.end_ts or r.start_ts).timestamp()
+        if e > s and coverage.overlap(s, e) / (e - s) > 0.5:
+            continue
+        kept.append(r)
+        coverage.add_all([(s, e)])
+    kept.sort(key=lambda r: r.start_ts, reverse=True)
+    return kept
+
+
+def activity_item(r: HealthRecord) -> ActivityItem:
+    return ActivityItem(
+        id=r.id,
+        type=str(r.data.get("exercise_type", "UNKNOWN")),
+        title=r.data.get("title"),
+        start=r.start_ts,
+        end=r.end_ts or r.start_ts,
+        duration_s=((r.end_ts or r.start_ts) - r.start_ts).total_seconds(),
+        source_package=r.source_package,
+        has_route=bool(r.data.get("route")),
+    )
+
+
 async def recent_activities(
     session: AsyncSession, settings: Settings, limit: int = 5
 ) -> list[ActivityItem]:
@@ -185,33 +216,7 @@ async def recent_activities(
         .scalars()
         .all()
     )
-    counts: dict[str, float] = defaultdict(float)
-    for r in rows:
-        counts[r.source_package] += 1
-    ranks = rank_sources(counts, settings.source_priority_list)
-    coverage = Coverage()
-    kept: list[HealthRecord] = []
-    # Same workout logged by two apps: keep the best-ranked copy (ties: the one with a route).
-    for r in sorted(rows, key=lambda r: (ranks[r.source_package], "route" not in r.data)):
-        s, e = r.start_ts.timestamp(), (r.end_ts or r.start_ts).timestamp()
-        if e > s and coverage.overlap(s, e) / (e - s) > 0.5:
-            continue
-        kept.append(r)
-        coverage.add_all([(s, e)])
-    kept.sort(key=lambda r: r.start_ts, reverse=True)
-    return [
-        ActivityItem(
-            id=r.id,
-            type=str(r.data.get("exercise_type", "UNKNOWN")),
-            title=r.data.get("title"),
-            start=r.start_ts,
-            end=r.end_ts or r.start_ts,
-            duration_s=((r.end_ts or r.start_ts) - r.start_ts).total_seconds(),
-            source_package=r.source_package,
-            has_route=bool(r.data.get("route")),
-        )
-        for r in kept[:limit]
-    ]
+    return [activity_item(r) for r in dedupe_exercise(rows, settings)[:limit]]
 
 
 async def today_summary(session: AsyncSession, settings: Settings, day: date) -> TodaySummary:
@@ -290,7 +295,16 @@ def _check_agg(spec: TypeSpec, agg: str) -> None:
         )
 
 
-def _day_field(row: DailyMetric, agg: str) -> float | None:
+def _day_field(row: DailyMetric, agg: str, field: str | None = None) -> float | None:
+    if field and field != "systolic":
+        # secondary value of a two-value type (BloodPressure diastolic): its stats live in detail
+        extra = (row.detail or {}).get(field)
+        if not isinstance(extra, dict):
+            return None
+        if agg == "count":
+            return float(row.count) if row.count is not None else None
+        value = extra.get(agg if agg in ("avg", "min", "max") else "avg")
+        return float(value) if value is not None else None
     if agg == "sum":
         return row.sum_value
     if agg == "count":
@@ -357,6 +371,7 @@ async def _day_series(
     bucket: str,
     agg: str,
     source: str,
+    field: str | None = None,
 ) -> tuple[list[SeriesPoint], dict[str, int]]:
     rows = (
         await session.execute(
@@ -375,19 +390,38 @@ async def _day_series(
     }[source]
     served = {"hc_official": 0, "computed": 0}
     by_bucket: dict[date, list[tuple[float, int | None]]] = defaultdict(list)
+    lows: dict[date, list[float]] = defaultdict(list)
+    highs: dict[date, list[float]] = defaultdict(list)
+    ranged = spec.daily in (DailyKind.SAMPLES, DailyKind.INSTANT)  # min/max are real extremes
     for day, sources in per_day.items():
         for src in order:
             row = sources.get(src)
-            value = _day_field(row, agg) if row else None
-            if value is not None and row is not None:
-                by_bucket[bucket_start(day, bucket)].append((value, row.count))
-                served[src] += 1
-                break
+            value = _day_field(row, agg, field) if row else None
+            if value is None or row is None:
+                continue
+            key = bucket_start(day, bucket)
+            by_bucket[key].append((value, row.count))
+            served[src] += 1
+            if ranged:
+                lo, hi = _day_field(row, "min", field), _day_field(row, "max", field)
+                if lo is not None:
+                    lows[key].append(lo)
+                if hi is not None:
+                    highs[key].append(hi)
+            break
     points: list[SeriesPoint] = []
     cursor = bucket_start(first, bucket)
     while cursor <= last:
         v, n = _combine(by_bucket.get(cursor, []), agg)
-        points.append(SeriesPoint(t=cursor.isoformat(), v=v, n=n))
+        points.append(
+            SeriesPoint(
+                t=cursor.isoformat(),
+                v=v,
+                n=n,
+                lo=min(lows[cursor]) if lows.get(cursor) else None,
+                hi=max(highs[cursor]) if highs.get(cursor) else None,
+            )
+        )
         cursor = _next_bucket(cursor, bucket)
     return points, {k: v for k, v in served.items() if v}
 
@@ -405,6 +439,7 @@ async def _intraday_series(
     last: date,
     bucket: str,
     agg: str,
+    field: str | None = None,
 ) -> list[SeriesPoint]:
     if not supports_intraday(spec):
         raise ApiError(
@@ -461,7 +496,7 @@ async def _intraday_series(
             )
         )
     ).all()
-    key = spec.value_keys[0]
+    key = field or spec.value_keys[0]
     buckets: dict[datetime, list[float]] = defaultdict(list)
     if spec.daily is DailyKind.SUM:
         if agg not in ("sum", "count"):
@@ -492,6 +527,40 @@ async def _intraday_series(
     return out
 
 
+COARSER = {"day": "week", "week": "month"}
+MA_WINDOW = {"day": 7, "week": 4, "month": 3}
+MAX_POINTS = 1000
+
+
+def _bucket_count(span: int, bucket: str) -> int:
+    if bucket == "day":
+        return span
+    return -(-span // 7) if bucket == "week" else -(-span // 28)
+
+
+def _moving_average(points: list[SeriesPoint], window: int) -> None:
+    for i, p in enumerate(points):
+        vals = [q.v for q in points[max(0, i - window + 1) : i + 1] if q.v is not None]
+        p.ma = sum(vals) / len(vals) if vals else None
+
+
+async def _build_points(
+    session: AsyncSession,
+    settings: Settings,
+    spec: TypeSpec,
+    first: date,
+    last: date,
+    bucket: str,
+    agg: str,
+    source: str,
+    field: str | None,
+) -> tuple[list[SeriesPoint], dict[str, int]]:
+    if bucket in ("15min", "hour"):
+        pts = await _intraday_series(session, settings, spec, first, last, bucket, agg, field)
+        return pts, {}
+    return await _day_series(session, spec, first, last, bucket, agg, source, field)
+
+
 async def metric_series(
     session: AsyncSession,
     settings: Settings,
@@ -501,26 +570,61 @@ async def metric_series(
     bucket: str,
     agg: str | None,
     source: str,
+    *,
+    field: str | None = None,
+    band: bool = False,
+    compare: bool = False,
+    ma: bool = False,
 ) -> SeriesResponse:
     spec = SPECS.get(type_)
     if spec is None:
         raise ApiError(404, "unknown_type", f"Unsupported type {type_}")
     if last < first:
         raise ApiError(422, "invalid_range", "`to` must not precede `from`")
-    if _span_days(first, last) > MAX_SERIES_DAYS:
+    span = _span_days(first, last)
+    if span > MAX_SERIES_DAYS:
         raise ApiError(422, "range_too_long", f"At most {MAX_SERIES_DAYS} days")
+    if field is not None and (type_ != "BloodPressure" or field not in ("systolic", "diastolic")):
+        raise ApiError(422, "invalid_field", "field applies to BloodPressure: systolic | diastolic")
     chosen_agg = agg or default_agg(spec)
     _check_agg(spec, chosen_agg)
     chosen_bucket = choose_bucket(spec, first, last) if bucket == "auto" else bucket
-    served: dict[str, int] = {}
-    if chosen_bucket in ("15min", "hour"):
-        points = await _intraday_series(
-            session, settings, spec, first, last, chosen_bucket, chosen_agg
+    coarsened = False
+    # Long ranges are aggregated on the server: never send more than ~1000 points.
+    while chosen_bucket in COARSER and _bucket_count(span, chosen_bucket) > MAX_POINTS:
+        chosen_bucket = COARSER[chosen_bucket]
+        coarsened = True
+
+    points, served = await _build_points(
+        session, settings, spec, first, last, chosen_bucket, chosen_agg, source, field
+    )
+    window: int | None = None
+    if ma and chosen_bucket in MA_WINDOW:
+        window = MA_WINDOW[chosen_bucket]
+        _moving_average(points, window)
+    if not band:
+        for p in points:
+            p.lo = p.hi = None
+
+    prev_first = prev_last = None
+    prev_summary = None
+    if compare:
+        prev_last = first - timedelta(days=1)
+        prev_first = prev_last - timedelta(days=span - 1)
+        prev_points, _ = await _build_points(
+            session, settings, spec, prev_first, prev_last, chosen_bucket, chosen_agg, source, field
         )
-    else:
-        points, served = await _day_series(
-            session, spec, first, last, chosen_bucket, chosen_agg, source
-        )
+        prev_summary = summarize(prev_points)
+        if chosen_bucket in ("15min", "hour"):
+            # intraday buckets are sparse: align by shifting timestamps back one period
+            by_t = {q.t: q.v for q in prev_points}
+            shift = timedelta(days=span)
+            for p in points:
+                p.prev = by_t.get((datetime.fromisoformat(p.t) - shift).isoformat())
+        else:
+            for i, p in enumerate(points):
+                p.prev = prev_points[i].v if i < len(prev_points) else None
+
     return SeriesResponse(
         type=type_,
         unit="count" if chosen_agg == "count" else unit_of(spec),
@@ -531,6 +635,12 @@ async def metric_series(
         timezone=settings.local_timezone,
         source=source,
         source_counts=served,
+        field=field,
+        coarsened=coarsened,
+        ma_window=window,
+        previous_from=prev_first,
+        previous_to=prev_last,
+        previous_summary=prev_summary,
         points=points,
         summary=summarize(points),
     )

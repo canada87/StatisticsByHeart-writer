@@ -84,6 +84,12 @@ class SeriesPoint(BaseModel):
     t: str = Field(description="Local day (YYYY-MM-DD) or local datetime with offset")
     v: float | None
     n: int | None = Field(default=None, description="Samples/records behind the value, if known")
+    lo: float | None = Field(default=None, description="Lowest value inside the bucket (band=true)")
+    hi: float | None = Field(default=None, description="Highest value in the bucket (band=true)")
+    ma: float | None = Field(default=None, description="Trailing moving average (ma=true)")
+    prev: float | None = Field(
+        default=None, description="Value at the same position of the previous period (compare=true)"
+    )
 
 
 class SeriesSummary(BaseModel):
@@ -110,6 +116,14 @@ class SeriesResponse(BaseModel):
     source_counts: dict[str, int] = Field(
         description="Days served by hc_official / computed (day-level buckets only)"
     )
+    field: str | None = Field(default=None, description="BloodPressure: systolic | diastolic")
+    coarsened: bool = Field(
+        default=False, description="Bucket made coarser than requested to stay under ~1000 points"
+    )
+    ma_window: int | None = Field(default=None, description="Buckets in the moving-average window")
+    previous_from: Date | None = None
+    previous_to: Date | None = None
+    previous_summary: SeriesSummary | None = None
     points: list[SeriesPoint]
     summary: SeriesSummary
 
@@ -239,3 +253,158 @@ class SyncStatusResponse(BaseModel):
     last_activity_at: datetime | None
     devices: list[DeviceRow]
     runs: list[SyncRunRow]
+
+
+# ------------------------------------------------------------------ bounds, sleep, exercise, report
+
+
+class DataBounds(BaseModel):
+    first: Date | None = Field(description="First local day with any of the dashboard metrics")
+    last: Date | None
+
+
+class SleepNight(BaseModel):
+    date: Date = Field(description="Wake-up day")
+    asleep_s: float | None
+    in_bed_s: float | None
+    stages_s: dict[str, float]
+    start: datetime | None
+    end: datetime | None
+    bedtime_min: int | None = Field(description="Minutes after 18:00 local when sleep began")
+    wake_min: int | None = Field(description="Minutes after 00:00 local when the night ended")
+
+
+class SleepStats(BaseModel):
+    nights: int
+    avg_asleep_s: float | None = None
+    avg_in_bed_s: float | None = None
+    bedtime_avg_min: float | None = None
+    wake_avg_min: float | None = None
+    bedtime_sd_min: float | None = Field(default=None, description="Std dev: lower = more regular")
+    wake_sd_min: float | None = None
+
+
+class SleepNightsResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_: Date = Field(alias="from")
+    to: Date
+    nights: list[SleepNight]
+    summary: SleepStats
+    previous: SleepStats
+
+
+class ExerciseRow(BaseModel):
+    id: int
+    type: str
+    title: str | None
+    start: datetime
+    end: datetime
+    duration_s: float
+    kcal: float | None = Field(description="Active kcal during the session, de-duplicated")
+    avg_hr: float | None
+    source_package: str
+    has_route: bool
+
+
+class ExerciseWeek(BaseModel):
+    week_start: Date
+    count: int
+    duration_s: float
+    kcal: float
+
+
+class ExerciseStats(BaseModel):
+    count: int
+    duration_s: float
+    avg_duration_s: float | None = None
+    kcal: float | None = None
+    by_type: dict[str, int] = {}
+
+
+class ExerciseResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_: Date = Field(alias="from")
+    to: Date
+    sessions: list[ExerciseRow]
+    weekly: list[ExerciseWeek]
+    summary: ExerciseStats
+    previous: ExerciseStats
+
+
+class DayValue(BaseModel):
+    date: Date
+    value: float
+
+
+class PeriodStats(BaseModel):
+    days: int
+    total: float | None = None
+    avg: float | None = None
+    min: float | None = None
+    max: float | None = None
+
+
+class ReportMetric(BaseModel):
+    key: str
+    type: str
+    unit: str | None
+    kind: Literal["sum", "avg", "range"]
+    days_with_data: int
+    current: PeriodStats
+    previous: PeriodStats
+    delta_abs: float | None = Field(description="current - previous, on total (sum) or avg")
+    delta_pct: float | None
+    higher_is_better: bool | None = Field(description="None: no judgement (weight, HR)")
+    best_day: DayValue | None = None
+    worst_day: DayValue | None = None
+    first: float | None = None
+    last: float | None = None
+    spark: list[float | None]
+    spark_bucket: Literal["day", "week", "month"]
+    diastolic: PeriodStats | None = None
+    sessions: int | None = Field(default=None, description="Workouts only: number of sessions")
+
+
+class ReportWorkouts(BaseModel):
+    count: int
+    duration_s: float
+    avg_duration_s: float | None
+    per_week: float | None
+    by_type: dict[str, int]
+
+
+class ReportResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_: Date = Field(alias="from")
+    to: Date
+    days: int
+    previous_from: Date
+    previous_to: Date
+    generated_at: datetime
+    timezone: str
+    metrics: list[ReportMetric]
+    sleep_regularity: SleepStats | None
+    workouts: ReportWorkouts
+
+
+class ReportColumn(BaseModel):
+    key: str
+    label: str
+    unit: str | None
+
+
+class ReportDailyRow(BaseModel):
+    date: Date
+    values: dict[str, float | None]
+
+
+class ReportDailyResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_: Date = Field(alias="from")
+    to: Date
+    columns: list[ReportColumn]
+    rows: list[ReportDailyRow]

@@ -173,41 +173,63 @@ class _Builder:
         self.add("Weight", SCALE, when, None, {"value": w}, method="manual")
         self.add("Weight", PHONE, when, None, {"value": w}, method="manual")  # mirrored copy
 
+    # (exercise_type, HC constant, title, minutes range, has GPS route)
+    WORKOUTS = (
+        ("WALKING", 79, "Evening walk", (30, 55), True),
+        ("RUNNING", 56, "Easy run", (25, 45), True),
+        ("BIKING", 8, "Ride", (40, 75), False),
+    )
+
     def workout(self, day: date, index: int) -> None:
-        if index % 3:
+        """Roughly every other day, rotating walk / run / ride, each logged by watch AND phone."""
+        if index % 2:
             return
         rng = self.rng
+        kind, type_id, title, (lo, hi), has_route = self.WORKOUTS[(index // 2) % len(self.WORKOUTS)]
         start = self.at(day, 18, rng.randint(0, 30))
-        end = start + timedelta(minutes=30)
-        lat, lon = 0.0, 0.0
-        route = []
-        for k in range(0, 31, 2):
-            lat += rng.gauss(0.00005, 0.00002)
-            lon += rng.gauss(0.00005, 0.00002)
-            route.append(
-                {
-                    "time": _iso(start + timedelta(minutes=k)),
-                    "lat": round(lat, 6),
-                    "lon": round(lon, 6),
-                    "alt_m": round(10 + rng.gauss(0, 1), 1),
-                }
-            )
-        data = {
-            "exercise_type": "WALKING",
-            "exercise_type_id": 79,
-            "title": "Evening walk",
-            "route": route,
-        }
+        minutes = rng.randint(lo, hi)
+        end = start + timedelta(minutes=minutes)
+        data: dict[str, Any] = {"exercise_type": kind, "exercise_type_id": type_id, "title": title}
+        if has_route:
+            lat, lon = 0.0, 0.0  # (0 N, 0 E): obviously not a real place
+            route = []
+            for k in range(0, minutes + 1, 2):
+                lat += rng.gauss(0.00005, 0.00002)
+                lon += rng.gauss(0.00005, 0.00002)
+                route.append(
+                    {
+                        "time": _iso(start + timedelta(minutes=k)),
+                        "lat": round(lat, 6),
+                        "lon": round(lon, 6),
+                        "alt_m": round(10 + rng.gauss(0, 1), 1),
+                    }
+                )
+            data["route"] = route
         self.add("ExerciseSession", WATCH, start, end, data, method="active")
-        # phone logs the same walk without the route
+        # the phone logs the same workout without the route
         self.add(
             "ExerciseSession",
             PHONE,
             start,
             end,
-            {"exercise_type": "WALKING", "exercise_type_id": 79},
+            {"exercise_type": kind, "exercise_type_id": type_id},
             method="active",
         )
+
+    def blood_pressure(self, day: date, index: int) -> None:
+        """A morning and an evening reading every third day (manual entries)."""
+        if index % 3:
+            return
+        rng = self.rng
+        for hour, minute in ((7, 30), (20, 40)):
+            data = {
+                "systolic": round(rng.gauss(119, 7)),
+                "diastolic": round(rng.gauss(77, 5)),
+                "body_position": "SITTING_DOWN",
+            }
+            self.add(
+                "BloodPressure", WATCH, self.at(day, hour, minute), None, data, method="manual"
+            )
 
     # ----------------------------------------------------------------- official aggregates
 
@@ -266,6 +288,7 @@ def generate(cfg: SeedConfig | None = None) -> SyntheticData:
         builder.night(day)
         builder.weight(day, index)
         builder.workout(day, index)
+        builder.blood_pressure(day, index)
     return SyntheticData(builder.records, builder.official_aggregates(days))
 
 

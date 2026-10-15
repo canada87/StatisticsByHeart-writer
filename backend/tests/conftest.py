@@ -7,7 +7,9 @@ import os
 import sys
 import uuid
 from collections.abc import AsyncIterator, Iterator
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import httpx
 import pytest
@@ -21,6 +23,8 @@ from app.config import Settings
 from app.main import create_app
 from app.models import IngestToken
 from app.security import hash_password, new_ingest_token
+from app.seed.loader import load_synthetic
+from app.seed.synthetic import SeedConfig, generate
 
 if sys.platform == "win32":  # psycopg async cannot run on the default Proactor loop
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -116,3 +120,24 @@ async def admin_password(app) -> str:  # type: ignore[no-untyped-def]
         s.add(AdminUser(username="admin", password_hash=hash_password(pw)))
         await s.commit()
     return pw
+
+
+# ---- shared by the dashboard / trends / report API tests
+TODAY = datetime.now(ZoneInfo("Europe/Rome")).date()
+
+
+@pytest_asyncio.fixture
+async def seeded(app, settings: Settings) -> None:  # type: ignore[no-untyped-def]
+    data = generate(SeedConfig(days=10, seed=3, end_date=TODAY, hr_interval_min=10))
+    await load_synthetic(app.state.sessionmaker, settings, data)
+
+
+@pytest_asyncio.fixture
+async def web(client: httpx.AsyncClient, admin_password: str) -> httpx.AsyncClient:
+    r = await client.post(
+        "/api/v1/auth/login",
+        json={"username": "admin", "password": admin_password},
+        headers={"X-SBH-Client": "web"},
+    )
+    assert r.status_code == 200
+    return client

@@ -1,36 +1,14 @@
 """Dashboard read API over synthetic data."""
 
-from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
+from datetime import timedelta
 
 import httpx
 import pytest
-import pytest_asyncio
 from fastapi import FastAPI
 
-from app.config import Settings
-from app.seed.loader import load_synthetic
-from app.seed.synthetic import PHONE, SCALE, WATCH, SeedConfig, generate
+from app.seed.synthetic import PHONE, SCALE, WATCH
+from tests.conftest import TODAY
 from tests.helpers import post_records, steps
-
-TODAY = datetime.now(ZoneInfo("Europe/Rome")).date()
-
-
-@pytest_asyncio.fixture
-async def seeded(app: FastAPI, settings: Settings) -> None:
-    data = generate(SeedConfig(days=10, seed=3, end_date=TODAY, hr_interval_min=10))
-    await load_synthetic(app.state.sessionmaker, settings, data)
-
-
-@pytest_asyncio.fixture
-async def web(client: httpx.AsyncClient, admin_password: str) -> httpx.AsyncClient:
-    r = await client.post(
-        "/api/v1/auth/login",
-        json={"username": "admin", "password": admin_password},
-        headers={"X-SBH-Client": "web"},
-    )
-    assert r.status_code == 200
-    return client
 
 
 @pytest.mark.parametrize(

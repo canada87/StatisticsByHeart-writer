@@ -7,20 +7,26 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Query
 
+from app.config import Settings
 from app.dash_schemas import (
     Agg,
     Bucket,
+    DataBounds,
+    ExerciseResponse,
     InventoryResponse,
     ReconciliationResponse,
+    ReportDailyResponse,
+    ReportResponse,
     SeriesResponse,
     SeriesSource,
+    SleepNightsResponse,
     SyncStatusResponse,
     TodaySummary,
 )
 from app.deps import AdminAuth, Db, SettingsDep
 from app.errors import ApiError
 from app.schemas import ErrorResponse
-from app.services import queries
+from app.services import analytics, queries
 
 router = APIRouter(prefix="/api/v1", tags=["dashboard"])
 _AUTH: dict[int | str, dict[str, Any]] = {401: {"model": ErrorResponse}}
@@ -58,11 +64,26 @@ async def metric_series(
     bucket: Bucket = "auto",
     agg: Agg | None = None,
     source: SeriesSource = "auto",
+    field: Annotated[str | None, Query(description="BloodPressure: systolic | diastolic")] = None,
+    band: Annotated[bool, Query(description="Add min/max per bucket (lo/hi)")] = False,
+    compare: Annotated[bool, Query(description="Add the previous period (prev)")] = False,
+    ma: Annotated[bool, Query(description="Add a trailing moving average (ma)")] = False,
 ) -> SeriesResponse:
     last = to or queries.today_local(settings)
     first = from_ or last - timedelta(days=6)
     return await queries.metric_series(
-        session, settings, type_name, first, last, bucket, agg, source
+        session,
+        settings,
+        type_name,
+        first,
+        last,
+        bucket,
+        agg,
+        source,
+        field=field,
+        band=band,
+        compare=compare,
+        ma=ma,
     )
 
 
@@ -111,3 +132,92 @@ async def sync_status(
     _: AdminAuth, session: Db, limit: Annotated[int, Query(ge=1, le=100)] = 20
 ) -> SyncStatusResponse:
     return await queries.sync_status(session, limit)
+
+
+def _window(
+    settings: Settings, from_: date | None, to: date | None, default_days: int
+) -> tuple[date, date]:
+    last = to or queries.today_local(settings)
+    return from_ or last - timedelta(days=default_days - 1), last
+
+
+@router.get(
+    "/data/bounds",
+    response_model=DataBounds,
+    summary="First and last day with data (feeds the 'All' range)",
+    responses=_AUTH,
+)
+async def data_bounds(_: AdminAuth, session: Db) -> DataBounds:
+    return await analytics.bounds(session)
+
+
+@router.get(
+    "/sleep/nights",
+    response_model=SleepNightsResponse,
+    response_model_by_alias=True,
+    summary="Per-night sleep: duration, stages, bed and wake time, regularity",
+    responses={**_AUTH, 422: {"model": ErrorResponse}},
+)
+async def sleep_nights(
+    _: AdminAuth,
+    session: Db,
+    settings: SettingsDep,
+    from_: Annotated[date | None, Query(alias="from")] = None,
+    to: date | None = None,
+) -> SleepNightsResponse:
+    first, last = _window(settings, from_, to, 30)
+    return await analytics.sleep_nights(session, settings, first, last)
+
+
+@router.get(
+    "/exercise/sessions",
+    response_model=ExerciseResponse,
+    response_model_by_alias=True,
+    summary="Workouts (de-duplicated across apps) with kcal, average HR and weekly volume",
+    responses={**_AUTH, 422: {"model": ErrorResponse}},
+)
+async def exercise_sessions(
+    _: AdminAuth,
+    session: Db,
+    settings: SettingsDep,
+    from_: Annotated[date | None, Query(alias="from")] = None,
+    to: date | None = None,
+) -> ExerciseResponse:
+    first, last = _window(settings, from_, to, 30)
+    return await analytics.exercise_sessions(session, settings, first, last)
+
+
+@router.get(
+    "/report",
+    response_model=ReportResponse,
+    response_model_by_alias=True,
+    summary="Period report for the 12 dashboard metrics, with previous-period comparison",
+    responses={**_AUTH, 422: {"model": ErrorResponse}},
+)
+async def period_report(
+    _: AdminAuth,
+    session: Db,
+    settings: SettingsDep,
+    from_: Annotated[date | None, Query(alias="from")] = None,
+    to: date | None = None,
+) -> ReportResponse:
+    first, last = _window(settings, from_, to, 7)
+    return await analytics.report(session, settings, first, last)
+
+
+@router.get(
+    "/report/daily",
+    response_model=ReportDailyResponse,
+    response_model_by_alias=True,
+    summary="Daily table of the 12 metrics (source of the CSV export)",
+    responses={**_AUTH, 422: {"model": ErrorResponse}},
+)
+async def report_daily(
+    _: AdminAuth,
+    session: Db,
+    settings: SettingsDep,
+    from_: Annotated[date | None, Query(alias="from")] = None,
+    to: date | None = None,
+) -> ReportDailyResponse:
+    first, last = _window(settings, from_, to, 7)
+    return await analytics.report_daily(session, settings, first, last)
