@@ -18,6 +18,26 @@ design-system/   MASTER.md + override per pagina
 .github/         workflow CI e Release (immagine su GHCR)
 ```
 
+## La dashboard
+
+| Pagina | Cosa mostra |
+|---|---|
+| **Panoramica** | Stato di oggi (passi, FC, sonno, calorie, SpO₂/HRV, attività recenti) e trend dell'intervallo scelto |
+| **Cuore** | FC (media giornaliera con banda min–max), FC a riposo, HRV, SpO₂ |
+| **Sonno** | Durata per notte, stadi (barre impilate), orari di addormentamento/risveglio e regolarità |
+| **Attività** | Passi, distanza, calorie attive e totali, elenco allenamenti (kcal, FC media) e volume settimanale |
+| **Corpo** | Peso e pressione arteriosa (sistolica continua, diastolica tratteggiata; fasce solo indicative) |
+| **Report** | Riepilogo per settimana/mese/anno/personalizzato, con variazione vs periodo precedente, giorni migliori/peggiori, stampa/PDF ed export CSV |
+| **Sync / Dati** | Verifica: ultime sync (rifiutati/errori), inventario per tipo e sorgente, ufficiale Health Connect vs somma dei record |
+
+Ogni pagina di trend ha KPI del periodo con variazione (freccia **e** testo), grafici con granularità giorno/settimana/mese
+(automatica per intervallo), media mobile e confronto con il periodo precedente attivabili, valori raggiungibili da tastiera
+(cursore sotto il grafico), riepilogo testuale, tabella alternativa ed **export CSV per grafico**. Il selettore globale arriva
+fino a **Tutto** (l'intero storico) e vive nell'URL; il periodo del Report pure (`?p=month&d=2026-09-01`), quindi un report si
+riapre o si condivide con il link. Il Report si salva in PDF con *Stampa / Salva PDF* del browser (foglio di stampa dedicato,
+sfondo chiaro, senza effetti HUD). Le metriche sono solo le 12 di interesse; la **pressione** è un tipo Tier 2: finché non è
+attivata nell'app mostra un messaggio che spiega come farlo.
+
 ## Avvio in locale (sviluppo, dati SINTETICI)
 
 Serve Docker. Dalla radice del repo:
@@ -27,7 +47,7 @@ docker compose -f docker/compose.dev.yml up --build
 ```
 
 Costruisce l'immagine (SPA inclusa), parte Postgres 16 + l'app su <http://127.0.0.1:8000>, applica le migrazioni e
-carica 30 giorni di dati **sintetici** (mai dati reali). Login dashboard: `admin` / `dev-password-change-me`.
+carica 90 giorni di dati **sintetici** (con allenamenti vari e pressione) (mai dati reali). Login dashboard: `admin` / `dev-password-change-me`.
 Nei log trovi anche un token di ingest «dev» per provare l'API del Reader:
 
 ```bash
@@ -85,8 +105,8 @@ L'immagine **non si builda sulla VM**: la costruisce GitHub Actions e Portainer 
 Per rilasciare (dal tuo PC):
 
 ```bash
-git tag v0.2.0
-git push origin main v0.2.0
+git tag v0.3.0
+git push origin main v0.3.0
 ```
 
 ### Una tantum: rendere pubblico il pacchetto
@@ -130,7 +150,7 @@ variables* (vedi `docker/.env.example`; puoi usare «Load variables from .env fi
 | Variabile | Valore |
 |---|---|
 | `SBH_DB_PASSWORD` | **obbligatoria**, es. output di `openssl rand -hex 24` |
-| `SBH_IMAGE_TAG` | `0.2.0` (la versione da usare) oppure `latest` |
+| `SBH_IMAGE_TAG` | `0.3.0` (la versione da usare) oppure `latest` |
 | `SBH_HTTP_PORT` | `8742` (o quella libera che hai scelto) |
 | `SBH_DATA_DIR` | cartella locale della VM che contiene `db/` (default nel compose) |
 | `SBH_SOURCE_PRIORITY` | opzionale: pacchetti Android in ordine di fiducia (i nomi esatti li mostra la pagina *Sync / Dati → Inventario*) |
@@ -180,9 +200,9 @@ Verifica da un dispositivo sulla tailnet: `curl https://<il-tuo-dominio>/api/v1/
 
 ### Aggiornare e tornare indietro
 
-1. Rilascia un nuovo tag (`git tag v0.2.1 && git push origin v0.2.1`) e attendi che il workflow *Release* finisca.
+1. Rilascia un nuovo tag (`git tag v0.3.1 && git push origin v0.3.1`) e attendi che il workflow *Release* finisca.
 2. Prima di un upgrade con migrazioni: snapshot PBS (e dump, vedi sotto).
-3. In Portainer cambia `SBH_IMAGE_TAG=0.2.1` → **Update the stack** con *Re-pull image* attivo. Se usi `latest`:
+3. In Portainer cambia `SBH_IMAGE_TAG=0.3.1` → **Update the stack** con *Re-pull image* attivo. Se usi `latest`:
    *Update the stack* con **Pull latest image**.
 4. **Rollback**: rimetti il tag precedente (`SBH_IMAGE_TAG=0.2.0`) e aggiorna lo stack. Le migrazioni sono solo «in
    avanti»: se una migrazione va annullata ripristina lo snapshot PBS (o il dump) invece di fare `downgrade`.

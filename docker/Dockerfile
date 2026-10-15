@@ -2,7 +2,7 @@
 #
 # StatisticsByHeart writer image. Build context = repository ROOT:
 #
-#   docker build -f docker/Dockerfile -t statisticsbyheart-writer:0.2.0 .
+#   docker build -f docker/Dockerfile -t statisticsbyheart-writer:0.3.0 .
 #
 # Stages: (1) frontend SPA build  (2) Python deps  (3) slim runtime serving API + SPA.
 

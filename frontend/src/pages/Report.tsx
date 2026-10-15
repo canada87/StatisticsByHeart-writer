@@ -100,10 +100,10 @@ function PeriodControls({ period }: { period: Period }) {
           <ToggleGroup.Item
             key={k}
             value={k}
+            aria-label={k === 'custom' ? t('period.custom.aria') : undefined}
             className="min-h-11 border-r border-border-control px-2.5 font-display text-sm uppercase tracking-wider last:border-r-0 sm:px-3 hover:bg-accent-glow/10 data-[state=on]:bg-accent data-[state=on]:text-black data-[state=on]:hover:bg-accent"
           >
-            <span aria-hidden>{k === 'custom' ? t('period.custom.short') : t(`period.${k}` as MessageKey)}</span>
-            <span className="sr-only">{t(`period.${k}` as MessageKey)}</span>
+            {k === 'custom' ? t('period.custom.short') : t(`period.${k}` as MessageKey)}
           </ToggleGroup.Item>
         ))}
       </ToggleGroup.Root>

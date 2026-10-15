@@ -190,7 +190,7 @@ export const it = {
   'nav.body': 'Corpo',
   'nav.report': 'Report',
   'nav.more': 'Altro',
-  'nav.more.aria': 'Altre sezioni',
+  'nav.more.aria': 'Altro: altre sezioni',
 
   'chart.cursor': 'Esplora i punti con le frecce ← →',
   'chart.exportCsv': 'Esporta CSV',
@@ -318,6 +318,7 @@ export const it = {
   'period.year': 'Anno',
   'period.custom': 'Personalizzato',
   'period.custom.short': 'Pers.',
+  'period.custom.aria': 'Pers.: periodo personalizzato',
   'period.prev': 'Periodo precedente',
   'period.next': 'Periodo successivo',
   'period.current': 'Corrente',
