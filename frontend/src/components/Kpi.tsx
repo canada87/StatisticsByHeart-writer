@@ -12,12 +12,18 @@ import { ErrorState, Skeleton } from './states'
 const DELTA_ICON = { up: ArrowUp, down: ArrowDown, flat: Equals, none: Minus } as const
 
 /** Arrow + text + screen-reader sentence: the direction is never carried by colour alone. */
-export function DeltaBadge({ delta }: { delta: Delta }) {
+export function DeltaBadge({ delta, compact = false }: { delta: Delta; compact?: boolean }) {
   const Icon = DELTA_ICON[delta.direction]
+  const short =
+    delta.pct !== null && delta.direction !== 'flat'
+      ? `${delta.pct > 0 ? '+' : '−'}${fmtNumber(Math.abs(delta.pct), 1)}%`
+      : delta.direction === 'flat'
+        ? t('delta.flat.short')
+        : delta.text
   return (
     <span className="inline-flex items-center gap-1 text-sm text-accent-text" data-testid="delta" data-direction={delta.direction}>
       <Icon size={16} weight="bold" aria-hidden />
-      <span aria-hidden>{delta.text}</span>
+      <span aria-hidden>{compact ? short : delta.text}</span>
       <span className="sr-only">{delta.sr}</span>
     </span>
   )

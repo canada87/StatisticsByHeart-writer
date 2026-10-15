@@ -100,9 +100,10 @@ function PeriodControls({ period }: { period: Period }) {
           <ToggleGroup.Item
             key={k}
             value={k}
-            className="min-h-11 border-r border-border-control px-3 font-display text-sm uppercase tracking-wider last:border-r-0 hover:bg-accent-glow/10 data-[state=on]:bg-accent data-[state=on]:text-black data-[state=on]:hover:bg-accent"
+            className="min-h-11 border-r border-border-control px-2.5 font-display text-sm uppercase tracking-wider last:border-r-0 sm:px-3 hover:bg-accent-glow/10 data-[state=on]:bg-accent data-[state=on]:text-black data-[state=on]:hover:bg-accent"
           >
-            {t(`period.${k}` as MessageKey)}
+            <span aria-hidden>{k === 'custom' ? t('period.custom.short') : t(`period.${k}` as MessageKey)}</span>
+            <span className="sr-only">{t(`period.${k}` as MessageKey)}</span>
           </ToggleGroup.Item>
         ))}
       </ToggleGroup.Root>
@@ -191,23 +192,23 @@ function MetricRow({ m, report }: { m: ReportMetric; report: ReportResponse }) {
   )
   return (
     <tr className="border-t border-border align-top" data-testid={`report-row-${m.key}`}>
-      <th scope="row" className="px-2 py-2 text-left font-normal">
+      <th scope="row" className="min-w-28 px-2 py-2 text-left font-normal">
         {label}
-        {!empty && <span className="block text-xs text-fg-muted">{t('kpi.days', { n: m.days_with_data, prev: fmtNumber(m.previous.days) })}</span>}
+        {!empty && <span className="block text-xs text-fg-muted">{t('kpi.days.short', { n: m.days_with_data, prev: fmtNumber(m.previous.days) })}</span>}
       </th>
-      <td className="whitespace-nowrap px-2 py-2">{empty ? t('kpi.noData') : `${cells.avg}${m.key === 'blood_pressure' ? ' mmHg' : cells.avg === '—' ? '' : unit}`}</td>
-      <td className="whitespace-nowrap px-2 py-2">{cells.total === '—' ? '—' : `${cells.total}${m.key === 'workouts' ? '' : unit}`}</td>
-      <td className="whitespace-nowrap px-2 py-2">{cells.range}</td>
-      <td className="whitespace-nowrap px-2 py-2">{empty ? '—' : <DeltaBadge delta={delta} />}</td>
+      <td className="whitespace-nowrap px-2 py-2 print:whitespace-normal">{empty ? t('kpi.noData') : `${cells.avg}${m.key === 'blood_pressure' ? ' mmHg' : cells.avg === '—' ? '' : unit}`}</td>
+      <td className="whitespace-nowrap px-2 py-2 print:whitespace-normal">{cells.total === '—' ? '—' : `${cells.total}${m.key === 'workouts' ? '' : unit}`}</td>
+      <td className="whitespace-nowrap px-2 py-2 print:whitespace-normal">{cells.range}</td>
+      <td className="whitespace-nowrap px-2 py-2 print:whitespace-normal">{empty ? '—' : <DeltaBadge delta={delta} compact />}</td>
       <td className="px-2 py-2 text-xs">
         {m.higher_is_better === null || empty ? (
           '—'
         ) : (
           <>
-            <span className="block whitespace-nowrap">
+            <span className="block whitespace-nowrap print:whitespace-normal">
               <span className="text-fg-muted">{t('report.best')}</span> {dayText(def, m.best_day)}
             </span>
-            <span className="block whitespace-nowrap">
+            <span className="block whitespace-nowrap print:whitespace-normal">
               <span className="text-fg-muted">{t('report.worst')}</span> {dayText(def, m.worst_day)}
             </span>
           </>
@@ -242,7 +243,7 @@ function ReportBody({ report, period }: { report: ReportResponse; period: Period
             <thead className="bg-surface-muted">
               <tr>
                 {(['report.col.metric', 'report.col.avg', 'report.col.total', 'report.col.range', 'report.col.delta', 'report.col.days', 'report.col.trend'] as const).map((k) => (
-                  <th key={k} scope="col" className="whitespace-nowrap px-2 py-1.5 text-left font-normal text-fg-muted">
+                  <th key={k} scope="col" className="px-2 py-1.5 text-left font-normal text-fg-muted">
                     {t(k)}
                   </th>
                 ))}
@@ -321,7 +322,7 @@ export function ReportPage() {
       downloadCsv(
         csvName('report', period.start, period.last),
         toCsv(
-          ['data', ...cols.map((c) => (c.unit ? `${c.key}_${c.unit.replace('/', '-')}` : c.key))],
+          ['data', ...cols.map((c) => c.key)],
           daily.rows.map((r) => [r.date, ...cols.map((c) => r.values[c.key] ?? null)]),
         ),
       )

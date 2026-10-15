@@ -110,11 +110,12 @@ export function baseOption(
               fontFamily: "'Fira Code', monospace",
             }
           : undefined,
-      showSymbol: s.kind === 'line' && categories.length <= 31,
+      // sparse series (weight, blood pressure) keep their points visible and joined
+      showSymbol: s.kind === 'line' && s.data.filter((v) => v !== null).length <= 60,
       symbol: s.dashed || s.dotted ? 'none' : 'circle',
       symbolSize: 5,
       barMaxWidth: 28,
-      connectNulls: false,
+      connectNulls: s.kind === 'line',
     })),
   }
 }

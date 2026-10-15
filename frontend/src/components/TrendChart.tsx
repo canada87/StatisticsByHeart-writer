@@ -165,7 +165,7 @@ export function TrendChart({
       )
       option.series.push(
         { name: '_lo', type: 'line', stack: 'band', data: lo, symbol: 'none', silent: true, lineStyle: { opacity: 0 }, tooltip: { show: false } },
-        { name: bandName, type: 'line', stack: 'band', data: span, symbol: 'none', silent: true, lineStyle: { opacity: 0 }, areaStyle: { color: p[def.color], opacity: 0.16 } },
+        { name: bandName, type: 'line', stack: 'band', data: span, symbol: 'none', silent: true, itemStyle: { color: p[def.color] }, lineStyle: { opacity: 0 }, areaStyle: { color: p[def.color], opacity: 0.16 } },
       )
       option.legend = { ...option.legend, data: [label, bandName, ...(showMa && ma ? [maName] : []), ...(showPrev && hasPrev ? [prevName] : [])] }
     }

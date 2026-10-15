@@ -96,6 +96,12 @@
   a {
     cursor: pointer;
   }
+  /* Scrollers contain their absolutely positioned content (sr-only text inside wide tables
+     would otherwise sit outside the clip and stretch the whole page horizontally). */
+  .overflow-x-auto,
+  .overflow-auto {
+    position: relative;
+  }
   ::selection {
     background: rgb(34 211 238 / 0.35);
   }
@@ -318,6 +324,11 @@
   .hud-panel::before,
   .hud-panel::after {
     display: none !important;
+  }
+  .overflow-x-auto,
+  .overflow-auto {
+    overflow: visible !important;
+    max-height: none !important;
   }
   .print-break-before {
     break-before: page;

@@ -219,6 +219,7 @@ export const it = {
 
   'delta.none': 'nessun confronto',
   'delta.flat': 'stabile vs periodo prec.',
+  'delta.flat.short': 'stabile',
   'delta.flat.sr': 'stabile rispetto al periodo precedente',
   'delta.up': '+{value}% vs periodo prec.',
   'delta.down': '−{value}% vs periodo prec.',
@@ -239,6 +240,7 @@ export const it = {
   'kpi.avg': 'media',
   'kpi.avgNight': 'a notte',
   'kpi.days': '{n} giorni con dati (precedente: {prev})',
+  'kpi.days.short': '{n} gg con dati (prec. {prev})',
 
   'm.steps': 'Passi',
   'm.heartRate': 'Frequenza cardiaca',
@@ -315,6 +317,7 @@ export const it = {
   'period.month': 'Mese',
   'period.year': 'Anno',
   'period.custom': 'Personalizzato',
+  'period.custom.short': 'Pers.',
   'period.prev': 'Periodo precedente',
   'period.next': 'Periodo successivo',
   'period.current': 'Corrente',
