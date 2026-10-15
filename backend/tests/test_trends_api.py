@@ -1,4 +1,4 @@
-"""Trend features: moving average, previous period, bands, coarsening, sleep nights, workouts, report."""
+"""Trends: moving average, previous period, bands, coarsening, sleep nights, workouts, report."""
 
 from datetime import date, timedelta
 
@@ -50,7 +50,8 @@ def test_buckets_start_on_monday_and_first_of_month() -> None:
 async def test_series_moving_average_compare_and_band(seeded: None, web: httpx.AsyncClient) -> None:
     first = TODAY - timedelta(days=4)
     r = await web.get(
-        f"/api/v1/metrics/HeartRate/series?{_qs(first, TODAY, bucket='day', band='true', ma='true', compare='true')}"
+        "/api/v1/metrics/HeartRate/series?"
+        + _qs(first, TODAY, bucket="day", band="true", ma="true", compare="true")
     )
     body = r.json()
     assert r.status_code == 200 and body["bucket"] == "day" and body["ma_window"] == 7
@@ -110,7 +111,7 @@ async def test_series_coarsens_long_ranges(web: httpx.AsyncClient) -> None:
 async def test_week_buckets_use_italian_weeks_and_rome_days(
     web: httpx.AsyncClient, client: httpx.AsyncClient, auth: dict[str, str]
 ) -> None:
-    # 22:30Z on Sat 24/10 is 00:30 on Sun 25/10 in Rome (CEST): Sunday, last day of the week of 19/10
+    # 22:30Z on Sat 24/10 is 00:30 on Sun 25/10 in Rome (CEST): Sunday, week of 19/10
     # 23:30Z on Sun 25/10 is 00:30 on Mon 26/10 in Rome (CET after the DST change): next week.
     await post_records(
         client,
@@ -147,7 +148,8 @@ async def test_blood_pressure_series_uses_field_and_handles_no_data(
     ).json()
     dia = (
         await web.get(
-            f"/api/v1/metrics/BloodPressure/series?{_qs(first, TODAY, bucket='day', field='diastolic')}"
+            "/api/v1/metrics/BloodPressure/series?"
+            + _qs(first, TODAY, bucket="day", field="diastolic")
         )
     ).json()
     s_vals = [p["v"] for p in sys_["points"] if p["v"] is not None]
