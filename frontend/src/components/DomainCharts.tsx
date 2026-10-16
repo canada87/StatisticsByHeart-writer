@@ -291,11 +291,21 @@ export function Signals({ s }: { s: ExerciseRow }) {
 }
 
 export function Verdict({ s }: { s: ExerciseRow }) {
+  // why: the rule is the activity type (walking is not a workout); a manual verdict overrules it
+  const reason =
+    s.override !== null
+      ? t('workouts.reason.manual', { auto: t(s.auto_real ? 'workouts.reason.autoReal' : 'workouts.reason.autoNotReal') })
+      : t(s.auto_real ? 'workouts.reason.real' : 'workouts.reason.notReal')
   return (
-    <span className="inline-flex items-center gap-1 text-sm" data-testid="verdict" data-real={s.is_real}>
-      {s.is_real ? <Check size={16} weight="bold" aria-hidden /> : <X size={16} weight="bold" aria-hidden />}
-      {t(s.is_real ? 'workouts.verdict.real' : 'workouts.verdict.notReal')}
-      {s.override !== null && <span className="text-xs text-fg-muted">({t('workouts.verdict.manual')})</span>}
+    <span className="flex flex-col" data-testid="verdict" data-real={s.is_real}>
+      <span className="inline-flex items-center gap-1 text-sm">
+        {s.is_real ? <Check size={16} weight="bold" aria-hidden /> : <X size={16} weight="bold" aria-hidden />}
+        {t(s.is_real ? 'workouts.verdict.real' : 'workouts.verdict.notReal')}
+        {s.override !== null && <span className="text-xs text-fg-muted">({t('workouts.verdict.manual')})</span>}
+      </span>
+      <span className="text-xs text-fg-muted" data-testid="verdict-reason">
+        {reason}
+      </span>
     </span>
   )
 }

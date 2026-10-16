@@ -300,7 +300,7 @@ test.describe('trends (synthetic data)', () => {
     await expect(rows.first()).toBeVisible()
     await expect(page.locator('[data-testid="workout-row"][data-real="false"]')).toHaveCount(0)
     await expect(page.getByTestId('workouts-counts')).toContainText('veri su')
-    await expect(rows.first().getByTestId('signals')).toContainText('FC sì')
+    await expect(rows.first().getByTestId('signals')).toContainText(/FC (sì|no)/) // informative badges
     const realCount = await rows.count()
 
     await page.getByTestId('workouts-filter').getByRole('radio', { name: 'Tutti' }).click()
@@ -310,7 +310,8 @@ test.describe('trends (synthetic data)', () => {
     expect(index).toBeGreaterThanOrEqual(0)
     const row = rows.nth(index)
     await expect(row.getByTestId('verdict')).toContainText('Non vero')
-    await expect(row.getByTestId('signals')).toContainText(/FC no|GPS no|automatico/)
+    await expect(row.getByTestId('signals')).toContainText('GPS') // informative badges stay
+    await expect(row.getByTestId('verdict-reason')).toContainText('camminata → non vero')
 
     // the user says it was a real workout, then goes back to automatic
     await row.getByTestId('override-select').selectOption('yes')
@@ -349,7 +350,7 @@ test.describe('trends (synthetic data)', () => {
     await login(page)
     await page.goto('/report?p=month')
     await settled(page)
-    await expect(page.getByTestId('report-workouts-note')).toContainText('solo quelli veri')
+    await expect(page.getByTestId('report-workouts-note')).toContainText('non sia una camminata')
   })
 
   test('hourly averages are offered up to 31 days', async ({ page }) => {

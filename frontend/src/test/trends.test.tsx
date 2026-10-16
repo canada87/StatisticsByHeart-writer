@@ -371,11 +371,13 @@ describe('real workouts (activity page)', () => {
     expect(within(rows[0] as HTMLElement).getByTestId('signals')).toHaveTextContent('GPS sì')
     expect(within(rows[0] as HTMLElement).getByTestId('signals')).toHaveTextContent('Avvio: da te')
     expect(within(rows[0] as HTMLElement).getByTestId('verdict')).toHaveTextContent('Vero')
+    expect(within(rows[0] as HTMLElement).getByTestId('verdict-reason')).toHaveTextContent('non camminata → vero')
     const second = rows[1] as HTMLElement
     expect(within(second).getByTestId('signals')).toHaveTextContent('FC no 10%')
     expect(within(second).getByTestId('signals')).toHaveTextContent('GPS no')
     expect(within(second).getByTestId('signals')).toHaveTextContent('Avvio: automatico')
     expect(within(second).getByTestId('verdict')).toHaveTextContent('manuale') // overridden by the user
+    expect(within(second).getByTestId('verdict-reason')).toHaveTextContent('la regola direbbe: non vero')
     expect(within(second).getByTestId('signals').querySelector('svg')).not.toBeNull()
   })
 
@@ -418,7 +420,7 @@ describe('real workouts (activity page)', () => {
 describe('report', () => {
   it('states that only real workouts count', async () => {
     renderApp('/report?p=month')
-    expect(await screen.findByTestId('report-workouts-note')).toHaveTextContent('solo quelli veri')
+    expect(await screen.findByTestId('report-workouts-note')).toHaveTextContent('non sia una camminata')
     expect(await screen.findByTestId('report-workouts-excluded')).toHaveTextContent('4 attività escluse')
   })
 })

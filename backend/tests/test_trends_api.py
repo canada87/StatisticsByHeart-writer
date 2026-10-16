@@ -239,11 +239,12 @@ async def test_exercise_sessions_dedupe_kcal_hr_and_weekly(
     # the real workouts of the seed: logged by watch AND phone, listed once, dense heart rate
     body = (await web.get(f"/api/v1/exercise/sessions?{_qs(first, TODAY, scope='real')}")).json()
     sessions = body["sessions"]
-    assert 3 <= len(sessions) <= 5  # every other day, minus the gym session with the watch off
+    assert 2 <= len(sessions) <= 4  # every other day, minus the walks
     assert len({s["start"] for s in sessions}) == len(sessions)
-    assert {"WALKING", "RUNNING", "BIKING"} <= {s["type"] for s in sessions}
+    assert {"RUNNING", "BIKING"} <= {s["type"] for s in sessions}
+    assert "WALKING" not in {s["type"] for s in sessions}  # walks are not real workouts
     assert all(s["kcal"] and s["kcal"] > 0 for s in sessions)
-    assert all(s["avg_hr"] and 40 < s["avg_hr"] < 190 for s in sessions)
+    assert all(40 < s["avg_hr"] < 190 for s in sessions if s["avg_hr"])  # the gym has no HR
     assert [s["start"] for s in sessions] == sorted((s["start"] for s in sessions), reverse=True)
     summary = body["summary"]
     assert summary["count"] == len(sessions) == sum(w["count"] for w in body["weekly"])

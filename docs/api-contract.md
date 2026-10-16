@@ -334,8 +334,9 @@ Colonna *forma*: `interval` = valore cumulato su `[start,end]` (end obbligatorio
   rientra nei limiti della §1 (500 elementi e 32 MiB decompressi per richiesta; gzip consigliato), ma conviene
   chiudere il batch a ~5 MiB e mandare le sessioni con rotta poche per volta.
 - `source.recording_method` conta per la dashboard: **`active` e `manual` = sessione avviata dall'utente**,
-  `automatic`/`unknown` = rilevata. Insieme alla copertura della frequenza cardiaca e alla presenza della `route`
-  decide quali sessioni sono «allenamenti veri» (ADR 0006). Inviare il valore corretto di `metadata.recordingMethod`.
+  `automatic`/`unknown` = rilevata. È mostrato come informazione accanto alla sessione (insieme alla copertura della
+  frequenza cardiaca e alla presenza della `route`); **non** decide se è un «allenamento vero»: dalla 0.5.1 conta solo
+  `exercise_type` (non camminata → vero, ADR 0006). Inviare comunque il valore corretto di `metadata.recordingMethod`.
 
 **`MindfulnessSession`** — `data = { "mindfulness_type?": str, "title?": str }`.
 

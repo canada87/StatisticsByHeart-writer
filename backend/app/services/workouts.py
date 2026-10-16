@@ -1,8 +1,10 @@
 """Which exercise sessions are "real workouts" (ADR 0006). Read-only except the override.
 
-A real workout has heart rate for a good part of the session AND (a GPS route OR it was started by
-the user). The user can overrule the rule per session. Records never loaded with their ``data``:
-a GPS route can be 50 000 points, so only the flags we need are selected.
+A real workout is any session whose exercise type is not in ``NOT_REAL_TYPES`` (today: walking).
+The user can overrule the rule per session. Heart-rate coverage, GPS and who started the session
+are still computed, but only as information (badges): Google derives GPS even for activities the
+user never started, so they do not tell workouts apart (ADR 0006). Records are never loaded with
+their ``data``: a GPS route can be 50 000 points, so only the flags we need are selected.
 """
 
 from __future__ import annotations
@@ -20,9 +22,13 @@ from app.config import Settings
 from app.models import ExerciseOverride, HealthRecord, HealthSample
 from app.services.daily import Coverage, rank_sources
 
-# --- the rule's named, documented constants -------------------------------------------------
+# --- the rule: ONE place to refine it ------------------------------------------------------
+NOT_REAL_TYPES = frozenset({"WALKING"})
+"""Exercise types that are NOT real workouts. Everything else (running, cycling, hiking...) is."""
+
+# --- information shown next to each session (not part of the rule) --------------------------
 HR_COVERAGE_MIN = 0.5
-"""Share of the session's minutes that must contain at least one heart-rate sample."""
+"""Share of the session minutes with a heart-rate sample: the "heart rate present" badge."""
 
 USER_STARTED_METHODS = frozenset({"active", "manual"})
 """recording_method values that mean "the user started it" (automatic/unknown do not)."""
@@ -71,7 +77,7 @@ class Classified:
 
     @property
     def auto_real(self) -> bool:
-        return self.has_hr and (self.has_gps or self.user_started)
+        return self.workout.exercise_type not in NOT_REAL_TYPES
 
     @property
     def is_real(self) -> bool:

@@ -12,17 +12,15 @@ sessioni passate.
 
 ## Decisioni
 
-1. **Regola.** Una sessione è un *allenamento vero* se **FC presente per buona parte della sessione E (traccia GPS
-   presente OPPURE sessione avviata dall'utente)**.
-   - *FC presente*: quota dei minuti della sessione che contengono almeno un campione `HeartRate` in `health_sample`
-     ≥ **`HR_COVERAGE_MIN = 0.5`** (`services/workouts.py`). Una sessione di 30 minuti ha bisogno di campioni in almeno
-     15 minuti diversi.
-   - *Avviata dall'utente*: `recording_method` ∈ **`USER_STARTED_METHODS = {active, manual}`**; `automatic` e
-     `unknown` no.
-   - *GPS*: `data.route` non vuoto.
-2. **Copie duplicate.** Telefono e orologio registrano la stessa sessione: la copia migliore (come già per elenco e
-   volume) rappresenta l'allenamento, ma **i segnali sono l'unione delle copie** (GPS su una, avvio manuale
-   sull'altra). Le soglie sono costanti con nome e docstring, non numeri nel codice.
+1. **Regola (0.5.1): un allenamento è vero se il tipo di attività non è una camminata.** Camminata = `exercise_type`
+   `WALKING`; tutto il resto (corsa, ciclismo, **escursionismo/HIKING**, forza, qualunque altro tipo) è vero. La regola
+   vive in un posto solo, l'insieme **`NOT_REAL_TYPES = {"WALKING"}`** in `services/workouts.py`: raffinarla è una
+   modifica di una riga (più il testo «camminata → non vero» nell'interfaccia). Copertura FC, GPS e `recording_method`
+   **non** fanno più parte della regola.
+2. **Segnali solo informativi.** FC (quota di minuti con almeno un campione ≥ `HR_COVERAGE_MIN = 0.5`), GPS e «avviata da
+   te» (`USER_STARTED_METHODS = {active, manual}`) restano calcolati e mostrati come badge accanto a ogni sessione, uniti
+   tra le copie duplicate, ma non decidono il verdetto. Telefono e orologio registrano la stessa sessione: la copia
+   migliore rappresenta l'allenamento (come per elenco e volume).
 3. **Verdetto manuale.** Per sessione: *vero*, *non vero* o *automatico*. Vince sulla regola. Tabella
    `exercise_override(hc_id PK, is_real, updated_at)`: la chiave è l'**id Health Connect**, non l'id della riga, così il
    verdetto sopravvive al re-ingest, alla cancellazione e al reinserimento dello stesso record. «Automatico» cancella
@@ -50,13 +48,20 @@ sessioni passate.
    arrivano, la regola «FC + avvio da te» basta da sola. Una richiesta con una sessione da 50 000 punti in gzip è coperta da test; oltre 32 MiB
    decompressi il writer risponde `413 body_too_large`.
 
+## Cronologia della regola
+
+- **0.5.0:** FC presente (≥50% dei minuti) **E** (GPS **O** avviata da te). Provata in produzione con dati reali: **non
+  funziona**, perché Google ricava la traccia GPS anche per attività che l'utente non ha avviato, quindi il GPS non
+  distingue nulla (verificato dall'utente sui dati reali).
+- **0.5.1:** regola semplificata: *non camminata → vero*. L'utente la raffinerà più avanti. Nessuna migrazione: la
+  tabella `exercise_override` e i verdetti già salvati restano validi e vincono ancora sulla regola.
+
 ## Limiti noti
 
-- **Allenamenti al chiuso senza avvio manuale** (forza, yoga) non hanno GPS e, se l'orologio li rileva da solo,
-  `automatic`: non risultano veri. Si correggono col verdetto manuale (e conviene avviarli dall'orologio).
-- **Orologio a casa o fascia FC non indossata:** una sessione avviata dall'utente senza FC non è vera.
-- La copertura FC si misura in minuti **con almeno un campione**: se l'orologio campiona ogni 10 minuti, una sessione
-  breve può non raggiungere il 50% anche con l'orologio addosso.
+- **Una camminata vera** (una lunga camminata sportiva) non è un allenamento vero finché non la si corregge col
+  verdetto manuale; viceversa **un'attività rilevata da sola di un altro tipo** (qualche minuto di «ciclismo» in
+  macchina o in treno) risulta vera e dopo va corretta a mano. Senza FC, GPS o avvio la regola non può accorgersene.
+- Il tipo dipende dall'app/orologio che registra: un'attività riclassificata dall'app cambia verdetto.
 - I 30 minuti di recupero sono una costante, non una preferenza; un allenamento lungo che finisce a ridosso del sonno
   non toglie nulla alla notte.
 - Il verdetto vale per l'id Health Connect: se un'app rigenera l'id della sessione, il verdetto va rimesso.
