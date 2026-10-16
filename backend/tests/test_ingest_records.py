@@ -370,3 +370,34 @@ async def test_an_oversized_body_is_a_413(client: httpx.AsyncClient, auth: dict[
     blob = {"device_id": DEVICE, "sync_id": SYNC, "records": [], "pad": "x" * (33 * 1024 * 1024)}
     r = await post(client, auth, "records", blob, gz=True)
     assert r.status_code == 413 and r.json()["error"]["code"] == "body_too_large"
+
+
+async def test_an_update_without_a_route_keeps_the_stored_route(
+    client: httpx.AsyncClient, auth: dict[str, str], app: FastAPI
+) -> None:
+    """Route permission revoked in Health Connect: later versions of the session carry no route."""
+    await post_records(client, auth, [_workout(True)])
+    assert await scalar(app, "SELECT jsonb_array_length(data->'route') FROM health_record") == 2
+
+    later = _workout(False)
+    later["last_modified"] = "2026-10-15T09:00:00Z"
+    later["data"]["title"] = "Run (renamed)"
+    result = await post_records(client, auth, [later])
+    assert result["updated"] == 1
+    assert await scalar(app, "SELECT data->>'title' FROM health_record") == "Run (renamed)"
+    assert await scalar(app, "SELECT jsonb_array_length(data->'route') FROM health_record") == 2
+
+    # same version re-sent without the route: still a no-op, the route stays
+    again = await post_records(client, auth, [later])
+    assert (again["updated"], again["unchanged"]) == (0, 1)
+    # the old payload at the old last_modified without a route is not an update either
+    stale = await post_records(client, auth, [_workout(False)])
+    assert (stale["updated"], stale["unchanged"]) == (0, 1)
+    assert await scalar(app, "SELECT jsonb_array_length(data->'route') FROM health_record") == 2
+
+    # an explicit new route replaces the old one
+    newer = _workout(True)
+    newer["last_modified"] = "2026-10-16T09:00:00Z"
+    newer["data"]["route"] = newer["data"]["route"][:1]
+    await post_records(client, auth, [newer])
+    assert await scalar(app, "SELECT jsonb_array_length(data->'route') FROM health_record") == 1

@@ -236,6 +236,29 @@ async def ingest_records(
             ).all()
         }
 
+    # A later version of a workout may arrive without its GPS route (the user revoked the route
+    # permission): the stored route is kept, never erased by an update that does not carry one.
+    keep_route_ids = [
+        existing[key][0]
+        for key, rec in candidates.items()
+        if key in existing
+        and key[0] == "ExerciseSession"
+        and not getattr(rec.parsed, "route", None)
+    ]
+    kept_routes: dict[int, Any] = {}
+    if keep_route_ids:
+        kept_routes = {
+            i: r
+            for i, r in (
+                await session.execute(
+                    select(HealthRecord.id, HealthRecord.data["route"]).where(
+                        HealthRecord.id.in_(keep_route_ids),
+                        HealthRecord.data.has_key("route"),
+                    )
+                )
+            ).all()
+        }
+
     touched: set[TypeDay] = set()
     to_insert: list[tuple[dict[str, Any], list[tuple[datetime, float]]]] = []
     to_update: list[tuple[int, dict[str, Any], list[tuple[datetime, float]]]] = []
@@ -243,6 +266,8 @@ async def ingest_records(
     for key, rec in candidates.items():
         values, samples = _record_values(rec, settings, batch.device_id, batch.sync_id)
         found = existing.get(key)
+        if found is not None and found[0] in kept_routes and "route" not in values["data"]:
+            values["data"]["route"] = kept_routes[found[0]]
         if found is None:
             to_insert.append((values, samples))
         elif rec.last_modified > found[2] or (

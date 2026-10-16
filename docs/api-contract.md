@@ -68,7 +68,8 @@ Tutti gli errori (non‑2xx) hanno questa forma:
   `last_modified` in ingresso è maggiore** di quello salvato **oppure è uguale ma `data` è diverso** (es. la
   `route` GPS aggiunta a una sessione già inviata: il Reader può rimandare le sessioni passate con lo stesso
   `last_modified`); se `last_modified` è uguale e `data` identico, o è minore, è `unchanged`. Un record
-  cancellato non viene mai riattivato da un reinvio con lo stesso `last_modified`.
+  cancellato non viene mai riattivato da un reinvio con lo stesso `last_modified`. Un aggiornamento di una
+  `ExerciseSession` **senza** `route` non cancella la `route` già salvata (permesso tracce revocato).
 - Il Reader marca un batch come consegnato **solo dopo una risposta 2xx**.
 - **Ordine:** consegnare i batch in ordine FIFO (un record modificato e poi cancellato deve arrivare come
   `records` e poi `deletions`). Il writer è comunque robusto a riordini di `records` (via `last_modified`), ma una

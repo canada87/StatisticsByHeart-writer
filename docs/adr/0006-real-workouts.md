@@ -44,7 +44,10 @@ sessioni passate.
 7. **Ingest.** Un `ExerciseSession` già noto con lo **stesso `last_modified` ma `data` diverso** (la `route` aggiunta)
    viene **aggiornato**, non contato come `unchanged`; un record cancellato non viene riattivato da un reinvio con lo
    stesso `last_modified`. Il confronto di `data` avviene solo per i record con `last_modified` uguale. Contratto
-   `1.1.0` (additivo). Una richiesta con una sessione da 50 000 punti in gzip è coperta da test; oltre 32 MiB
+   `1.1.0` (additivo). **Se un aggiornamento successivo arriva senza `route`** (l'utente ha revocato il permesso delle tracce),
+   il writer **conserva la route già salvata**: una versione senza `route` non la cancella; una versione con una
+   `route` nuova la sostituisce. Il Reader rimanda le sessioni con la traccia a lotti di al massimo 5; finché non
+   arrivano, la regola «FC + avvio da te» basta da sola. Una richiesta con una sessione da 50 000 punti in gzip è coperta da test; oltre 32 MiB
    decompressi il writer risponde `413 body_too_large`.
 
 ## Limiti noti
