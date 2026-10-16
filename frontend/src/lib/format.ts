@@ -18,6 +18,19 @@ export function fmtNumber(v: number | null | undefined, digits = 0): string {
   return v === null || v === undefined || Number.isNaN(v) ? DASH : nf(digits).format(v)
 }
 
+/** 1536 -> "1,5 kB"; binary units (1 kB = 1024 B), like Postgres reports sizes. */
+export function fmtBytes(v: number | null | undefined): string {
+  if (v === null || v === undefined || Number.isNaN(v)) return DASH
+  const units = ['B', 'kB', 'MB', 'GB', 'TB']
+  let n = Math.max(0, v)
+  let i = 0
+  while (n >= 1024 && i < units.length - 1) {
+    n /= 1024
+    i++
+  }
+  return `${nf(i === 0 ? 0 : n < 10 ? 2 : 1).format(n)} ${units[i]}`
+}
+
 export function fmtPercent(v: number | null | undefined, digits = 1): string {
   return v === null || v === undefined ? DASH : `${v > 0 ? '+' : ''}${nf(digits).format(v)}%`
 }

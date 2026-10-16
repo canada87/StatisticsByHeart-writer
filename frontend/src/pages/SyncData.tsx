@@ -17,6 +17,7 @@ import { inventoryQuery, reconciliationQuery, syncStatusQuery } from '../api/que
 import type { ReconStatus, ReconciliationRow, SyncRunRow } from '../api/types'
 import { ChartFrame, type TableSpec } from '../components/ChartCard'
 import { Badge, PageTitle, Panel } from '../components/hud'
+import { StorageTab } from '../components/StoragePanel'
 import { Async, SkeletonLines } from '../components/states'
 import { t } from '../i18n'
 import { baseOption, palette } from '../lib/charts'
@@ -32,7 +33,7 @@ import {
 } from '../lib/format'
 import { useRange } from '../lib/useRange'
 
-const TABS = ['sync', 'inventory', 'recon'] as const
+const TABS = ['sync', 'inventory', 'recon', 'storage'] as const
 type TabId = (typeof TABS)[number]
 
 const RECON_TYPES = ['Steps', 'Distance', 'ActiveCaloriesBurned', 'TotalCaloriesBurned', 'SleepSession']
@@ -517,6 +518,9 @@ export function SyncDataPage() {
         </Tabs.Content>
         <Tabs.Content value="recon" className="outline-offset-4">
           <ReconTab />
+        </Tabs.Content>
+        <Tabs.Content value="storage" className="outline-offset-4">
+          <StorageTab />
         </Tabs.Content>
       </Tabs.Root>
     </div>

@@ -1,4 +1,5 @@
 import type {
+  StorageResponse,
   DaypartResponse,
   ExerciseResponse,
   ExerciseRules,
@@ -181,4 +182,36 @@ export const exerciseRules: ExerciseRules = {
   ],
   daytime_hr: { excludes: 'real_workouts', recovery_minutes: 30 },
   signals: { hr_min_share: 0.5, user_started_methods: ['active', 'manual'], informative_only: true },
+}
+
+export const storage: StorageResponse = {
+  database_bytes: 52_428_800,
+  postgres_version: '16.4',
+  tables: [
+    { name: 'health_sample', total_bytes: 30_000_000, data_bytes: 22_000_000, index_bytes: 8_000_000, rows: 400_000, rows_exact: false },
+    { name: 'health_record', total_bytes: 9_000_000, data_bytes: 6_000_000, index_bytes: 3_000_000, rows: 30_000, rows_exact: true },
+    { name: 'daily_metric', total_bytes: 1_200_000, data_bytes: 900_000, index_bytes: 300_000, rows: 4_000, rows_exact: true },
+    { name: 'admin_user', total_bytes: 16_384, data_bytes: 8_192, index_bytes: 8_192, rows: 1, rows_exact: true },
+  ],
+  records_live: 29_990,
+  records_deleted: 10,
+  first_data: '2026-01-01T06:00:00Z',
+  last_data: '2026-10-15T10:00:00Z',
+  last_ingest: '2026-10-15T10:05:00Z',
+  growth: { window_days: 30, records: 3_000, samples: 40_000, bytes: 3_145_728, bytes_per_year: 38_273_024, estimated: true },
+  disk: { total_bytes: 107_374_182_400, used_bytes: 32_212_254_720, free_bytes: 75_161_927_680, free_percent: 70 },
+  limits: {
+    items: [
+      { id: 'retention', params: { forever: true } },
+      { id: 'soft_delete', params: { samples_removed: true } },
+      { id: 'session_purge', params: { minute: 17, session_ttl_hours: 168 } },
+      { id: 'daily_recompute', params: { hour: 3, minute: 30 } },
+      { id: 'ingest_batch', params: { max_records: 500 } },
+      { id: 'ingest_body', params: { max_bytes: 33_554_432 } },
+      { id: 'route_points', params: { max_points: 50_000 } },
+      { id: 'query_days', params: { max_days: 3660 } },
+      { id: 'intraday', params: { minutes_15_max_days: 3, hour_max_days: 31 } },
+      { id: 'chart_points', params: { max_points: 1000 } },
+    ],
+  },
 }

@@ -28,7 +28,7 @@ design-system/   MASTER.md + override per pagina
 | **Attività** | Passi, distanza, calorie attive e totali, elenco allenamenti (kcal, FC media, segnali FC/GPS/avvio e verdetto) con filtro **Solo veri / Tutti** e correzione manuale, volume settimanale |
 | **Corpo** | Peso e pressione arteriosa (sistolica continua, diastolica tratteggiata; fasce solo indicative) |
 | **Report** | Riepilogo per settimana/mese/anno/personalizzato, con variazione vs periodo precedente, giorni migliori/peggiori, stampa/PDF ed export CSV |
-| **Sync / Dati** | Verifica: ultime sync (rifiutati/errori), inventario per tipo e sorgente, ufficiale Health Connect vs somma dei record |
+| **Sync / Dati** | Verifica: ultime sync (rifiutati/errori), inventario per tipo e sorgente, ufficiale Health Connect vs somma dei record, e la scheda **Spazio e limiti** (sola lettura): dimensione del database e di ogni tabella (dati, indici, righe esatte o stimate), record cancellati, primo/ultimo dato, crescita degli ultimi 30 giorni con proiezione a un anno (stima), disco libero della VM (stima, dal filesystem che vede l'app) e l'elenco di retention e limiti generato dalle costanti vere |
 
 Ogni pagina di trend ha KPI del periodo con variazione (freccia **e** testo), grafici con granularità ora (fino a 31 giorni)/giorno/settimana/mese
 (automatica per intervallo), media mobile e confronto con il periodo precedente attivabili, valori raggiungibili da tastiera
@@ -106,8 +106,8 @@ L'immagine **non si builda sulla VM**: la costruisce GitHub Actions e Portainer 
 Per rilasciare (dal tuo PC):
 
 ```bash
-git tag v0.5.2
-git push origin main v0.5.2
+git tag v0.5.3
+git push origin main v0.5.3
 ```
 
 ### Una tantum: rendere pubblico il pacchetto
@@ -151,7 +151,7 @@ variables* (vedi `docker/.env.example`; puoi usare «Load variables from .env fi
 | Variabile | Valore |
 |---|---|
 | `SBH_DB_PASSWORD` | **obbligatoria**, es. output di `openssl rand -hex 24` |
-| `SBH_IMAGE_TAG` | `0.5.2` (la versione da usare) oppure `latest` |
+| `SBH_IMAGE_TAG` | `0.5.3` (la versione da usare) oppure `latest` |
 | `SBH_HTTP_PORT` | `8742` (o quella libera che hai scelto) |
 | `SBH_DATA_DIR` | cartella locale della VM che contiene `db/` (default nel compose) |
 | `SBH_SOURCE_PRIORITY` | opzionale: pacchetti Android in ordine di fiducia (i nomi esatti li mostra la pagina *Sync / Dati → Inventario*) |
@@ -201,13 +201,15 @@ Verifica da un dispositivo sulla tailnet: `curl https://<il-tuo-dominio>/api/v1/
 
 ### Aggiornare e tornare indietro
 
-1. Rilascia un nuovo tag (`git tag v0.5.3 && git push origin v0.5.3`) e attendi che il workflow *Release* finisca.
+1. Rilascia un nuovo tag (`git tag v0.5.4 && git push origin v0.5.4`) e attendi che il workflow *Release* finisca.
 2. Prima di un upgrade con migrazioni: snapshot PBS (e dump, vedi sotto).
-3. In Portainer cambia `SBH_IMAGE_TAG=0.5.3` → **Update the stack** con *Re-pull image* attivo. Se usi `latest`:
+3. In Portainer cambia `SBH_IMAGE_TAG=0.5.4` → **Update the stack** con *Re-pull image* attivo. Se usi `latest`:
    *Update the stack* con **Pull latest image**.
-4. **Rollback**: rimetti il tag precedente (`SBH_IMAGE_TAG=0.5.1`) e aggiorna lo stack. Le migrazioni sono solo «in
+4. **Rollback**: rimetti il tag precedente (`SBH_IMAGE_TAG=0.5.2`) e aggiorna lo stack. Le migrazioni sono solo «in
    avanti»: se una migrazione va annullata ripristina lo snapshot PBS (o il dump) invece di fare `downgrade`.
 
+> **Aggiornamento alla 0.5.3: nessuna migrazione** (solo la scheda «Spazio e limiti» in Sync / Dati, in sola lettura).
+>
 > **Aggiornamento alla 0.5.2: nessuna migrazione** (aggiunge la durata minima di 15 minuti agli allenamenti veri e il
 > pannello «Regole degli allenamenti» nella pagina Attività; i verdetti manuali già salvati restano validi).
 >

@@ -436,3 +436,49 @@ export interface ExerciseRules {
   daytime_hr: { excludes: 'real_workouts'; recovery_minutes: number }
   signals: { hr_min_share: number; user_started_methods: string[]; informative_only: boolean }
 }
+
+export interface TableStorage {
+  name: string
+  total_bytes: number
+  data_bytes: number
+  index_bytes: number
+  rows: number
+  /** false = catalog estimate, true = exact count */
+  rows_exact: boolean
+}
+
+export interface LimitItem {
+  id:
+    | 'retention'
+    | 'soft_delete'
+    | 'session_purge'
+    | 'daily_recompute'
+    | 'ingest_batch'
+    | 'ingest_body'
+    | 'route_points'
+    | 'query_days'
+    | 'intraday'
+    | 'chart_points'
+  params: Record<string, number | boolean>
+}
+
+export interface StorageResponse {
+  database_bytes: number
+  postgres_version: string
+  tables: TableStorage[]
+  records_live: number
+  records_deleted: number
+  first_data: string | null
+  last_data: string | null
+  last_ingest: string | null
+  growth: {
+    window_days: number
+    records: number
+    samples: number
+    bytes: number
+    bytes_per_year: number
+    estimated: boolean
+  }
+  disk: { total_bytes: number; used_bytes: number; free_bytes: number; free_percent: number }
+  limits: { items: LimitItem[] }
+}

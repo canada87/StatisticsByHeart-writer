@@ -522,3 +522,64 @@ class ExerciseRules(BaseModel):
     rules: list[RuleItem] = Field(description="Classification rules in evaluation order")
     daytime_hr: DaytimeHrRule
     signals: SignalsInfo
+
+
+class TableStorage(BaseModel):
+    name: str
+    total_bytes: int = Field(description="Table + indexes + TOAST (pg_total_relation_size)")
+    data_bytes: int = Field(description="Total minus indexes")
+    index_bytes: int
+    rows: int
+    rows_exact: bool = Field(description="False: planner/statistics estimate, true: count(*)")
+
+
+class GrowthEstimate(BaseModel):
+    window_days: int = Field(description="Days measured: up to 30, fewer if the data is younger")
+    records: int = Field(description="Records ingested in the window (by ingested_at)")
+    samples: int = Field(description="Series samples carried by those records")
+    bytes: int = Field(description="Estimated size of what was ingested")
+    bytes_per_year: int = Field(description="Projection to one year at the same pace")
+    estimated: bool = Field(description="Always true: bytes = rows x average row size")
+
+
+class DiskInfo(BaseModel):
+    total_bytes: int
+    used_bytes: int
+    free_bytes: int
+    free_percent: float = Field(
+        description="Of the filesystem the API sees (Docker disk of the VM)"
+    )
+
+
+class LimitItem(BaseModel):
+    id: Literal[
+        "retention",
+        "soft_delete",
+        "session_purge",
+        "daily_recompute",
+        "ingest_batch",
+        "ingest_body",
+        "route_points",
+        "query_days",
+        "intraday",
+        "chart_points",
+    ]
+    params: dict[str, Any] = Field(description="The real values of the constant/setting")
+
+
+class LimitsInfo(BaseModel):
+    items: list[LimitItem] = Field(description="Retention and limits, in display order")
+
+
+class StorageResponse(BaseModel):
+    database_bytes: int
+    postgres_version: str
+    tables: list[TableStorage]
+    records_live: int
+    records_deleted: int = Field(description="Soft-deleted records (their samples are removed)")
+    first_data: datetime | None
+    last_data: datetime | None
+    last_ingest: datetime | None
+    growth: GrowthEstimate
+    disk: DiskInfo
+    limits: LimitsInfo

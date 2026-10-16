@@ -19,7 +19,7 @@ from app.routers import admin, auth, dashboard, ingest, public
 from app.scheduler import build_scheduler
 from app.spa import install_spa
 
-VERSION = "0.5.2"
+VERSION = "0.5.3"
 
 
 class SecurityHeadersMiddleware:

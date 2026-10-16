@@ -770,6 +770,35 @@
         "title": "DeviceRow",
         "type": "object"
       },
+      "DiskInfo": {
+        "properties": {
+          "free_bytes": {
+            "title": "Free Bytes",
+            "type": "integer"
+          },
+          "free_percent": {
+            "description": "Of the filesystem the API sees (Docker disk of the VM)",
+            "title": "Free Percent",
+            "type": "number"
+          },
+          "total_bytes": {
+            "title": "Total Bytes",
+            "type": "integer"
+          },
+          "used_bytes": {
+            "title": "Used Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_bytes",
+          "used_bytes",
+          "free_bytes",
+          "free_percent"
+        ],
+        "title": "DiskInfo",
+        "type": "object"
+      },
       "ErrorBody": {
         "properties": {
           "code": {
@@ -1136,6 +1165,50 @@
         "title": "ExerciseWeek",
         "type": "object"
       },
+      "GrowthEstimate": {
+        "properties": {
+          "bytes": {
+            "description": "Estimated size of what was ingested",
+            "title": "Bytes",
+            "type": "integer"
+          },
+          "bytes_per_year": {
+            "description": "Projection to one year at the same pace",
+            "title": "Bytes Per Year",
+            "type": "integer"
+          },
+          "estimated": {
+            "description": "Always true: bytes = rows x average row size",
+            "title": "Estimated",
+            "type": "boolean"
+          },
+          "records": {
+            "description": "Records ingested in the window (by ingested_at)",
+            "title": "Records",
+            "type": "integer"
+          },
+          "samples": {
+            "description": "Series samples carried by those records",
+            "title": "Samples",
+            "type": "integer"
+          },
+          "window_days": {
+            "description": "Days measured: up to 30, fewer if the data is younger",
+            "title": "Window Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "window_days",
+          "records",
+          "samples",
+          "bytes",
+          "bytes_per_year",
+          "estimated"
+        ],
+        "title": "GrowthEstimate",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1285,6 +1358,55 @@
           "value"
         ],
         "title": "LatestSample",
+        "type": "object"
+      },
+      "LimitItem": {
+        "properties": {
+          "id": {
+            "enum": [
+              "retention",
+              "soft_delete",
+              "session_purge",
+              "daily_recompute",
+              "ingest_batch",
+              "ingest_body",
+              "route_points",
+              "query_days",
+              "intraday",
+              "chart_points"
+            ],
+            "title": "Id",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": true,
+            "description": "The real values of the constant/setting",
+            "title": "Params",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "params"
+        ],
+        "title": "LimitItem",
+        "type": "object"
+      },
+      "LimitsInfo": {
+        "properties": {
+          "items": {
+            "description": "Retention and limits, in display order",
+            "items": {
+              "$ref": "#/components/schemas/LimitItem"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "LimitsInfo",
         "type": "object"
       },
       "LoginRequest": {
@@ -3350,6 +3472,94 @@
         "title": "SourceTotals",
         "type": "object"
       },
+      "StorageResponse": {
+        "properties": {
+          "database_bytes": {
+            "title": "Database Bytes",
+            "type": "integer"
+          },
+          "disk": {
+            "$ref": "#/components/schemas/DiskInfo"
+          },
+          "first_data": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Data"
+          },
+          "growth": {
+            "$ref": "#/components/schemas/GrowthEstimate"
+          },
+          "last_data": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Data"
+          },
+          "last_ingest": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Ingest"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/LimitsInfo"
+          },
+          "postgres_version": {
+            "title": "Postgres Version",
+            "type": "string"
+          },
+          "records_deleted": {
+            "description": "Soft-deleted records (their samples are removed)",
+            "title": "Records Deleted",
+            "type": "integer"
+          },
+          "records_live": {
+            "title": "Records Live",
+            "type": "integer"
+          },
+          "tables": {
+            "items": {
+              "$ref": "#/components/schemas/TableStorage"
+            },
+            "title": "Tables",
+            "type": "array"
+          }
+        },
+        "required": [
+          "database_bytes",
+          "postgres_version",
+          "tables",
+          "records_live",
+          "records_deleted",
+          "first_data",
+          "last_data",
+          "last_ingest",
+          "growth",
+          "disk",
+          "limits"
+        ],
+        "title": "StorageResponse",
+        "type": "object"
+      },
       "SyncErrorIn": {
         "additionalProperties": false,
         "properties": {
@@ -3817,6 +4027,47 @@
         "title": "SyncStatusResponse",
         "type": "object"
       },
+      "TableStorage": {
+        "properties": {
+          "data_bytes": {
+            "description": "Total minus indexes",
+            "title": "Data Bytes",
+            "type": "integer"
+          },
+          "index_bytes": {
+            "title": "Index Bytes",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "rows": {
+            "title": "Rows",
+            "type": "integer"
+          },
+          "rows_exact": {
+            "description": "False: planner/statistics estimate, true: count(*)",
+            "title": "Rows Exact",
+            "type": "boolean"
+          },
+          "total_bytes": {
+            "description": "Table + indexes + TOAST (pg_total_relation_size)",
+            "title": "Total Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "total_bytes",
+          "data_bytes",
+          "index_bytes",
+          "rows",
+          "rows_exact"
+        ],
+        "title": "TableStorage",
+        "type": "object"
+      },
       "TodaySummary": {
         "properties": {
           "active_kcal": {
@@ -4198,7 +4449,7 @@
   "info": {
     "description": "Ingest API (contract v1: docs/api-contract.md) and admin endpoints.",
     "title": "StatisticsByHeart Writer",
-    "version": "0.5.2"
+    "version": "0.5.3"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -5742,6 +5993,37 @@
           }
         },
         "summary": "Per-night sleep: duration, stages, bed and wake time, regularity",
+        "tags": [
+          "dashboard"
+        ]
+      }
+    },
+    "/api/v1/storage": {
+      "get": {
+        "operationId": "storage_info_api_v1_storage_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          }
+        },
+        "summary": "Space used by the data, per-table sizes, growth estimate, disk, limits and retention",
         "tags": [
           "dashboard"
         ]

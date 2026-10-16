@@ -144,6 +144,30 @@ test.describe('dashboard (synthetic data)', () => {
     await expect(page).toHaveURL(/tab=recon/)
   })
 
+  test('sync / dati: the Space and limits tab is read-only and shows sizes, disk and limits', async ({ page }) => {
+    await login(page)
+    await page.goto('/sync')
+    await page.getByRole('tab', { name: 'Spazio e limiti' }).click()
+    await expect(page).toHaveURL(/tab=storage/)
+    await expect(page.getByTestId('kpi-storage-db').getByTestId('kpi-value')).not.toHaveText('—')
+    await expect(page.getByTestId('kpi-storage-disk')).toContainText('Disco della VM (stima)')
+    await expect(page.getByRole('meter', { name: 'Spazio del disco usato' })).toBeVisible()
+    await expect(page.getByTestId('kpi-storage-growth')).toContainText('Stima')
+    const rows = page.getByTestId('storage-row')
+    await expect(rows.first()).toBeVisible()
+    expect(await rows.count()).toBeGreaterThanOrEqual(5)
+    await expect(page.getByTestId('storage-table').locator('tr[data-table="health_sample"]')).toBeVisible()
+    // sort by name: aria-sort follows, the first row is alphabetical
+    await page.getByTestId('sort-name').click()
+    await expect(page.getByRole('columnheader', { name: /Tabella/ })).toHaveAttribute('aria-sort', 'ascending')
+    const names = await rows.evaluateAll((els) => els.map((el) => el.getAttribute('data-table') ?? ''))
+    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)))
+    await expect(page.getByTestId('limits-list').locator('li')).toHaveCount(10)
+    await expect(page.getByTestId('limits-list')).toContainText('Retention: nessuna')
+    await expect(page.getByTestId('limits-list')).toContainText('500 record')
+    await expect(page.getByRole('button', { name: /elimina|pulisci|purge/i })).toHaveCount(0)
+  })
+
   test('navigation: sidebar from 1024px with 7 entries; below, 4 + "Altro"', async ({ page }) => {
     await login(page)
     await page.setViewportSize({ width: 1024, height: 768 })
@@ -488,6 +512,7 @@ test.describe('all pages: screenshots, a11y, no horizontal scroll', () => {
         ['sync', 'Sync'],
         ['inventory', 'Inventario'],
         ['recon', 'Riconciliazione'],
+        ['storage', 'Spazio e limiti'],
       ] as const) {
         await page.goto(tab === 'sync' ? '/sync' : `/sync?tab=${tab}`)
         await expect(page.getByRole('tab', { name: label })).toHaveAttribute('data-state', 'active')

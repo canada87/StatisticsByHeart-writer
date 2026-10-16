@@ -382,7 +382,7 @@ interne al writer e possono cambiare senza cambio di versione del contratto. Dal
 usa anche `GET /api/v1/heart/daypart` (FC diurna/notturna, vedi ADR 0005): è un'estensione additiva
 della sola API dashboard e **non** modifica il contratto Reader → Writer. Dalla 0.5.0 anche
 `PUT /api/v1/exercise/sessions/{id}/override` (verdetto manuale «allenamento vero»), `GET /api/v1/exercise/rules` (le regole attive,
-generate dalle costanti del writer), `?scope=real` su
+generate dalle costanti del writer), `GET /api/v1/storage` (spazio, limiti e retention, sola lettura), `?scope=real` su
 `/exercise/sessions` e `?include_workouts` su `/heart/daypart` (ADR 0006).
 
 ---

@@ -13,6 +13,7 @@ import type {
   ReportDailyResponse,
   ReportResponse,
   SeriesResponse,
+  StorageResponse,
   SleepNightsResponse,
   SessionInfo,
   SyncStatusResponse,
@@ -152,4 +153,12 @@ export const daypartQuery = (
         }),
       ),
     enabled,
+  })
+
+/** Space used, per-table sizes, growth estimate, disk and the limits/retention (read-only). */
+export const storageQuery = () =>
+  queryOptions({
+    queryKey: ['storage'],
+    queryFn: () => api<StorageResponse>('/api/v1/storage'),
+    staleTime: 60_000,
   })

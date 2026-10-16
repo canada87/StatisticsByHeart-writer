@@ -24,13 +24,14 @@ from app.dash_schemas import (
     SeriesResponse,
     SeriesSource,
     SleepNightsResponse,
+    StorageResponse,
     SyncStatusResponse,
     TodaySummary,
 )
 from app.deps import AdminAuth, Db, SettingsDep
 from app.errors import ApiError
 from app.schemas import ErrorResponse
-from app.services import analytics, daypart, queries, workouts
+from app.services import analytics, daypart, queries, storage, workouts
 
 router = APIRouter(prefix="/api/v1", tags=["dashboard"])
 _AUTH: dict[int | str, dict[str, Any]] = {401: {"model": ErrorResponse}}
@@ -175,6 +176,16 @@ async def heart_daypart(
 ) -> DaypartResponse:
     first, last = _window(settings, from_, to, 7)
     return await daypart.daypart(session, settings, first, last, bucket, include_workouts)
+
+
+@router.get(
+    "/storage",
+    response_model=StorageResponse,
+    summary="Space used by the data, per-table sizes, growth estimate, disk, limits and retention",
+    responses=_AUTH,
+)
+async def storage_info(_: AdminAuth, session: Db, settings: SettingsDep) -> dict[str, Any]:
+    return await storage.storage_report(session, settings)
 
 
 @router.get(

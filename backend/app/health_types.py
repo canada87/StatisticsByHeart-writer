@@ -92,11 +92,15 @@ class RoutePoint(_Strict):
     horizontal_accuracy_m: Finite | None = None
 
 
+MAX_ROUTE_POINTS = 50_000
+"""Most GPS points one ExerciseSession may carry (a limit shown in the dashboard)."""
+
+
 class ExerciseData(_Strict):
     exercise_type: Shortstr  # e.g. "WALKING", "RUNNING" (HC constant name)
     exercise_type_id: int | None = None  # raw HC integer constant
     title: Title | None = None
-    route: Annotated[list[RoutePoint], Field(max_length=50_000)] | None = None
+    route: Annotated[list[RoutePoint], Field(max_length=MAX_ROUTE_POINTS)] | None = None
 
 
 class MindfulnessData(_Strict):

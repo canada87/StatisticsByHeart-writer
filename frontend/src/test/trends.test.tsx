@@ -3,6 +3,7 @@ import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { fmtBytes } from '../lib/format'
 import { makeRouter } from '../router'
 import * as fx from './fixtures'
 import * as fx2 from './fixtures2'
@@ -48,6 +49,7 @@ beforeEach(() => {
     '/api/v1/exercise/sessions': () => ({ body: fx2.exercise }),
     '/api/v1/heart/daypart': () => ({ body: fx2.daypart() }),
     '/api/v1/exercise/rules': () => ({ body: fx2.exerciseRules }),
+    '/api/v1/storage': () => ({ body: fx2.storage }),
     '/api/v1/data/bounds': () => ({ body: { first: '2026-01-01', last: '2026-10-15' } }),
     '/api/v1/report/daily': () => ({
       body: {
@@ -472,6 +474,167 @@ describe('workout rules panel', () => {
     expect(within(rows[0] as HTMLElement).getByTestId('verdict-reason')).toHaveTextContent('dura 10 min (< 15) → non vero')
     // a short walk: the first rule in the order (the type) is the one shown
     expect(within(rows[1] as HTMLElement).getByTestId('verdict-reason')).toHaveTextContent('Camminata → non vero')
+  })
+})
+
+describe('space and limits (Sync / Dati)', () => {
+  it('shows the KPIs: database size, free disk as bar AND words, yearly growth as an estimate', async () => {
+    renderApp('/sync?tab=storage')
+    const db = await screen.findByTestId('kpi-storage-db')
+    expect(within(db).getByTestId('kpi-value')).toHaveTextContent('50 MB')
+    expect(db).toHaveTextContent('PostgreSQL 16.4')
+    const disk = screen.getByTestId('kpi-storage-disk')
+    expect(disk).toHaveTextContent('Disco della VM (stima)')
+    expect(within(disk).getByTestId('kpi-value')).toHaveTextContent('70 GB')
+    const meter = within(disk).getByRole('meter', { name: 'Spazio del disco usato' })
+    expect(meter).toHaveAttribute('aria-valuenow', '70')
+    expect(meter).toHaveAttribute('aria-valuetext', '70% libero')
+    expect(within(disk).getByTestId('disk-gauge')).toHaveTextContent('70% libero') // words, not only colour
+    expect(disk).toHaveTextContent('disco di Docker sulla VM')
+    const growth = screen.getByTestId('kpi-storage-growth')
+    expect(within(growth).getByTestId('kpi-value')).toHaveTextContent('≈ 36,5 MB')
+    expect(growth).toHaveTextContent('Stima')
+  })
+
+  it('lists every table with readable units, marking the estimated row counts', async () => {
+    renderApp('/sync?tab=storage')
+    const rows = await screen.findAllByTestId('storage-row')
+    expect(rows.map((r) => r.getAttribute('data-table'))).toEqual(['health_sample', 'health_record', 'daily_metric', 'admin_user'])
+    expect(rows[0]).toHaveTextContent('28,6 MB')
+    expect(rows[0]).toHaveTextContent('≈ 400.000')
+    expect(rows[0]).toHaveTextContent('stima') // for screen readers too
+    expect(rows[1]).toHaveTextContent('30.000')
+    expect(rows[1]).not.toHaveTextContent('≈')
+    expect(rows[3]).toHaveTextContent('16 kB')
+  })
+
+  it('sorts by clicking the headers and tells assistive tech with aria-sort', async () => {
+    renderApp('/sync?tab=storage')
+    const user = userEvent.setup()
+    const table = await screen.findByTestId('storage-table')
+    const header = (name: RegExp) => within(table).getByRole('columnheader', { name })
+    expect(header(/Totale/)).toHaveAttribute('aria-sort', 'descending')
+    expect(header(/Tabella/)).toHaveAttribute('aria-sort', 'none')
+    const order = () => screen.getAllByTestId('storage-row').map((r) => r.getAttribute('data-table'))
+
+    await user.click(screen.getByTestId('sort-name'))
+    expect(header(/Tabella/)).toHaveAttribute('aria-sort', 'ascending')
+    expect(header(/Totale/)).toHaveAttribute('aria-sort', 'none')
+    expect(order()).toEqual(['admin_user', 'daily_metric', 'health_record', 'health_sample'])
+    await user.click(screen.getByTestId('sort-name'))
+    expect(header(/Tabella/)).toHaveAttribute('aria-sort', 'descending')
+    expect(order()).toEqual(['health_sample', 'health_record', 'daily_metric', 'admin_user'])
+
+    await user.click(screen.getByTestId('sort-rows'))
+    expect(header(/Righe/)).toHaveAttribute('aria-sort', 'descending')
+    expect(order()).toEqual(['health_sample', 'health_record', 'daily_metric', 'admin_user'])
+    await user.click(screen.getByTestId('sort-rows'))
+    expect(order()).toEqual(['admin_user', 'daily_metric', 'health_record', 'health_sample'])
+    await user.click(screen.getByTestId('sort-index_bytes'))
+    expect(order()[0]).toBe('health_sample')
+  })
+
+  it('"Limiti e retention": one sentence per item, with the values the backend sent', async () => {
+    renderApp('/sync?tab=storage')
+    const list = await screen.findByTestId('limits-list')
+    const items = within(list).getAllByRole('listitem')
+    expect(items.map((i) => i.getAttribute('data-limit'))).toEqual([
+      'retention',
+      'soft_delete',
+      'session_purge',
+      'daily_recompute',
+      'ingest_batch',
+      'ingest_body',
+      'route_points',
+      'query_days',
+      'intraday',
+      'chart_points',
+    ])
+    expect(items[0]).toHaveTextContent('nessuna')
+    expect(items[1]).toHaveTextContent('soft delete')
+    expect(items[2]).toHaveTextContent('minuto 17')
+    expect(items[2]).toHaveTextContent('7 giorni')
+    expect(items[3]).toHaveTextContent('03:30')
+    expect(items[4]).toHaveTextContent('500 record')
+    expect(items[5]).toHaveTextContent('32 MB')
+    expect(items[6]).toHaveTextContent('50.000 punti')
+    expect(items[7]).toHaveTextContent('3660 giorni')
+    expect(items[8]).toHaveTextContent('15 minuti fino a 3 giorni')
+    expect(items[8]).toHaveTextContent('orarie fino a 31 giorni')
+    expect(items[9]).toHaveTextContent('1000 punti')
+  })
+
+  it('does not hardcode the numbers: it follows what the API sends', async () => {
+    handlers['/api/v1/storage'] = () => ({
+      body: {
+        ...fx2.storage,
+        limits: { items: [{ id: 'ingest_batch', params: { max_records: 250 } }, { id: 'route_points', params: { max_points: 777 } }] },
+      },
+    })
+    renderApp('/sync?tab=storage')
+    const list = await screen.findByTestId('limits-list')
+    expect(list).toHaveTextContent('250 record')
+    expect(list).toHaveTextContent('777 punti')
+    expect(list).not.toHaveTextContent('500 record')
+  })
+
+  it('shows soft-deleted records, first and last data', async () => {
+    renderApp('/sync?tab=storage')
+    const facts = await screen.findByTestId('storage-facts')
+    expect(within(facts).getByTestId('deleted-count')).toHaveTextContent('10')
+    expect(facts).toHaveTextContent('29.990')
+    expect(facts).toHaveTextContent('01/01')
+  })
+
+  it('has no cleanup action: it is read-only', async () => {
+    renderApp('/sync?tab=storage')
+    await screen.findByTestId('storage-tab')
+    const tab = screen.getByTestId('storage-tab')
+    expect(within(tab).queryByRole('button', { name: /elimina|pulisci|purge|cancella/i })).toBeNull()
+    expect(fetch).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ method: 'DELETE' }))
+  })
+
+  it('shows an error state, with retry, when the numbers cannot be read', async () => {
+    handlers['/api/v1/storage'] = () => ({ status: 500, body: { error: { code: 'x', message: 'boom' } } })
+    renderApp('/sync?tab=storage')
+    expect(await screen.findByRole('button', { name: 'Riprova' })).toBeInTheDocument()
+  })
+
+  it('shows a loading state while waiting', async () => {
+    handlers['/api/v1/storage'] = () => ({ body: fx2.storage })
+    renderApp('/sync?tab=storage')
+    expect(await screen.findByTestId('storage-tab')).toBeInTheDocument()
+    await screen.findByTestId('kpi-storage-db')
+  })
+
+  it('an empty database: no growth yet and no data dates', async () => {
+    handlers['/api/v1/storage'] = () => ({
+      body: {
+        ...fx2.storage,
+        tables: [],
+        records_live: 0,
+        records_deleted: 0,
+        first_data: null,
+        last_data: null,
+        last_ingest: null,
+        growth: { window_days: 0, records: 0, samples: 0, bytes: 0, bytes_per_year: 0, estimated: true },
+      },
+    })
+    renderApp('/sync?tab=storage')
+    const growth = await screen.findByTestId('kpi-storage-growth')
+    expect(within(growth).getByTestId('kpi-value')).toHaveTextContent('—')
+    expect(growth).toHaveTextContent('Ancora nessun dato')
+    expect(within(screen.getByTestId('storage-facts')).getAllByText('—').length).toBeGreaterThanOrEqual(3)
+  })
+})
+
+describe('byte formatting', () => {
+  it('uses binary units with it-IT numbers', () => {
+    expect(fmtBytes(0)).toBe('0 B')
+    expect(fmtBytes(1536)).toBe('1,5 kB')
+    expect(fmtBytes(52_428_800)).toBe('50 MB')
+    expect(fmtBytes(1_073_741_824)).toBe('1 GB')
+    expect(fmtBytes(null)).toBe('—')
   })
 })
 
