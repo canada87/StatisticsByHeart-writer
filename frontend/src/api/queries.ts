@@ -9,6 +9,9 @@ import type {
   ExerciseRules,
   InventoryResponse,
   OverrideResult,
+  PointsRules,
+  PointsSeriesResponse,
+  PointsWeek,
   ReconciliationResponse,
   ReportDailyResponse,
   ReportResponse,
@@ -161,4 +164,25 @@ export const storageQuery = () =>
     queryKey: ['storage'],
     queryFn: () => api<StorageResponse>('/api/v1/storage'),
     staleTime: 60_000,
+  })
+
+/** Heart Points per week / month / year. */
+export const pointsSeriesQuery = (p: { from: string; to: string; bucket: 'week' | 'month' | 'year' }) =>
+  queryOptions({
+    queryKey: ['points-series', p],
+    queryFn: () => api<PointsSeriesResponse>(withQuery('/api/v1/heart/points', { ...p })),
+  })
+
+/** The Monday-Sunday week that contains `day`, against the weekly goal. */
+export const pointsWeekQuery = (day: string) =>
+  queryOptions({
+    queryKey: ['points-week', day],
+    queryFn: () => api<PointsWeek>(withQuery('/api/v1/heart/points/week', { date: day })),
+  })
+
+export const pointsRulesQuery = () =>
+  queryOptions({
+    queryKey: ['points-rules'],
+    queryFn: () => api<PointsRules>('/api/v1/heart/points/rules'),
+    staleTime: 10 * 60_000,
   })

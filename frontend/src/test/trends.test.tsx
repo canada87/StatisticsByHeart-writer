@@ -17,13 +17,14 @@ vi.mock('../components/EChart', () => ({
   }: {
     label: string
     activeIndex?: number | null
-    option?: { series?: { name: string; lineStyle?: { type?: string }; markArea?: { data: unknown[] } }[] }
+    option?: { series?: { name: string; lineStyle?: { type?: string }; markArea?: { data: unknown[] }; markLine?: { data: { yAxis: number }[] } }[] }
   }) => (
     <div
       data-testid="echart-stub"
       data-active={activeIndex ?? ''}
       data-series={(option?.series ?? []).map((s) => `${s.name}:${s.lineStyle?.type ?? ''}`).join('|')}
       data-bands={option?.series?.find((s) => s.markArea)?.markArea?.data.length ?? 0}
+      data-goal={option?.series?.find((s) => s.markLine)?.markLine?.data[0]?.yAxis ?? ''}
     >
       {label}
     </div>
@@ -50,6 +51,9 @@ beforeEach(() => {
     '/api/v1/heart/daypart': () => ({ body: fx2.daypart() }),
     '/api/v1/exercise/rules': () => ({ body: fx2.exerciseRules }),
     '/api/v1/storage': () => ({ body: fx2.storage }),
+    '/api/v1/heart/points/week': () => ({ body: fx2.pointsWeek() }),
+    '/api/v1/heart/points/rules': () => ({ body: fx2.pointsRules }),
+    '/api/v1/heart/points': (url) => ({ body: fx2.pointsSeries({ bucket: (url.searchParams.get('bucket') as 'week') ?? 'week' }) }),
     '/api/v1/data/bounds': () => ({ body: { first: '2026-01-01', last: '2026-10-15' } }),
     '/api/v1/report/daily': () => ({
       body: {
@@ -474,6 +478,124 @@ describe('workout rules panel', () => {
     expect(within(rows[0] as HTMLElement).getByTestId('verdict-reason')).toHaveTextContent('dura 10 min (< 15) → non vero')
     // a short walk: the first rule in the order (the type) is the one shown
     expect(within(rows[1] as HTMLElement).getByTestId('verdict-reason')).toHaveTextContent('Camminata → non vero')
+  })
+})
+
+describe('Heart Points', () => {
+  it('Overview card: ring toward 150 with the value, what is missing and the days left, as text', async () => {
+    renderApp('/')
+    const card = await screen.findByTestId('panel-heartpoints')
+    expect(await within(card).findByTestId('points-value')).toHaveTextContent('96')
+    expect(within(card).getByTestId('points-goal')).toHaveTextContent('150')
+    expect(within(card).getByTestId('points-remaining')).toHaveTextContent('Mancano 54 punti, in 3 giorni')
+    expect(within(card).getByRole('img', { name: '96 punti cardio su 150 della settimana' })).toBeInTheDocument()
+    expect(within(card).getByTestId('points-week')).toHaveTextContent('Settimana in corso')
+    expect(within(card).queryByTestId('points-hr-warning')).toBeNull()
+  })
+
+  it('asks for the week that contains the END of the selected window', async () => {
+    renderApp('/?r=7d&end=2026-09-30')
+    await screen.findByTestId('panel-heartpoints')
+    await waitFor(() =>
+      expect(urls.some((u) => u.pathname === '/api/v1/heart/points/week' && u.searchParams.get('date') === '2026-09-30')).toBe(true),
+    )
+  })
+
+  it('says so when the goal is reached', async () => {
+    handlers['/api/v1/heart/points/week'] = () => ({ body: fx2.pointsWeek({ total: 163, remaining: 0, reached: true }) })
+    renderApp('/')
+    expect(await screen.findByTestId('points-remaining')).toHaveTextContent('Obiettivo raggiunto')
+  })
+
+  it('warns, with the variable name, when HRmax is not configured', async () => {
+    handlers['/api/v1/heart/points/week'] = () => ({ body: fx2.pointsWeek({ hr_configured: false }) })
+    renderApp('/')
+    const warn = await screen.findByTestId('points-hr-warning')
+    expect(warn).toHaveTextContent('SBH_BIRTH_YEAR')
+    expect(warn).toHaveTextContent('solo quelli dalla cadenza')
+  })
+
+  it('Cuore: bar chart with weekly granularity and the goal line, table and CSV', async () => {
+    renderApp('/heart')
+    const user = userEvent.setup()
+    const chart = await screen.findByTestId('chart-heartpoints')
+    await waitFor(() =>
+      expect(urls.some((u) => u.pathname === '/api/v1/heart/points' && u.searchParams.get('bucket') === 'week')).toBe(true),
+    )
+    const select = await within(chart).findByLabelText('Granularità')
+    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['Settimana', 'Mese', 'Anno'])
+    expect(within(select).queryByRole('option', { name: 'Giorno' })).toBeNull() // never per day
+    expect(within(chart).getByTestId('echart-stub')).toHaveAttribute('data-goal', '150')
+    expect(within(chart).getByTestId('chart-summary')).toHaveTextContent('2 settimane su 3 sopra l’obiettivo di 150')
+    expect(within(chart).getByTestId('chart-summary')).toHaveTextContent('Periodo precedente: 400 punti')
+    await user.click(within(chart).getByRole('button', { name: 'Mostra tabella' }))
+    const table = within(chart).getByRole('table')
+    const body = within(table).getAllByRole('row').map((r) => r.textContent)
+    expect(body[1]).toContain('210')
+    expect(body[1]).toContain('sì')
+    expect(body[2]).toContain('no')
+    expect(body[4]).toContain('in corso')
+    await user.click(within(chart).getByRole('button', { name: 'Mostra grafico' }))
+    await user.click(within(chart).getByRole('button', { name: 'Esporta CSV' }))
+    await waitFor(() => expect(csvDownloads.length).toBe(1))
+    expect(csvDownloads[0]?.text.split('\r\n')[0]).toContain('Obiettivo raggiunto')
+  })
+
+  it('month view has no goal line', async () => {
+    renderApp('/heart')
+    const user = userEvent.setup()
+    const chart = await screen.findByTestId('chart-heartpoints')
+    await user.selectOptions(await within(chart).findByLabelText('Granularità'), 'month')
+    await waitFor(() => expect(urls.some((u) => u.searchParams.get('bucket') === 'month')).toBe(true))
+    await waitFor(() => expect(within(chart).getByTestId('echart-stub')).toHaveAttribute('data-goal', ''))
+  })
+
+  it('Cuore: the rules panel lists the numbers the backend sends and says MET is not used', async () => {
+    renderApp('/heart')
+    const panel = await screen.findByTestId('points-rules')
+    const list = await within(panel).findByTestId('points-rules-list')
+    expect(list).toHaveTextContent('da 50% della FCmax → 1 punto, da 70% → 2 punti')
+    expect(list).toHaveTextContent('da 100 passi al minuto → 1 punto, da 130 → 2 punti')
+    expect(list).toHaveTextContent('non 3')
+    expect(list).toHaveTextContent('FCmax usata oggi: 184 bpm (220 − età')
+    expect(list).toHaveTextContent('da 92 bpm 1 punto, da 129 bpm 2 punti')
+    expect(list).toHaveTextContent('al massimo 5 minuti prima')
+    expect(list).toHaveTextContent('MET di Google Fit non si usa')
+    expect(list).toHaveTextContent('nessuna esclusione degli allenamenti')
+    expect(list).toHaveTextContent('Obiettivo settimanale: 150 punti')
+    expect(list).toHaveTextContent('più lunghi di 60 minuti')
+  })
+
+  it('the rules follow the backend values and the HRmax warning replaces the number', async () => {
+    handlers['/api/v1/heart/points/rules'] = () => ({
+      body: {
+        ...fx2.pointsRules,
+        weekly_goal: 200,
+        cadence: { moderate_steps: 90, vigorous_steps: 120, max_record_minutes: 45 },
+        heart_rate: { ...fx2.pointsRules.heart_rate, configured: false, hr_max: null, hr_max_source: null },
+      },
+    })
+    renderApp('/heart')
+    const list = await screen.findByTestId('points-rules-list')
+    expect(list).toHaveTextContent('da 90 passi al minuto')
+    expect(list).toHaveTextContent('Obiettivo settimanale: 200 punti')
+    expect(within(list).getByText(/SBH_BIRTH_YEAR/)).toBeInTheDocument()
+  })
+
+  it('the HRmax override is described as such', async () => {
+    handlers['/api/v1/heart/points/rules'] = () => ({
+      body: { ...fx2.pointsRules, heart_rate: { ...fx2.pointsRules.heart_rate, hr_max: 195, hr_max_source: 'override' } },
+    })
+    renderApp('/heart')
+    expect(await screen.findByTestId('points-rules-list')).toHaveTextContent('impostata in SBH_HR_MAX')
+  })
+
+  it('shows an empty state when there are no points', async () => {
+    handlers['/api/v1/heart/points'] = () => ({
+      body: fx2.pointsSeries({ points: [], summary: { total: 0, days: 0, buckets_complete: 0, weeks_over_goal: 0 } }),
+    })
+    renderApp('/heart')
+    expect(await screen.findByText('Nessun punto cardio nell’intervallo')).toBeInTheDocument()
   })
 })
 

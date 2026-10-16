@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { daypartQuery, exerciseQuery, reportQuery, sleepNightsQuery } from '../api/queries'
 import type { DaypartResponse } from '../api/types'
 import { type KpiSpec, KpiGrid, KpiSection, KpiSkeleton } from '../components/Kpi'
+import { HeartPointsChart, PointsRulesPanel } from '../components/HeartPoints'
 import { SleepScheduleChart, SleepStagesChart, WorkoutsSection } from '../components/DomainCharts'
 import { PageTitle } from '../components/hud'
 import { TrendChart } from '../components/TrendChart'
@@ -74,6 +75,12 @@ export function HeartPage() {
         <TrendChart def={M.hrv} range={range} icon={Waveform} accent="vitals" index={2} />
         <div className="xl:col-span-2">
           <TrendChart def={M.spo2} range={range} icon={Drop} accent="vitals" index={3} />
+        </div>
+        <div className="xl:col-span-2">
+          <HeartPointsChart range={range} />
+        </div>
+        <div className="xl:col-span-2">
+          <PointsRulesPanel />
         </div>
       </div>
     </div>

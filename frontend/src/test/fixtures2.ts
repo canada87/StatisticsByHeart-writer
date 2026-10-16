@@ -1,4 +1,7 @@
 import type {
+  PointsRules,
+  PointsSeriesResponse,
+  PointsWeek,
   StorageResponse,
   DaypartResponse,
   ExerciseResponse,
@@ -214,4 +217,53 @@ export const storage: StorageResponse = {
       { id: 'chart_points', params: { max_points: 1000 } },
     ],
   },
+}
+
+export const pointsRules: PointsRules = {
+  heart_rate: { moderate_pct: 50, vigorous_pct: 70, hr_max: 184, hr_max_source: 'birth_year', configured: true, carry_max_minutes: 5 },
+  cadence: { moderate_steps: 100, vigorous_steps: 130, max_record_minutes: 60 },
+  points: { moderate: 1, vigorous: 2 },
+  combine: 'max',
+  met_used: false,
+  weekly_goal: 150,
+  week_starts: 'monday',
+  timezone: 'Europe/Rome',
+}
+
+export function pointsWeek(over: Partial<PointsWeek> = {}): PointsWeek {
+  return {
+    week_start: '2026-10-12',
+    week_end: '2026-10-18',
+    is_current: true,
+    total: 96,
+    goal: 150,
+    remaining: 54,
+    reached: false,
+    days_left: 3,
+    days: [],
+    hr_configured: true,
+    ...over,
+  }
+}
+
+export function pointsSeries(over: Partial<PointsSeriesResponse> = {}): PointsSeriesResponse {
+  return {
+    from: '2026-09-21',
+    to: '2026-10-15',
+    bucket: 'week',
+    weekly_goal: 150,
+    timezone: 'Europe/Rome',
+    hr_configured: true,
+    points: [
+      { t: '2026-09-21', v: 210, days: 7, complete: true },
+      { t: '2026-09-28', v: 70, days: 7, complete: true },
+      { t: '2026-10-05', v: 175, days: 7, complete: true },
+      { t: '2026-10-12', v: 96, days: 4, complete: false },
+    ],
+    summary: { total: 551, days: 25, buckets_complete: 3, weeks_over_goal: 2 },
+    previous_from: '2026-08-27',
+    previous_to: '2026-09-20',
+    previous_summary: { total: 400, days: 25 },
+    ...over,
+  }
 }

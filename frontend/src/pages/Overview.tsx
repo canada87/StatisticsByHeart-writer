@@ -13,6 +13,7 @@ import { seriesQuery, summaryQuery } from '../api/queries'
 import type { MetricValue, SleepSummary, TodaySummary } from '../api/types'
 import { SeriesChartCard } from '../components/ChartCard'
 import { Ring } from '../components/gauges'
+import { HeartPointsWeekPanel } from '../components/HeartPoints'
 import { Panel, PageTitle, Stat } from '../components/hud'
 import { Async, EmptyState, SkeletonLines } from '../components/states'
 import { t } from '../i18n'
@@ -283,6 +284,8 @@ export function OverviewPage() {
               {(s) => <VitalsPanel s={s} />}
             </Async>
           </Panel>
+          {/* always the week that contains the END of the selected window (today unless moved back) */}
+          <HeartPointsWeekPanel day={range.to} index={5} />
         </div>
 
         <Panel title={t('activities.title')} icon={PersonSimpleRun} accent="activity" className="md:col-span-2 xl:col-span-8" index={5} testId="panel-activities">

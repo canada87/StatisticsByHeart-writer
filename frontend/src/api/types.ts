@@ -484,3 +484,55 @@ export interface StorageResponse {
   disk: { total_bytes: number; used_bytes: number; free_bytes: number; free_percent: number }
   limits: { items: LimitItem[] }
 }
+
+export interface PointsBucket {
+  t: string
+  v: number
+  days: number
+  complete: boolean
+}
+
+export interface PointsSeriesResponse {
+  from: string
+  to: string
+  bucket: 'week' | 'month' | 'year'
+  weekly_goal: number
+  timezone: string
+  hr_configured: boolean
+  points: PointsBucket[]
+  summary: { total: number; days: number; buckets_complete: number; weeks_over_goal: number | null }
+  previous_from: string
+  previous_to: string
+  previous_summary: { total: number; days: number }
+}
+
+export interface PointsWeek {
+  week_start: string
+  week_end: string
+  is_current: boolean
+  total: number
+  goal: number
+  remaining: number
+  reached: boolean
+  days_left: number
+  days: { date: string; points: number | null; hr_points: number | null; cadence_points: number | null }[]
+  hr_configured: boolean
+}
+
+export interface PointsRules {
+  heart_rate: {
+    moderate_pct: number
+    vigorous_pct: number
+    hr_max: number | null
+    hr_max_source: 'override' | 'birth_year' | null
+    configured: boolean
+    carry_max_minutes: number
+  }
+  cadence: { moderate_steps: number; vigorous_steps: number; max_record_minutes: number }
+  points: { moderate: number; vigorous: number }
+  combine: 'max'
+  met_used: boolean
+  weekly_goal: number
+  week_starts: 'monday'
+  timezone: string
+}
