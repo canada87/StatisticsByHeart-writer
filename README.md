@@ -23,17 +23,18 @@ design-system/   MASTER.md + override per pagina
 | Pagina | Cosa mostra |
 |---|---|
 | **Panoramica** | Stato di oggi (passi, FC, sonno, calorie, SpO₂/HRV, attività recenti) e trend dell'intervallo scelto |
-| **Cuore** | FC (media giornaliera con banda min–max), FC a riposo, HRV, SpO₂ |
+| **Cuore** | FC (media giornaliera con banda min–max; con granularità oraria/15 min le **notti** sono fasce ombreggiate, con granularità giorno/settimana/mese due serie **diurna** e **notturna**), FC a riposo, HRV, SpO₂; KPI di FC media diurna e notturna con variazione |
 | **Sonno** | Durata per notte, stadi (barre impilate), orari di addormentamento/risveglio e regolarità |
 | **Attività** | Passi, distanza, calorie attive e totali, elenco allenamenti (kcal, FC media) e volume settimanale |
 | **Corpo** | Peso e pressione arteriosa (sistolica continua, diastolica tratteggiata; fasce solo indicative) |
 | **Report** | Riepilogo per settimana/mese/anno/personalizzato, con variazione vs periodo precedente, giorni migliori/peggiori, stampa/PDF ed export CSV |
 | **Sync / Dati** | Verifica: ultime sync (rifiutati/errori), inventario per tipo e sorgente, ufficiale Health Connect vs somma dei record |
 
-Ogni pagina di trend ha KPI del periodo con variazione (freccia **e** testo), grafici con granularità giorno/settimana/mese
+Ogni pagina di trend ha KPI del periodo con variazione (freccia **e** testo), grafici con granularità ora (fino a 31 giorni)/giorno/settimana/mese
 (automatica per intervallo), media mobile e confronto con il periodo precedente attivabili, valori raggiungibili da tastiera
-(cursore sotto il grafico), riepilogo testuale, tabella alternativa ed **export CSV per grafico**. Il selettore globale arriva
-fino a **Tutto** (l'intero storico) e vive nell'URL; il periodo del Report pure (`?p=month&d=2026-09-01`), quindi un report si
+(il grafico è focalizzabile: frecce ←/→, Home/Fine, Esc), riepilogo testuale, tabella alternativa ed **export CSV per grafico**. Il selettore globale arriva
+fino a **Tutto** (l'intero storico) e vive nell'URL; due frecce spostano la finestra indietro/avanti della sua lunghezza
+(`?r=7d&end=2026-09-30`, assente = fino a oggi); il periodo del Report pure (`?p=month&d=2026-09-01`), quindi un report si
 riapre o si condivide con il link. Il Report si salva in PDF con *Stampa / Salva PDF* del browser (foglio di stampa dedicato,
 sfondo chiaro, senza effetti HUD). Le metriche sono solo le 12 di interesse; la **pressione** è un tipo Tier 2: finché non è
 attivata nell'app mostra un messaggio che spiega come farlo.
@@ -105,8 +106,8 @@ L'immagine **non si builda sulla VM**: la costruisce GitHub Actions e Portainer 
 Per rilasciare (dal tuo PC):
 
 ```bash
-git tag v0.3.0
-git push origin main v0.3.0
+git tag v0.4.0
+git push origin main v0.4.0
 ```
 
 ### Una tantum: rendere pubblico il pacchetto
@@ -150,7 +151,7 @@ variables* (vedi `docker/.env.example`; puoi usare «Load variables from .env fi
 | Variabile | Valore |
 |---|---|
 | `SBH_DB_PASSWORD` | **obbligatoria**, es. output di `openssl rand -hex 24` |
-| `SBH_IMAGE_TAG` | `0.3.0` (la versione da usare) oppure `latest` |
+| `SBH_IMAGE_TAG` | `0.4.0` (la versione da usare) oppure `latest` |
 | `SBH_HTTP_PORT` | `8742` (o quella libera che hai scelto) |
 | `SBH_DATA_DIR` | cartella locale della VM che contiene `db/` (default nel compose) |
 | `SBH_SOURCE_PRIORITY` | opzionale: pacchetti Android in ordine di fiducia (i nomi esatti li mostra la pagina *Sync / Dati → Inventario*) |
@@ -200,11 +201,11 @@ Verifica da un dispositivo sulla tailnet: `curl https://<il-tuo-dominio>/api/v1/
 
 ### Aggiornare e tornare indietro
 
-1. Rilascia un nuovo tag (`git tag v0.3.1 && git push origin v0.3.1`) e attendi che il workflow *Release* finisca.
+1. Rilascia un nuovo tag (`git tag v0.4.1 && git push origin v0.4.1`) e attendi che il workflow *Release* finisca.
 2. Prima di un upgrade con migrazioni: snapshot PBS (e dump, vedi sotto).
-3. In Portainer cambia `SBH_IMAGE_TAG=0.3.1` → **Update the stack** con *Re-pull image* attivo. Se usi `latest`:
+3. In Portainer cambia `SBH_IMAGE_TAG=0.4.1` → **Update the stack** con *Re-pull image* attivo. Se usi `latest`:
    *Update the stack* con **Pull latest image**.
-4. **Rollback**: rimetti il tag precedente (`SBH_IMAGE_TAG=0.2.0`) e aggiorna lo stack. Le migrazioni sono solo «in
+4. **Rollback**: rimetti il tag precedente (`SBH_IMAGE_TAG=0.3.0`) e aggiorna lo stack. Le migrazioni sono solo «in
    avanti»: se una migrazione va annullata ripristina lo snapshot PBS (o il dump) invece di fare `downgrade`.
 
 ### Backup
@@ -234,6 +235,7 @@ come hash; password Argon2id; cookie `HttpOnly; Secure; SameSite=Lax` + header a
 nessun valore sanitario nei log o negli errori; DB solo su rete interna; container non-root con filesystem in sola
 lettura. Esposizione prevista: solo LAN + Tailscale, mai Internet pubblico. Dettagli in
 [`docs/adr/0003-auth-sessions-and-operations.md`](docs/adr/0003-auth-sessions-and-operations.md).
+La definizione di FC diurna/notturna è in [`docs/adr/0005-heart-rate-day-night.md`](docs/adr/0005-heart-rate-day-night.md).
 
 > **Repo pubblico:** nei file versionati non ci sono più IP, domini o segreti personali, ma restano nella
 > **cronologia git** dei commit precedenti. Se vanno considerati riservati serve riscrivere la storia (o ricreare il repo).

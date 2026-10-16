@@ -253,6 +253,25 @@ test.describe('trends (synthetic data)', () => {
     await expect(prev).toHaveCount(0)
   })
 
+  test('heart rate day / night: KPIs, two series per day, shaded nights when hourly', async ({ page }) => {
+    await login(page)
+    await page.goto('/heart?r=30d')
+    await settled(page)
+    await expect(page.getByTestId('kpi-heart-day').getByTestId('kpi-value')).not.toHaveText('—')
+    await expect(page.getByTestId('kpi-heart-night').getByTestId('kpi-value')).not.toHaveText('—')
+    await expect(page.getByTestId('kpi-heart-night').getByTestId('delta')).toBeVisible()
+    const chart = page.getByTestId('trend-heartRate')
+    await expect(chart.getByTestId('chart-summary')).toContainText('FC notturna media')
+    await expect(chart.getByTestId('daypart-note')).toContainText('tratteggiata')
+    await chart.getByRole('button', { name: 'Mostra tabella' }).click()
+    await expect(chart.getByRole('columnheader', { name: /FC notturna/ })).toBeVisible()
+    await chart.getByRole('button', { name: 'Mostra grafico' }).click()
+    await chart.getByLabel('Granularità').selectOption('hour')
+    await settled(page)
+    await expect(chart.getByTestId('daypart-note')).toContainText('Notte')
+    await expect(chart.getByTestId('chart-summary')).not.toContainText('FC notturna media')
+  })
+
   test('hourly averages are offered up to 31 days', async ({ page }) => {
     await login(page)
     await page.goto('/heart?r=30d')
