@@ -2,11 +2,12 @@ import type { Icon } from '@phosphor-icons/react'
 import { useQuery } from '@tanstack/react-query'
 import { useReducedMotion } from 'motion/react'
 import { useId, useMemo, useState } from 'react'
-import { seriesQuery } from '../api/queries'
+import { daypartQuery, seriesQuery } from '../api/queries'
 import type { Bucket, SeriesResponse } from '../api/types'
 import { t } from '../i18n'
 import { baseOption, bucketLabel, bucketLabelLong, palette } from '../lib/charts'
 import { csvName } from '../lib/csv'
+import { alignDaypart, daypartBucketFor, nightFlags, nightRuns } from '../lib/daypart'
 import { describeTrend } from '../lib/delta'
 import { fmtNumber } from '../lib/format'
 import { type MetricDef, fmtMetric, scaled, withUnit } from '../lib/metrics'
@@ -33,6 +34,8 @@ interface Props {
   /** Indicative reference areas (display units). Always labelled as indicative, never a diagnosis. */
   reference?: ReferenceBand[]
   referenceNote?: string
+  /** Heart rate: split day/night (two series per day/week/month, shaded nights when intraday). */
+  daypart?: boolean
   /** Shown instead of the generic empty state (e.g. "turn this metric on in the app"). */
   emptyTitle?: string
   emptyHint?: string
@@ -78,6 +81,7 @@ function trendSentence(values: (number | null)[]): string {
 export function TrendChart({
   def,
   pair,
+  daypart,
   range,
   icon,
   accent,
@@ -126,6 +130,11 @@ export function TrendChart({
     enabled: !!pair,
   })
 
+  const dpBucket = daypartBucketFor(effective, range.days)
+  const dpQuery = useQuery(
+    daypartQuery({ from: range.from, to: range.to, bucket: dpBucket ?? 'day' }, !!daypart && !pair),
+  )
+
   const built = useMemo(() => {
     const d: SeriesResponse | undefined = query.data
     if (!d) return null
@@ -135,11 +144,19 @@ export function TrendChart({
     const label = t(def.label)
     const p = palette()
     const pts = d.points
-    const main = pts.map((x) => scaled(def, x.v))
-    const ma = d.ma_window ? pts.map((x) => scaled(def, x.ma ?? null)) : null
+    const dp = dpQuery.data
+    // two series (day / night) instead of one; shaded nights on the intraday buckets
+    const split = !!dp && dp.bucket === d.bucket && dpBucket !== null && dp.points.length > 0
+    const aligned = split && dp ? alignDaypart(pts.map((x) => x.t), dp.points) : null
+    const flags = dp && !split ? nightFlags(pts.map((x) => x.t), d.bucket, dp.nights) : null
+    const runs = flags ? nightRuns(flags) : []
+    const dayName = t('daypart.day')
+    const nightName = t('daypart.night')
+    const main = aligned ? aligned.day : pts.map((x) => scaled(def, x.v))
+    const ma = d.ma_window && !aligned ? pts.map((x) => scaled(def, x.ma ?? null)) : null
     const prev = pts.map((x) => scaled(def, x.prev ?? null))
-    const hasPrev = d.previous_summary !== null && d.previous_summary.points > 0
-    const hasBand = !!def.band && pts.some((x) => x.lo != null)
+    const hasPrev = !aligned && d.previous_summary !== null && d.previous_summary.points > 0
+    const hasBand = !aligned && !!def.band && pts.some((x) => x.lo != null)
     const maN = `${d.ma_window ?? 7}${MA_UNIT[d.bucket] ?? ''}`
     const maName = t('chart.ma', { n: maN })
     const prevName = t('chart.prev')
@@ -149,7 +166,25 @@ export function TrendChart({
     const option = baseOption(
       pts.map((x) => bucketLabel(x.t, d.bucket, range.days > 1)),
       [
-        { name: label, color: p[def.color], kind: def.kind, data: main, short: pair ? t('bp.short.sys') : undefined },
+        {
+          name: aligned ? dayName : label,
+          color: p[def.color],
+          kind: def.kind,
+          data: main,
+          short: pair ? t('bp.short.sys') : aligned ? t('daypart.day.short') : undefined,
+        },
+        ...(aligned
+          ? [
+              {
+                name: nightName,
+                color: p.sleep,
+                kind: 'line' as const,
+                dashed: true,
+                data: aligned.night,
+                short: t('daypart.night.short'),
+              },
+            ]
+          : []),
         ...(pair && pairData
           ? [
               {
@@ -181,6 +216,27 @@ export function TrendChart({
       )
       option.legend = { ...option.legend, data: [label, bandName, ...(showMa && ma ? [maName] : []), ...(showPrev && hasPrev ? [prevName] : [])] }
     }
+    if (runs.length) {
+      const bandName = t('daypart.band')
+      const first = option.series[0] as Record<string, unknown>
+      first.markArea = {
+        silent: true,
+        itemStyle: { color: p.sleep, opacity: 0.16 },
+        label: runs.length <= 6 ? { show: true, color: p.sleep, position: 'insideTop', fontSize: 11 } : { show: false },
+        data: runs.map(([a, b]) => [{ xAxis: a - 0.5, name: bandName }, { xAxis: b + 0.5 }]),
+      }
+      // legend entry (an empty series carries the swatch): text + colour, not colour alone
+      option.series.push({
+        name: bandName,
+        type: 'line',
+        data: [],
+        silent: true,
+        itemStyle: { color: p.sleep },
+        lineStyle: { opacity: 0 },
+        areaStyle: { color: p.sleep, opacity: 0.3 },
+      })
+      if (Array.isArray(option.legend.data)) option.legend.data = [...(option.legend.data as string[]), bandName]
+    }
     for (const which of [0, 1] as const) {
       const refs = (reference ?? []).filter((r) => (r.series ?? 0) === which)
       const target = option.series[which] as Record<string, unknown> | undefined
@@ -202,7 +258,10 @@ export function TrendChart({
           v == null ? '' : `<div>${name}: <b>${withUnit(def, fmtNumber(v * def.scale, digits))}</b></div>`
         return [
           `<div>${bucketLabelLong(x.t, d.bucket)}</div>`,
-          line(label, x.v),
+          aligned
+            ? `<div>${dayName}: <b>${withUnit(def, fmtNumber(aligned.day[i] ?? null, def.digits))}</b></div><div>${nightName}: <b>${withUnit(def, fmtNumber(aligned.night[i] ?? null, def.digits))}</b></div>`
+            : line(label, x.v),
+          flags?.[i] ? `<div>${t('daypart.band')}</div>` : '',
           pair && d2 ? line(label2, d2.points[i]?.v, pair.digits) : '',
           hasBand && x.lo != null && x.hi != null
             ? `<div>${bandName}: <b>${fmtMetric(def, x.lo)}–${withUnit(def, fmtMetric(def, x.hi))}</b></div>`
@@ -213,9 +272,11 @@ export function TrendChart({
       },
     }
 
+    const unitCol = (name: string) => withUnit(def, name).replace(/^(.*) (\S+)$/, '$1 ($2)') || name
     const columns = [
       t('chart.col.when'),
-      withUnit(def, label).replace(/^(.*) (\S+)$/, '$1 ($2)') || label,
+      aligned ? unitCol(dayName) : withUnit(def, label).replace(/^(.*) (\S+)$/, '$1 ($2)') || label,
+      ...(aligned ? [unitCol(nightName), t('daypart.col.dayN'), t('daypart.col.nightN')] : []),
       ...(pair ? [withUnit(pair, label2).replace(/^(.*) (\S+)$/, '$1 ($2)')] : []),
       ...(hasBand ? [t('chart.col.min'), t('chart.col.max')] : []),
       ...(ma ? [maName] : []),
@@ -223,7 +284,7 @@ export function TrendChart({
     ]
     const toRow = (x: SeriesResponse['points'][number], i: number) => [
       x.t,
-      ...[x.v, ...(pair ? [d2?.points[i]?.v ?? null] : []), ...(hasBand ? [x.lo ?? null, x.hi ?? null] : []), ...(ma ? [x.ma ?? null] : []), ...(hasPrev ? [x.prev ?? null] : [])].map(
+      ...[aligned ? aligned.day[i] : x.v, ...(aligned ? [aligned.night[i] ?? null, aligned.dayN[i] ?? 0, aligned.nightN[i] ?? 0] : []), ...(pair ? [d2?.points[i]?.v ?? null] : []), ...(hasBand ? [x.lo ?? null, x.hi ?? null] : []), ...(ma ? [x.ma ?? null] : []), ...(hasPrev ? [x.prev ?? null] : [])].map(
         (v) => (v == null ? null : Math.round(v * def.scale * 1000) / 1000),
       ),
     ]
@@ -255,6 +316,12 @@ export function TrendChart({
       pair && d2?.summary.avg != null
         ? t('chart.summary.pair', { label: label2, value: withUnit(pair, fmtMetric(pair, d2.summary.avg)) })
         : '',
+      aligned && dp?.summary.day.avg != null && dp.summary.night.avg != null
+        ? t('daypart.summary', {
+            day: withUnit(def, fmtMetric(def, dp.summary.day.avg)),
+            night: withUnit(def, fmtMetric(def, dp.summary.night.avg)),
+          })
+        : '',
       trendSentence(main),
       d.previous_summary?.avg != null && s.avg !== null
         ? t('chart.summary.prev', { value: withUnit(def, fmtMetric(def, d.previous_summary.avg)) })
@@ -263,17 +330,23 @@ export function TrendChart({
     const readout = (i: number) => {
       const x = pts[i]
       if (!x) return ''
+      if (aligned) {
+        const part = (name: string, v: number | null | undefined) =>
+          `${name}: ${v == null ? t('chart.noValue') : withUnit(def, fmtMetric(def, v))}`
+        return [bucketLabelLong(x.t, d.bucket), part(dayName, aligned.day[i]), part(nightName, aligned.night[i])].join(' · ')
+      }
       return [
         bucketLabelLong(x.t, d.bucket),
         x.v === null ? t('chart.noValue') : withUnit(def, fmtMetric(def, x.v)),
+        flags?.[i] ? t('daypart.inNight') : '',
         showMa && x.ma != null ? `${maName}: ${fmtMetric(def, x.ma)}` : '',
         showPrev && x.prev != null ? `${prevName}: ${fmtMetric(def, x.prev)}` : '',
       ]
         .filter(Boolean)
         .join(' · ')
     }
-    return { option, table, csv, summary: parts.filter(Boolean).join(' '), readout, d, hasPrev, hasMa: !!ma }
-  }, [query.data, query2.data, def, pair, showMa, showPrev, reduced, reference, range.days])
+    return { option, table, csv, summary: parts.filter(Boolean).join(' '), readout, d, hasPrev, hasMa: !!ma, split: !!aligned, banded: runs.length > 0 }
+  }, [query.data, query2.data, dpQuery.data, dpBucket, def, pair, showMa, showPrev, reduced, reference, range.days])
 
   const controls = built && (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 no-print" data-testid="trend-controls">
@@ -353,6 +426,16 @@ export function TrendChart({
                   {built.d.coarsened && (
                     <p className="text-xs text-warn" data-testid="coarsened-note">
                       {t('chart.coarsened', { bucket: t(`bucket.${built.d.bucket}` as const) })}
+                    </p>
+                  )}
+                  {built.banded && (
+                    <p className="text-xs text-fg-muted" data-testid="daypart-note">
+                      {t('daypart.bandNote')}
+                    </p>
+                  )}
+                  {built.split && (
+                    <p className="text-xs text-fg-muted" data-testid="daypart-note">
+                      {t('daypart.splitNote')}
                     </p>
                   )}
                   {reference?.length ? (

@@ -195,6 +195,23 @@ export const it = {
   'nav.more': 'Altro',
   'nav.more.aria': 'Altro: altre sezioni',
 
+  'daypart.day': 'FC diurna',
+  'daypart.night': 'FC notturna',
+  'daypart.day.short': 'Diurna',
+  'daypart.night.short': 'Notte',
+  'daypart.band': 'Notte',
+  'daypart.bandNote':
+    'Le fasce ombreggiate «Notte» sono i campioni dentro le sessioni di sonno registrate; dove manca il sonno vale la fascia fissa 23:00–07:00.',
+  'daypart.splitNote':
+    'FC diurna (linea continua) e FC notturna (tratteggiata). Notte = sessioni di sonno registrate, altrimenti 23:00–07:00.',
+  'daypart.summary': 'FC diurna media {day}, FC notturna media {night}.',
+  'daypart.inNight': 'notte',
+  'daypart.col.dayN': 'Campioni diurni',
+  'daypart.col.nightN': 'Campioni notturni',
+  'daypart.kpi.day': 'FC diurna · media',
+  'daypart.kpi.night': 'FC notturna · media',
+  'daypart.kpi.hint': 'Notte = sonno registrato, altrimenti 23:00–07:00. {n} giorni con dati (precedente: {prev})',
+  'daypart.kpi.samples': 'Campioni',
   'chart.keys': 'Grafico: frecce ← → per spostarsi tra i punti, Home e Fine per gli estremi, Esc per azzerare.',
   'chart.exportCsv': 'Esporta CSV',
   'chart.col.date': 'Data',

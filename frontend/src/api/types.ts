@@ -351,3 +351,44 @@ export interface ReportDailyResponse {
   columns: { key: string; label: string; unit: string | null }[]
   rows: { date: string; values: Record<string, number | null> }[]
 }
+
+export interface NightInterval {
+  date: string
+  start: string
+  end: string
+  /** sleep = recorded sleep session(s); fixed = fallback window 23:00-07:00 */
+  source: 'sleep' | 'fixed'
+}
+
+export interface DaypartPoint {
+  t: string
+  day: number | null
+  night: number | null
+  day_n: number
+  night_n: number
+}
+
+export interface DaypartStats {
+  avg: number | null
+  days: number
+  samples: number
+}
+
+export interface DaypartSummary {
+  day: DaypartStats
+  night: DaypartStats
+}
+
+export interface DaypartResponse {
+  from: string
+  to: string
+  bucket: 'day' | 'week' | 'month'
+  timezone: string
+  fixed_window: string
+  nights: NightInterval[]
+  points: DaypartPoint[]
+  summary: DaypartSummary
+  previous_from: string
+  previous_to: string
+  previous_summary: DaypartSummary
+}

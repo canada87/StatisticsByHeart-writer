@@ -73,7 +73,10 @@ export function KpiCard({ spec, index = 0 }: { spec: KpiSpec; index?: number }) 
 
 export function KpiGrid({ items }: { items: KpiSpec[] }) {
   return (
-    <ul className="mb-3 grid list-none grid-cols-1 gap-3 p-0 sm:grid-cols-2 xl:grid-cols-4" aria-label={t('kpi.title')}>
+    <ul
+      className={`mb-3 grid list-none grid-cols-1 gap-3 p-0 sm:grid-cols-2 ${items.length === 6 ? 'xl:grid-cols-3' : 'xl:grid-cols-4'}`}
+      aria-label={t('kpi.title')}
+    >
       {items.map((spec, i) => (
         <KpiCard key={spec.id} spec={spec} index={i} />
       ))}

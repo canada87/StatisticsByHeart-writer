@@ -9,8 +9,21 @@ import * as fx2 from './fixtures2'
 
 // Canvas is not available in jsdom: the chart wrapper is replaced by a stub.
 vi.mock('../components/EChart', () => ({
-  EChart: ({ label, activeIndex }: { label: string; activeIndex?: number | null }) => (
-    <div data-testid="echart-stub" data-active={activeIndex ?? ''}>
+  EChart: ({
+    label,
+    activeIndex,
+    option,
+  }: {
+    label: string
+    activeIndex?: number | null
+    option?: { series?: { name: string; lineStyle?: { type?: string }; markArea?: { data: unknown[] } }[] }
+  }) => (
+    <div
+      data-testid="echart-stub"
+      data-active={activeIndex ?? ''}
+      data-series={(option?.series ?? []).map((s) => `${s.name}:${s.lineStyle?.type ?? ''}`).join('|')}
+      data-bands={option?.series?.find((s) => s.markArea)?.markArea?.data.length ?? 0}
+    >
       {label}
     </div>
   ),
@@ -33,6 +46,7 @@ beforeEach(() => {
     '/api/v1/report': () => ({ body: fx2.report() }),
     '/api/v1/sleep/nights': () => ({ body: fx2.nights }),
     '/api/v1/exercise/sessions': () => ({ body: fx2.exercise }),
+    '/api/v1/heart/daypart': () => ({ body: fx2.daypart() }),
     '/api/v1/data/bounds': () => ({ body: { first: '2026-01-01', last: '2026-10-15' } }),
     '/api/v1/report/daily': () => ({
       body: {
@@ -171,6 +185,73 @@ describe('heart page', () => {
     expect(csv.charCodeAt(0)).toBe(0xfeff) // BOM for Excel
     expect(csv.split('\r\n')[0]).toContain('Data')
     expect(csv.split('\r\n').length).toBeGreaterThan(7)
+  })
+})
+
+describe('heart rate day / night', () => {
+  it('two KPIs with a delta versus the previous period', async () => {
+    renderApp('/heart')
+    const day = await screen.findByTestId('kpi-heart-day')
+    expect(within(day).getByTestId('kpi-value')).toHaveTextContent('75')
+    expect(within(day).getByTestId('delta')).toHaveAttribute('data-direction', 'up')
+    expect(day).toHaveTextContent('FC diurna')
+    const night = screen.getByTestId('kpi-heart-night')
+    expect(within(night).getByTestId('kpi-value')).toHaveTextContent('56')
+    expect(within(night).getByTestId('delta')).toHaveAttribute('data-direction', 'down')
+    expect(night).toHaveTextContent('FC notturna')
+  })
+
+  it('per-day buckets: two series, distinct line style and name; table, CSV and summary follow', async () => {
+    renderApp('/heart')
+    const user = userEvent.setup()
+    const chart = await screen.findByTestId('trend-heartRate')
+    await waitFor(() =>
+      expect(within(chart).getByTestId('echart-stub')).toHaveAttribute('data-series', 'FC diurna:solid|FC notturna:dashed'),
+    )
+    expect(within(chart).getByTestId('chart-summary')).toHaveTextContent('FC diurna media 75 bpm, FC notturna media 56 bpm')
+    expect(within(chart).getByTestId('daypart-note')).toHaveTextContent('tratteggiata')
+    await user.click(within(chart).getByRole('button', { name: 'Mostra tabella' }))
+    const table = within(chart).getByRole('table')
+    expect(within(table).getByRole('columnheader', { name: 'FC diurna (bpm)' })).toBeInTheDocument()
+    expect(within(table).getByRole('columnheader', { name: 'FC notturna (bpm)' })).toBeInTheDocument()
+    await user.click(within(chart).getByRole('button', { name: 'Mostra grafico' }))
+    await user.click(within(chart).getByRole('button', { name: 'Esporta CSV' }))
+    await waitFor(() => expect(csvDownloads.length).toBe(1))
+    expect(csvDownloads[0]?.text.split('\r\n')[0]).toContain('FC notturna (bpm)')
+  })
+
+  it('intraday buckets: shaded nights with a "Notte" legend entry instead of a second series', async () => {
+    handlers['/api/v1/metrics/HeartRate/series'] = () => {
+      const base = fx2.trendSeries('HeartRate', [60, 61, 62, 63, 64, 65, 66, 67])
+      return {
+        body: {
+          ...base,
+          bucket: 'hour',
+          points: base.points.map((p, i) => ({ ...p, t: `2026-10-14T${String(i).padStart(2, '0')}:00:00+02:00` })),
+        },
+      }
+    }
+    handlers['/api/v1/heart/daypart'] = () => ({
+      body: fx2.daypart({
+        nights: [{ date: '2026-10-14', start: '2026-10-13T21:30:00Z', end: '2026-10-14T03:00:00Z', source: 'sleep' }],
+      }),
+    })
+    renderApp('/heart?r=24h&end=2026-10-14')
+    const chart = await screen.findByTestId('trend-heartRate')
+    await waitFor(() => expect(within(chart).getByTestId('echart-stub')).toHaveAttribute('data-bands', '1'))
+    const stub = within(chart).getByTestId('echart-stub')
+    expect(stub.getAttribute('data-series')).toContain('Notte:')
+    expect(stub.getAttribute('data-series')).not.toContain('FC notturna')
+    expect(within(chart).getByTestId('daypart-note')).toHaveTextContent('fascia fissa 23:00–07:00')
+  })
+
+  it('falls back to the plain chart when the split is not available', async () => {
+    handlers['/api/v1/heart/daypart'] = () => ({ status: 500, body: { error: { code: 'x', message: 'boom' } } })
+    renderApp('/heart')
+    const chart = await screen.findByTestId('trend-heartRate')
+    await waitFor(() => expect(within(chart).getByTestId('echart-stub')).toBeInTheDocument())
+    expect(within(chart).getByTestId('echart-stub').getAttribute('data-series')).not.toContain('FC diurna')
+    expect(await screen.findByTestId('kpi-heart-day')).toHaveTextContent('—')
   })
 })
 

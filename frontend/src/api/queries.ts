@@ -4,6 +4,7 @@ import type {
   Agg,
   Bucket,
   DataBounds,
+  DaypartResponse,
   ExerciseResponse,
   InventoryResponse,
   ReconciliationResponse,
@@ -118,5 +119,12 @@ export const reportDailyQuery = (w: Window, enabled = true) =>
   queryOptions({
     queryKey: ['report-daily', w],
     queryFn: () => api<ReportDailyResponse>(withQuery('/api/v1/report/daily', { ...w })),
+    enabled,
+  })
+
+export const daypartQuery = (w: Window & { bucket?: 'day' | 'week' | 'month' }, enabled = true) =>
+  queryOptions({
+    queryKey: ['daypart', w],
+    queryFn: () => api<DaypartResponse>(withQuery('/api/v1/heart/daypart', { ...w })),
     enabled,
   })

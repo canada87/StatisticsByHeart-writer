@@ -1,4 +1,5 @@
 import type {
+  DaypartResponse,
   ExerciseResponse,
   PeriodStats,
   ReportMetric,
@@ -126,4 +127,41 @@ export const exercise: ExerciseResponse = {
   ],
   summary: { count: 2, duration_s: 3900, avg_duration_s: 1950, kcal: 310, by_type: { RUNNING: 1, WALKING: 1 } },
   previous: { count: 1, duration_s: 3000, avg_duration_s: 3000, kcal: null, by_type: { WALKING: 1 } },
+}
+
+/** Day/night split for the 7 synthetic days 09..15 Oct (night is ~18 bpm lower). */
+export function daypart(over: Partial<DaypartResponse> = {}): DaypartResponse {
+  const days = [9, 10, 11, 12, 13, 14, 15]
+  const dd = (n: number) => String(n).padStart(2, '0')
+  return {
+    from: '2026-10-09',
+    to: '2026-10-15',
+    bucket: 'day',
+    timezone: 'Europe/Rome',
+    fixed_window: '23:00-07:00',
+    nights: days.map((d, i) => ({
+      date: `2026-10-${dd(d)}`,
+      start: `2026-10-${dd(d - 1)}T21:30:00Z`,
+      end: `2026-10-${dd(d)}T04:30:00Z`,
+      source: i === 3 ? ('fixed' as const) : ('sleep' as const),
+    })),
+    points: days.map((d, i) => ({
+      t: `2026-10-${dd(d)}`,
+      day: 74 + (i % 3),
+      night: 55 + (i % 2),
+      day_n: 200,
+      night_n: 60,
+    })),
+    summary: {
+      day: { avg: 75, days: 7, samples: 1400 },
+      night: { avg: 55.5, days: 7, samples: 420 },
+    },
+    previous_from: '2026-10-02',
+    previous_to: '2026-10-08',
+    previous_summary: {
+      day: { avg: 72, days: 7, samples: 1400 },
+      night: { avg: 57, days: 6, samples: 360 },
+    },
+    ...over,
+  }
 }
