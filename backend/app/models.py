@@ -203,3 +203,17 @@ class DailyMetric(Base):
         CheckConstraint("source IN ('hc_official','computed')", name="ck_daily_metric_source"),
         Index("ix_daily_metric_type_date", "type", "local_date"),
     )
+
+
+class ExerciseOverride(Base):
+    """The user's verdict on "is this a real workout?", keyed by the Health Connect id.
+
+    Keyed by ``hc_id`` (not the row id) so it survives re-ingest, soft deletes and re-insertions
+    of the same record. No row = automatic classification.
+    """
+
+    __tablename__ = "exercise_override"
+
+    hc_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    is_real: Mapped[bool] = mapped_column()
+    updated_at: Mapped[datetime] = mapped_column(TZ, server_default=NOW)

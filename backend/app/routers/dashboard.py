@@ -15,6 +15,8 @@ from app.dash_schemas import (
     DaypartResponse,
     ExerciseResponse,
     InventoryResponse,
+    OverrideBody,
+    OverrideResult,
     ReconciliationResponse,
     ReportDailyResponse,
     ReportResponse,
@@ -27,7 +29,7 @@ from app.dash_schemas import (
 from app.deps import AdminAuth, Db, SettingsDep
 from app.errors import ApiError
 from app.schemas import ErrorResponse
-from app.services import analytics, daypart, queries
+from app.services import analytics, daypart, queries, workouts
 
 router = APIRouter(prefix="/api/v1", tags=["dashboard"])
 _AUTH: dict[int | str, dict[str, Any]] = {401: {"model": ErrorResponse}}
@@ -166,9 +168,12 @@ async def heart_daypart(
     from_: Annotated[date | None, Query(alias="from")] = None,
     to: date | None = None,
     bucket: Annotated[Literal["day", "week", "month"], Query()] = "day",
+    include_workouts: Annotated[
+        bool, Query(description="Keep real workouts (and 30 min after) in the daytime heart rate")
+    ] = False,
 ) -> DaypartResponse:
     first, last = _window(settings, from_, to, 7)
-    return await daypart.daypart(session, settings, first, last, bucket)
+    return await daypart.daypart(session, settings, first, last, bucket, include_workouts)
 
 
 @router.get(
@@ -202,9 +207,12 @@ async def exercise_sessions(
     settings: SettingsDep,
     from_: Annotated[date | None, Query(alias="from")] = None,
     to: date | None = None,
+    scope: Annotated[
+        Literal["all", "real"], Query(description="real = only real workouts (ADR 0006)")
+    ] = "all",
 ) -> ExerciseResponse:
     first, last = _window(settings, from_, to, 30)
-    return await analytics.exercise_sessions(session, settings, first, last)
+    return await analytics.exercise_sessions(session, settings, first, last, scope)
 
 
 @router.get(
@@ -241,3 +249,22 @@ async def report_daily(
 ) -> ReportDailyResponse:
     first, last = _window(settings, from_, to, 7)
     return await analytics.report_daily(session, settings, first, last)
+
+
+@router.put(
+    "/exercise/sessions/{session_id}/override",
+    response_model=OverrideResult,
+    summary="Manual verdict: is this session a real workout? (true / false / null = automatic)",
+    responses={**_AUTH, 404: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
+)
+async def exercise_override(
+    session_id: int,
+    body: OverrideBody,
+    _: AdminAuth,
+    session: Db,
+    settings: SettingsDep,
+) -> OverrideResult:
+    found = await workouts.set_override(session, settings, session_id, body.value)
+    if found is None:
+        raise ApiError(404, "unknown_session", "No such workout")
+    return OverrideResult(id=found.workout.id, override=found.override, is_real=found.is_real)

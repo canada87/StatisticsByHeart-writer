@@ -128,32 +128,45 @@ class _Builder:
             self.add("ActiveCaloriesBurned", WATCH, start, end, {"value": round(active, 1)})
             self.add("TotalCaloriesBurned", WATCH, start, end, {"value": round(70 + active, 1)})
 
-    def heart(self, day: date) -> None:
+    def heart(self, day: date, index: int = 1) -> None:
         rng = self.rng
         step = self.cfg.hr_interval_min
         # Asleep (recorded session, or the 23:00-07:00 fallback night) -> low resting-like rate.
         bedtime, wake = self.sleep_window(day)
         next_bed, next_wake = self.sleep_window(day + timedelta(days=1))
         asleep = [(bedtime, wake), (next_bed, next_wake)]
+        plan = self.workout_plan(day, index)
+        dense: tuple[datetime, datetime] | None = None
+        gap: tuple[datetime, datetime] | None = None
+        if plan is not None:
+            start, minutes, spec = plan
+            window = (start, start + timedelta(minutes=minutes))
+            if spec[5]:
+                dense = window  # the watch records the effort minute by minute
+            else:
+                gap = window  # watch left at home: no heart rate during the session
         for hour in range(24):
             start = self.at(day, hour)
             end = start + timedelta(hours=1)
             day_base = 72 + 6 * math.sin((hour - 6) / 16 * math.pi) if hour >= 6 else 66
             samples = []
-            for minute in range(0, 60, step):
+            for minute in range(0, 60):
                 when = start + timedelta(minutes=minute)
+                in_dense = dense is not None and dense[0] <= when < dense[1]
+                if not in_dense and minute % step:
+                    continue
+                if gap is not None and gap[0] <= when < gap[1]:
+                    continue
                 sleeping = any(a <= when < b for a, b in asleep)
-                base = 54 if sleeping else day_base
+                base = 54 if sleeping else (138 if in_dense else day_base)
                 bpm = round(
-                    base + rng.gauss(0, 4) + (35 if rng.random() < 0.02 and not sleeping else 0)
+                    base
+                    + rng.gauss(0, 6 if in_dense else 4)
+                    + (35 if rng.random() < 0.02 and not sleeping and not in_dense else 0)
                 )
-                samples.append(
-                    {
-                        "time": _iso(when),
-                        "value": max(40, min(bpm, 190)),
-                    }
-                )
-            self.add("HeartRate", WATCH, start, end, {"samples": samples})
+                samples.append({"time": _iso(when), "value": max(40, min(bpm, 190))})
+            if samples:
+                self.add("HeartRate", WATCH, start, end, {"samples": samples})
 
     def night(self, day: date) -> None:
         """Sleep that ends on ``day`` morning (attributed to ``day``), plus night vitals."""
@@ -201,19 +214,45 @@ class _Builder:
 
     # (exercise_type, HC constant, title, minutes range, has GPS route)
     WORKOUTS = (
-        ("WALKING", 79, "Evening walk", (30, 55), True),
-        ("RUNNING", 56, "Easy run", (25, 45), True),
-        ("BIKING", 8, "Ride", (40, 75), False),
+        ("WALKING", 79, "Evening walk", (30, 55), True, True),
+        ("RUNNING", 56, "Easy run", (25, 45), True, True),
+        ("BIKING", 8, "Ride", (40, 75), False, True),
+        # started by the user but the watch was off: no heart rate -> not a real workout
+        ("STRENGTH_TRAINING", 70, "Gym (watch off)", (35, 50), False, False),
     )
+
+    def workout_plan(
+        self, day: date, index: int
+    ) -> tuple[datetime, int, tuple[str, int, str, tuple[int, int], bool, bool]] | None:
+        """Start, minutes and kind of the day's workout (own RNG: heart() needs it first)."""
+        if index % 2:
+            return None
+        spec = self.WORKOUTS[(index // 2) % len(self.WORKOUTS)]
+        rng = random.Random(f"{self.cfg.seed}|workout|{day.isoformat()}")
+        start = self.at(day, 18, rng.randint(0, 30))
+        return start, rng.randint(*spec[3]), spec
+
+    def automatic_walk(self, day: date, index: int) -> None:
+        """A short walk the watch detected by itself (recording_method automatic, sparse HR)."""
+        if index % 3 != 1:
+            return
+        start = self.at(day, 12, 10)
+        self.add(
+            "ExerciseSession",
+            WATCH,
+            start,
+            start + timedelta(minutes=14),
+            {"exercise_type": "WALKING", "exercise_type_id": 79, "title": "Walk (detected)"},
+            method="automatic",
+        )
 
     def workout(self, day: date, index: int) -> None:
         """Roughly every other day, rotating walk / run / ride, each logged by watch AND phone."""
-        if index % 2:
+        plan = self.workout_plan(day, index)
+        if plan is None:
             return
         rng = self.rng
-        kind, type_id, title, (lo, hi), has_route = self.WORKOUTS[(index // 2) % len(self.WORKOUTS)]
-        start = self.at(day, 18, rng.randint(0, 30))
-        minutes = rng.randint(lo, hi)
+        start, minutes, (kind, type_id, title, _span, has_route, _dense) = plan
         end = start + timedelta(minutes=minutes)
         data: dict[str, Any] = {"exercise_type": kind, "exercise_type_id": type_id, "title": title}
         if has_route:
@@ -311,10 +350,11 @@ def generate(cfg: SeedConfig | None = None) -> SyntheticData:
     builder.unrecorded = {end - timedelta(days=n) for n in cfg.unrecorded_nights}
     for index, day in enumerate(days):
         builder.steps_and_energy(day)
-        builder.heart(day)
+        builder.heart(day, index)
         builder.night(day)
         builder.weight(day, index)
         builder.workout(day, index)
+        builder.automatic_walk(day, index)
         builder.blood_pressure(day, index)
     return SyntheticData(builder.records, builder.official_aggregates(days))
 

@@ -218,6 +218,24 @@ async def ingest_records(
         ).where(tuple_(HealthRecord.type, HealthRecord.hc_id).in_(list(candidates)))
         existing = {(t, h): (i, d, lm) for i, t, h, d, lm in (await session.execute(stmt)).all()}
 
+    # Same last_modified but different payload (e.g. the Reader re-sends a workout with its GPS
+    # route added): a record is "unchanged" only if its data is identical too.
+    same_lm = [
+        found[0] for key, found in existing.items() if candidates[key].last_modified == found[2]
+    ]
+    stored_data: dict[int, dict[str, Any]] = {}
+    if same_lm:
+        stored_data = {
+            i: d
+            for i, d in (
+                await session.execute(
+                    select(HealthRecord.id, HealthRecord.data).where(
+                        HealthRecord.id.in_(same_lm), HealthRecord.deleted_at.is_(None)
+                    )
+                )
+            ).all()
+        }
+
     touched: set[TypeDay] = set()
     to_insert: list[tuple[dict[str, Any], list[tuple[datetime, float]]]] = []
     to_update: list[tuple[int, dict[str, Any], list[tuple[datetime, float]]]] = []
@@ -227,7 +245,11 @@ async def ingest_records(
         found = existing.get(key)
         if found is None:
             to_insert.append((values, samples))
-        elif rec.last_modified > found[2]:
+        elif rec.last_modified > found[2] or (
+            rec.last_modified == found[2]
+            and found[0] in stored_data  # a deleted record is never revived by a stale resend
+            and stored_data[found[0]] != values["data"]
+        ):
             to_update.append((found[0], values, samples))
             touched.add((rec.type, found[1]))  # the day the record used to count for
         else:

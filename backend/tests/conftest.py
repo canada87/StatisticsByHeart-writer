@@ -32,7 +32,7 @@ if sys.platform == "win32":  # psycopg async cannot run on the default Proactor 
 BACKEND = Path(__file__).resolve().parents[1]
 ALL_TABLES = (
     "health_sample, health_record, daily_metric, sync_run, device, "
-    "ingest_token, user_session, admin_user"
+    "ingest_token, user_session, admin_user, exercise_override"
 )
 
 

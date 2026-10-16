@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from statistics import mean, pstdev
@@ -41,9 +42,10 @@ from app.services.queries import (
     _day_field,
     _day_series,
     _span_days,
-    dedupe_exercise,
+    bucket_start,
     unit_of,
 )
+from app.services.workouts import Classified, Workout, classify
 
 DASHBOARD_TYPES = [
     "Steps",
@@ -173,33 +175,26 @@ async def sleep_nights(
 
 
 async def _exercise_records(
-    session: AsyncSession, settings: Settings, first: date, last: date
-) -> list[HealthRecord]:
-    rows = (
-        (
-            await session.execute(
-                select(HealthRecord).where(
-                    HealthRecord.type == "ExerciseSession",
-                    HealthRecord.deleted_at.is_(None),
-                    HealthRecord.local_date.between(first, last),
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
-    return dedupe_exercise(rows, settings)
+    session: AsyncSession,
+    settings: Settings,
+    first: date,
+    last: date,
+    scope: str = "all",
+) -> list[Classified]:
+    """Distinct workouts of the range; scope="real" keeps only the real ones (ADR 0006)."""
+    found = await classify(session, settings, first, last)
+    return [c for c in found if c.is_real] if scope == "real" else found
 
 
-def _duration(r: HealthRecord) -> float:
-    return ((r.end_ts or r.start_ts) - r.start_ts).total_seconds()
+def _duration(r: Workout) -> float:
+    return r.duration_s
 
 
-def _exercise_stats(records: list[HealthRecord], kcal: float | None = None) -> ExerciseStats:
+def _exercise_stats(records: list[Classified], kcal: float | None = None) -> ExerciseStats:
     by_type: dict[str, int] = defaultdict(int)
-    for r in records:
-        by_type[str(r.data.get("exercise_type", "UNKNOWN"))] += 1
-    total = sum(_duration(r) for r in records)
+    for c in records:
+        by_type[c.workout.exercise_type] += 1
+    total = sum(_duration(c.workout) for c in records)
     return ExerciseStats(
         count=len(records),
         duration_s=total,
@@ -217,7 +212,7 @@ class _Kcal:
 
 
 async def _session_kcal(
-    session: AsyncSession, settings: Settings, records: list[HealthRecord]
+    session: AsyncSession, settings: Settings, records: Sequence[Workout]
 ) -> dict[int, float]:
     """Active kcal inside each session window, from de-duplicated records (proportional overlap)."""
     if not records:
@@ -260,7 +255,7 @@ async def _session_kcal(
     return out
 
 
-async def _session_hr(session: AsyncSession, records: list[HealthRecord]) -> dict[int, float]:
+async def _session_hr(session: AsyncSession, records: Sequence[Workout]) -> dict[int, float]:
     if not records:
         return {}
     rows = (
@@ -284,22 +279,24 @@ def _monday(d: date) -> date:
 
 
 async def exercise_sessions(
-    session: AsyncSession, settings: Settings, first: date, last: date
+    session: AsyncSession, settings: Settings, first: date, last: date, scope: str = "all"
 ) -> ExerciseResponse:
     _check_range(first, last)
     pf, pl = previous_range(first, last)
-    records = await _exercise_records(session, settings, first, last)
-    prev = await _exercise_records(session, settings, pf, pl)
+    everything = await _exercise_records(session, settings, first, last)
+    records = [c for c in everything if c.is_real] if scope == "real" else everything
+    prev = await _exercise_records(session, settings, pf, pl, scope)
     shown = records[:EXERCISE_LIST_LIMIT]
-    kcal = await _session_kcal(session, settings, records)
-    hr = await _session_hr(session, shown)
+    kcal = await _session_kcal(session, settings, [c.workout for c in records])
+    hr = await _session_hr(session, [c.workout for c in shown])
 
     weeks: dict[date, list[float]] = {}
     cursor = _monday(first)
     while cursor <= last:
         weeks[cursor] = [0, 0.0, 0.0]
         cursor += timedelta(days=7)
-    for r in records:
+    for c in records:
+        r = c.workout
         w = weeks.setdefault(_monday(r.start_ts.astimezone(settings.tz).date()), [0, 0.0, 0.0])
         w[0] += 1
         w[1] += _duration(r)
@@ -308,20 +305,30 @@ async def exercise_sessions(
     return ExerciseResponse(
         from_=first,
         to=last,
+        scope="real" if scope == "real" else "all",
+        total_count=len(everything),
+        real_count=sum(1 for c in everything if c.is_real),
         sessions=[
             ExerciseRow(
-                id=r.id,
-                type=str(r.data.get("exercise_type", "UNKNOWN")),
-                title=r.data.get("title"),
-                start=r.start_ts,
-                end=r.end_ts or r.start_ts,
-                duration_s=_duration(r),
-                kcal=kcal.get(r.id) or None,
-                avg_hr=hr.get(r.id),
-                source_package=r.source_package,
-                has_route=bool(r.data.get("route")),
+                id=c.workout.id,
+                type=c.workout.exercise_type,
+                title=c.workout.title,
+                start=c.workout.start_ts,
+                end=c.workout.end,
+                duration_s=_duration(c.workout),
+                kcal=kcal.get(c.workout.id) or None,
+                avg_hr=hr.get(c.workout.id),
+                source_package=c.workout.source_package,
+                has_route=c.has_gps,
+                hr_coverage=c.hr_coverage,
+                has_hr=c.has_hr,
+                recording_method=c.workout.recording_method,
+                started_by_user=c.user_started,
+                auto_real=c.auto_real,
+                override=c.override,
+                is_real=c.is_real,
             )
-            for r in shown
+            for c in shown
         ],
         weekly=[
             ExerciseWeek(week_start=d, count=int(v[0]), duration_s=v[1], kcal=v[2])
@@ -330,6 +337,35 @@ async def exercise_sessions(
         summary=_exercise_stats(records, sum(kcal.values()) if kcal else None),
         previous=_exercise_stats(prev),
     )
+
+
+def _workout_points(
+    real: list[Classified], first: date, last: date, bucket: str
+) -> list[SeriesPoint]:
+    """Per-bucket total duration (v) and number (n) of real workouts, one point per bucket."""
+    totals: dict[date, tuple[float, int]] = {}
+    for c in real:
+        key = bucket_start(c.workout.local_date, bucket)
+        sec, n = totals.get(key, (0.0, 0))
+        totals[key] = (sec + c.workout.duration_s, n + 1)
+    points: list[SeriesPoint] = []
+    cursor = bucket_start(first, bucket)
+    while cursor <= last:
+        sec_n = totals.get(cursor)
+        points.append(
+            SeriesPoint(
+                t=cursor.isoformat(),
+                v=sec_n[0] if sec_n else None,
+                n=sec_n[1] if sec_n else None,
+            )
+        )
+        if bucket == "week":
+            cursor += timedelta(days=7)
+        elif bucket == "month":
+            cursor = (cursor.replace(day=28) + timedelta(days=4)).replace(day=1)
+        else:
+            cursor += timedelta(days=1)
+    return points
 
 
 # --------------------------------------------------------------------------- report
@@ -388,16 +424,29 @@ async def report(
     pf, pl = previous_range(first, last)
     spark_bucket = _spark_bucket(span)
     metrics: list[ReportMetric] = []
+    all_now = await _exercise_records(session, settings, first, last)
+    real_now = [c for c in all_now if c.is_real]
+    real_prev = await _exercise_records(session, settings, pf, pl, "real")
     for m in REPORT_METRICS:
         spec = SPECS[m.type]
-        cur, _ = await _day_series(session, spec, first, last, "day", m.agg, "auto")
-        prev, _ = await _day_series(session, spec, pf, pl, "day", m.agg, "auto")
-        if spark_bucket == "day":
-            spark_pts = cur
-        else:
-            spark_pts, _ = await _day_series(
-                session, spec, first, last, spark_bucket, m.agg, "auto"
+        if m.key == "workouts":
+            # only real workouts count and add up (ADR 0006)
+            cur = _workout_points(real_now, first, last, "day")
+            prev = _workout_points(real_prev, pf, pl, "day")
+            spark_pts = (
+                cur
+                if spark_bucket == "day"
+                else _workout_points(real_now, first, last, spark_bucket)
             )
+        else:
+            cur, _ = await _day_series(session, spec, first, last, "day", m.agg, "auto")
+            prev, _ = await _day_series(session, spec, pf, pl, "day", m.agg, "auto")
+            if spark_bucket == "day":
+                spark_pts = cur
+            else:
+                spark_pts, _ = await _day_series(
+                    session, spec, first, last, spark_bucket, m.agg, "auto"
+                )
         ranged = m.kind == "range"
         cur_stats = _period(cur, m.kind, ranged)
         prev_stats = _period(prev, m.kind, ranged)
@@ -443,8 +492,7 @@ async def report(
         )
 
     nights = await _nights(session, settings, first, last)
-    records = await _exercise_records(session, settings, first, last)
-    stats = _exercise_stats(records)
+    stats = _exercise_stats(real_now)
     return ReportResponse(
         from_=first,
         to=last,
@@ -461,6 +509,8 @@ async def report(
             avg_duration_s=stats.avg_duration_s,
             per_week=stats.count / (span / 7) if span else None,
             by_type=stats.by_type,
+            scope="real",
+            excluded=len(all_now) - len(real_now),
         ),
     )
 
@@ -503,6 +553,9 @@ async def report_daily(
     by_key: dict[tuple[str, date], dict[str, DailyMetric]] = defaultdict(dict)
     for r in rows:
         by_key[(r.type, r.local_date)][r.source] = r
+    real_by_day: dict[date, list[Classified]] = defaultdict(list)
+    for c in await _exercise_records(session, settings, first, last, "real"):
+        real_by_day[c.workout.local_date].append(c)
     out: list[ReportDailyRow] = []
     day = first
     while day <= last:
@@ -518,6 +571,15 @@ async def report_daily(
                 value = _day_field(row, agg, field) if row else None
                 if value is not None:
                     break
+            if key in ("workouts_n", "workouts_s"):
+                # only real workouts (ADR 0006), not the daily_metric of every logged session
+                day_real = real_by_day.get(day, [])
+                if not day_real:
+                    value = None
+                elif key == "workouts_n":
+                    value = float(len(day_real))
+                else:
+                    value = sum(c.workout.duration_s for c in day_real)
             values[key] = value
             has_any = has_any or value is not None
         if has_any:

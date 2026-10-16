@@ -236,9 +236,10 @@ async def test_exercise_sessions_dedupe_kcal_hr_and_weekly(
     seeded: None, web: httpx.AsyncClient
 ) -> None:
     first = TODAY - timedelta(days=9)
-    body = (await web.get(f"/api/v1/exercise/sessions?{_qs(first, TODAY)}")).json()
+    # the real workouts of the seed: logged by watch AND phone, listed once, dense heart rate
+    body = (await web.get(f"/api/v1/exercise/sessions?{_qs(first, TODAY, scope='real')}")).json()
     sessions = body["sessions"]
-    assert 4 <= len(sessions) <= 6  # every other day; the phone's copy of each is not listed
+    assert 3 <= len(sessions) <= 5  # every other day, minus the gym session with the watch off
     assert len({s["start"] for s in sessions}) == len(sessions)
     assert {"WALKING", "RUNNING", "BIKING"} <= {s["type"] for s in sessions}
     assert all(s["kcal"] and s["kcal"] > 0 for s in sessions)

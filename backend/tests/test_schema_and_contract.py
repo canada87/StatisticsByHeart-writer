@@ -72,3 +72,39 @@ async def test_unsupported_content_encoding(
         headers={**auth, "Content-Type": "application/json", "Content-Encoding": "br"},
     )
     assert r.status_code == 415
+
+
+def test_migration_0003_upgrades_and_downgrades_cleanly(database_url: str) -> None:
+    """exercise_override can be added and removed on a scratch database (data untouched)."""
+    from sqlalchemy import inspect, text
+    from sqlalchemy.engine import make_url
+
+    from alembic import command
+    from tests.conftest import alembic_config
+
+    admin = create_engine(database_url, isolation_level="AUTOCOMMIT")
+    with admin.connect() as conn:
+        conn.execute(text("DROP DATABASE IF EXISTS migration_probe"))
+        conn.execute(text("CREATE DATABASE migration_probe"))
+    url = make_url(database_url).set(database="migration_probe").render_as_string(False)
+    try:
+        cfg = alembic_config(url)
+        command.upgrade(cfg, "0002")
+        engine = create_engine(url)
+        assert "exercise_override" not in inspect(engine).get_table_names()
+        command.upgrade(cfg, "0003")
+        columns = {c["name"]: c for c in inspect(engine).get_columns("exercise_override")}
+        assert set(columns) == {"hc_id", "is_real", "updated_at"}
+        assert not columns["is_real"]["nullable"]
+        assert inspect(engine).get_pk_constraint("exercise_override")["constrained_columns"] == [
+            "hc_id"
+        ]
+        command.downgrade(cfg, "0002")
+        assert "exercise_override" not in inspect(engine).get_table_names()
+        command.upgrade(cfg, "head")
+        assert "exercise_override" in inspect(engine).get_table_names()
+        engine.dispose()
+    finally:
+        with admin.connect() as conn:
+            conn.execute(text("DROP DATABASE IF EXISTS migration_probe WITH (FORCE)"))
+        admin.dispose()

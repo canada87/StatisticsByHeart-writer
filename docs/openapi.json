@@ -370,6 +370,12 @@
             "title": "From",
             "type": "string"
           },
+          "include_workouts": {
+            "default": false,
+            "description": "False: daytime excludes real workouts and 30 minutes after",
+            "title": "Include Workouts",
+            "type": "boolean"
+          },
           "nights": {
             "items": {
               "$ref": "#/components/schemas/NightInterval"
@@ -408,6 +414,15 @@
             "format": "date",
             "title": "To",
             "type": "string"
+          },
+          "workouts": {
+            "default": [],
+            "description": "Real workouts (with recovery) overlapping the range",
+            "items": {
+              "$ref": "#/components/schemas/WorkoutInterval"
+            },
+            "title": "Workouts",
+            "type": "array"
           }
         },
         "required": [
@@ -791,6 +806,22 @@
           "previous": {
             "$ref": "#/components/schemas/ExerciseStats"
           },
+          "real_count": {
+            "default": 0,
+            "description": "...of which real workouts",
+            "title": "Real Count",
+            "type": "integer"
+          },
+          "scope": {
+            "default": "all",
+            "description": "Which sessions sessions/weekly/summary describe",
+            "enum": [
+              "all",
+              "real"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
           "sessions": {
             "items": {
               "$ref": "#/components/schemas/ExerciseRow"
@@ -805,6 +836,12 @@
             "format": "date",
             "title": "To",
             "type": "string"
+          },
+          "total_count": {
+            "default": 0,
+            "description": "Distinct workouts in the range",
+            "title": "Total Count",
+            "type": "integer"
           },
           "weekly": {
             "items": {
@@ -827,6 +864,12 @@
       },
       "ExerciseRow": {
         "properties": {
+          "auto_real": {
+            "default": false,
+            "description": "Verdict of the rule alone",
+            "title": "Auto Real",
+            "type": "boolean"
+          },
           "avg_hr": {
             "anyOf": [
               {
@@ -847,13 +890,38 @@
             "title": "End",
             "type": "string"
           },
+          "has_hr": {
+            "default": false,
+            "description": "hr_coverage reaches the minimum (50%)",
+            "title": "Has Hr",
+            "type": "boolean"
+          },
           "has_route": {
+            "description": "GPS route present (on this or a duplicate copy)",
             "title": "Has Route",
             "type": "boolean"
+          },
+          "hr_coverage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Share (0..1) of the minutes of the session with a HeartRate sample",
+            "title": "Hr Coverage"
           },
           "id": {
             "title": "Id",
             "type": "integer"
+          },
+          "is_real": {
+            "default": false,
+            "description": "override if set, else auto_real",
+            "title": "Is Real",
+            "type": "boolean"
           },
           "kcal": {
             "anyOf": [
@@ -867,6 +935,23 @@
             "description": "Active kcal during the session, de-duplicated",
             "title": "Kcal"
           },
+          "override": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Manual verdict; null = automatic",
+            "title": "Override"
+          },
+          "recording_method": {
+            "default": "unknown",
+            "title": "Recording Method",
+            "type": "string"
+          },
           "source_package": {
             "title": "Source Package",
             "type": "string"
@@ -875,6 +960,12 @@
             "format": "date-time",
             "title": "Start",
             "type": "string"
+          },
+          "started_by_user": {
+            "default": false,
+            "description": "recording_method active/manual (on any copy)",
+            "title": "Started By User",
+            "type": "boolean"
           },
           "title": {
             "anyOf": [
@@ -1276,6 +1367,57 @@
           "source"
         ],
         "title": "NightInterval",
+        "type": "object"
+      },
+      "OverrideBody": {
+        "properties": {
+          "value": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "true / false = manual verdict, null = automatic",
+            "title": "Value"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "title": "OverrideBody",
+        "type": "object"
+      },
+      "OverrideResult": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "is_real": {
+            "title": "Is Real",
+            "type": "boolean"
+          },
+          "override": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override"
+          }
+        },
+        "required": [
+          "id",
+          "override",
+          "is_real"
+        ],
+        "title": "OverrideResult",
         "type": "object"
       },
       "PeriodStats": {
@@ -2232,6 +2374,12 @@
             "title": "Duration S",
             "type": "number"
           },
+          "excluded": {
+            "default": 0,
+            "description": "Sessions left out because they are not real",
+            "title": "Excluded",
+            "type": "integer"
+          },
           "per_week": {
             "anyOf": [
               {
@@ -2242,6 +2390,13 @@
               }
             ],
             "title": "Per Week"
+          },
+          "scope": {
+            "const": "real",
+            "default": "real",
+            "description": "Only real workouts are counted",
+            "title": "Scope",
+            "type": "string"
           }
         },
         "required": [
@@ -3896,6 +4051,34 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "WorkoutInterval": {
+        "properties": {
+          "end": {
+            "description": "End of the session",
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "recovery_end": {
+            "description": "End + 30 minutes: samples up to here are excluded",
+            "format": "date-time",
+            "title": "Recovery End",
+            "type": "string"
+          },
+          "start": {
+            "format": "date-time",
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "recovery_end"
+        ],
+        "title": "WorkoutInterval",
+        "type": "object"
       }
     }
   },
@@ -4445,6 +4628,22 @@
               ],
               "title": "To"
             }
+          },
+          {
+            "description": "real = only real workouts (ADR 0006)",
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "description": "real = only real workouts (ADR 0006)",
+              "enum": [
+                "all",
+                "real"
+              ],
+              "title": "Scope",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -4480,6 +4679,88 @@
           }
         },
         "summary": "Workouts (de-duplicated across apps) with kcal, average HR and weekly volume",
+        "tags": [
+          "dashboard"
+        ]
+      }
+    },
+    "/api/v1/exercise/sessions/{session_id}/override": {
+      "put": {
+        "operationId": "exercise_override_api_v1_exercise_sessions__session_id__override_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OverrideBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OverrideResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manual verdict: is this session a real workout? (true / false / null = automatic)",
         "tags": [
           "dashboard"
         ]
@@ -4557,6 +4838,18 @@
               ],
               "title": "Bucket",
               "type": "string"
+            }
+          },
+          {
+            "description": "Keep real workouts (and 30 min after) in the daytime heart rate",
+            "in": "query",
+            "name": "include_workouts",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Keep real workouts (and 30 min after) in the daytime heart rate",
+              "title": "Include Workouts",
+              "type": "boolean"
             }
           }
         ],

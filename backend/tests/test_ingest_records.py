@@ -280,3 +280,93 @@ async def test_sync_run_counters_and_report(
     assert tuple(run[:5]) == ("partial", "incremental", 2, 1, 1)
     assert run[5] == {"records_sent": 2}
     assert await scalar(app, "SELECT count(*) FROM device") == 1
+
+
+def _workout(route: bool, **kw: object) -> dict:
+    data: dict[str, object] = {"exercise_type": "RUNNING", "title": "Run"}
+    if route:
+        data["route"] = [
+            {"time": "2026-10-14T18:00:00+02:00", "lat": 0.0001, "lon": 0.0002},
+            {"time": "2026-10-14T18:01:00+02:00", "lat": 0.0002, "lon": 0.0003},
+        ]
+    return record(
+        "ExerciseSession",
+        "w1",
+        "2026-10-14T18:00:00+02:00",
+        "2026-10-14T18:30:00+02:00",
+        data,
+        **kw,  # type: ignore[arg-type]
+    )
+
+
+async def test_same_last_modified_with_different_data_updates_the_record(
+    client: httpx.AsyncClient, auth: dict[str, str], app: FastAPI
+) -> None:
+    """The Reader re-sends past workouts with their GPS route added, keeping last_modified."""
+    first = await post_records(client, auth, [_workout(False)])
+    assert first["inserted"] == 1
+    assert await scalar(app, "SELECT data ? 'route' FROM health_record") is False
+
+    again = await post_records(client, auth, [_workout(False)])  # identical: still a no-op
+    assert (again["updated"], again["unchanged"]) == (0, 1)
+
+    with_route = await post_records(client, auth, [_workout(True)])  # same last_modified
+    assert (with_route["updated"], with_route["unchanged"]) == (1, 0)
+    assert await scalar(app, "SELECT data ? 'route' FROM health_record") is True
+    assert await scalar(app, "SELECT jsonb_array_length(data->'route') FROM health_record") == 2
+
+    settled = await post_records(client, auth, [_workout(True)])
+    assert (settled["updated"], settled["unchanged"]) == (0, 1)
+
+
+async def test_same_last_modified_different_data_does_not_revive_a_deleted_record(
+    client: httpx.AsyncClient, auth: dict[str, str], app: FastAPI
+) -> None:
+    await post_records(client, auth, [_workout(False)])
+    await post(
+        client,
+        auth,
+        "deletions",
+        {"device_id": DEVICE, "sync_id": SYNC, "items": [{"hc_id": "w1"}]},
+    )
+    result = await post_records(client, auth, [_workout(True)])
+    assert (result["updated"], result["unchanged"]) == (0, 1)
+    assert await scalar(app, "SELECT deleted_at IS NOT NULL FROM health_record") is True
+
+
+async def test_a_large_route_fits_in_a_gzip_request(
+    client: httpx.AsyncClient, auth: dict[str, str], app: FastAPI
+) -> None:
+    """50 000 route points (the contract maximum) in one gzip-compressed session."""
+    route = [
+        {
+            "time": "2026-10-14T18:00:00+02:00",
+            "lat": 0.0001 + i * 1e-7,
+            "lon": 0.0002 + i * 1e-7,
+            "alt_m": 10.0,
+        }
+        for i in range(50_000)
+    ]
+    rec = record(
+        "ExerciseSession",
+        "big",
+        "2026-10-14T18:00:00+02:00",
+        "2026-10-14T19:00:00+02:00",
+        {"exercise_type": "BIKING", "route": route},
+    )
+    result = await post_records(client, auth, [rec], gz=True)
+    assert result["inserted"] == 1
+    assert (
+        await scalar(app, "SELECT jsonb_array_length(data->'route') FROM health_record") == 50_000
+    )
+    too_many = {**rec, "hc_id": "big2", "data": {**rec["data"], "route": route + route[:1]}}
+    r = await post(client, auth, "records", records_body([too_many]), gz=True)
+    assert r.status_code == 200 and len(r.json()["rejected"]) == 1  # 50 001 points: refused
+
+
+async def test_an_oversized_body_is_a_413(client: httpx.AsyncClient, auth: dict[str, str]) -> None:
+    from app.config import Settings  # noqa: F401  (documented limit: max_body_bytes, 32 MiB)
+
+    blob = {"device_id": DEVICE, "sync_id": SYNC, "records": [], "pad": "x" * (33 * 1024 * 1024)}
+    r = await post(client, auth, "records", blob, gz=True)
+    assert r.status_code == 413 and r.json()["error"]["code"] == "body_too_large"

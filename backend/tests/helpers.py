@@ -25,6 +25,7 @@ def record(
     pkg: str = "pkg.a",
     offset: int | None = 7200,
     last_modified: str = LM,
+    method: str | None = None,
 ) -> dict[str, Any]:
     rec: dict[str, Any] = {
         "type": type_,
@@ -34,6 +35,8 @@ def record(
         "last_modified": last_modified,
         "data": data,
     }
+    if method is not None:
+        rec["source"]["recording_method"] = method
     if end is not None:
         rec["end_time"] = end
     if offset is not None:

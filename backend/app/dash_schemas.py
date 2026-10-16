@@ -304,7 +304,19 @@ class ExerciseRow(BaseModel):
     kcal: float | None = Field(description="Active kcal during the session, de-duplicated")
     avg_hr: float | None
     source_package: str
-    has_route: bool
+    has_route: bool = Field(description="GPS route present (on this or a duplicate copy)")
+    hr_coverage: float | None = Field(
+        default=None,
+        description="Share (0..1) of the minutes of the session with a HeartRate sample",
+    )
+    has_hr: bool = Field(default=False, description="hr_coverage reaches the minimum (50%)")
+    recording_method: str = "unknown"
+    started_by_user: bool = Field(
+        default=False, description="recording_method active/manual (on any copy)"
+    )
+    auto_real: bool = Field(default=False, description="Verdict of the rule alone")
+    override: bool | None = Field(default=None, description="Manual verdict; null = automatic")
+    is_real: bool = Field(default=False, description="override if set, else auto_real")
 
 
 class ExerciseWeek(BaseModel):
@@ -327,6 +339,11 @@ class ExerciseResponse(BaseModel):
 
     from_: Date = Field(alias="from")
     to: Date
+    scope: Literal["all", "real"] = Field(
+        default="all", description="Which sessions sessions/weekly/summary describe"
+    )
+    total_count: int = Field(default=0, description="Distinct workouts in the range")
+    real_count: int = Field(default=0, description="...of which real workouts")
     sessions: list[ExerciseRow]
     weekly: list[ExerciseWeek]
     summary: ExerciseStats
@@ -373,6 +390,8 @@ class ReportWorkouts(BaseModel):
     avg_duration_s: float | None
     per_week: float | None
     by_type: dict[str, int]
+    scope: Literal["real"] = Field(default="real", description="Only real workouts are counted")
+    excluded: int = Field(default=0, description="Sessions left out because they are not real")
 
 
 class ReportResponse(BaseModel):
@@ -419,6 +438,12 @@ class NightInterval(BaseModel):
     )
 
 
+class WorkoutInterval(BaseModel):
+    start: datetime
+    end: datetime = Field(description="End of the session")
+    recovery_end: datetime = Field(description="End + 30 minutes: samples up to here are excluded")
+
+
 class DaypartPoint(BaseModel):
     t: str = Field(description="Bucket start (local day, Monday of the week, or first of month)")
     day: float | None = Field(description="Mean heart rate outside the nights (bpm)")
@@ -447,8 +472,24 @@ class DaypartResponse(BaseModel):
     timezone: str
     fixed_window: str = Field(description="Fallback night when a day has no sleep session")
     nights: list[NightInterval]
+    include_workouts: bool = Field(
+        default=False, description="False: daytime excludes real workouts and 30 minutes after"
+    )
+    workouts: list[WorkoutInterval] = Field(
+        default=[], description="Real workouts (with recovery) overlapping the range"
+    )
     points: list[DaypartPoint]
     summary: DaypartSummary
     previous_from: Date
     previous_to: Date
     previous_summary: DaypartSummary
+
+
+class OverrideBody(BaseModel):
+    value: bool | None = Field(description="true / false = manual verdict, null = automatic")
+
+
+class OverrideResult(BaseModel):
+    id: int
+    override: bool | None
+    is_real: bool
