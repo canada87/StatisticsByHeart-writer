@@ -210,6 +210,10 @@ describe('heart rate day / night', () => {
     )
     expect(within(chart).getByTestId('chart-summary')).toHaveTextContent('FC diurna media 75 bpm, FC notturna media 56 bpm')
     expect(within(chart).getByTestId('daypart-note')).toHaveTextContent('tratteggiata')
+    // the other heart charts share the cache but must stay single-series
+    const rest = await screen.findByTestId('trend-restingHr')
+    expect(within(rest).getByTestId('echart-stub').getAttribute('data-series')).not.toContain('FC diurna')
+    expect(within(rest).queryByTestId('daypart-note')).toBeNull()
     await user.click(within(chart).getByRole('button', { name: 'Mostra tabella' }))
     const table = within(chart).getByRole('table')
     expect(within(table).getByRole('columnheader', { name: 'FC diurna (bpm)' })).toBeInTheDocument()

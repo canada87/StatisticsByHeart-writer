@@ -144,7 +144,8 @@ export function TrendChart({
     const label = t(def.label)
     const p = palette()
     const pts = d.points
-    const dp = dpQuery.data
+    // a disabled query still returns what another chart cached under the same key: gate it
+    const dp = daypart && !pair ? dpQuery.data : undefined
     // two series (day / night) instead of one; shaded nights on the intraday buckets
     const split = !!dp && dp.bucket === d.bucket && dpBucket !== null && dp.points.length > 0
     const aligned = split && dp ? alignDaypart(pts.map((x) => x.t), dp.points) : null
@@ -346,7 +347,7 @@ export function TrendChart({
         .join(' · ')
     }
     return { option, table, csv, summary: parts.filter(Boolean).join(' '), readout, d, hasPrev, hasMa: !!ma, split: !!aligned, banded: runs.length > 0 }
-  }, [query.data, query2.data, dpQuery.data, dpBucket, def, pair, showMa, showPrev, reduced, reference, range.days])
+  }, [query.data, query2.data, dpQuery.data, dpBucket, daypart, def, pair, showMa, showPrev, reduced, reference, range.days])
 
   const controls = built && (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 no-print" data-testid="trend-controls">

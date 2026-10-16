@@ -191,14 +191,16 @@ test.describe('trends (synthetic data)', () => {
     await expect(chart.getByTestId('granularity-actual')).toContainText('settimana')
     await chart.getByLabel('Granularità').selectOption('day')
 
-    const ma = chart.getByRole('button', { name: /Media mobile 7g/ })
+    // the heart-rate chart is split day/night (no moving average there): use the resting-HR chart
+    const rest = page.getByTestId('trend-restingHr')
+    const ma = rest.getByRole('button', { name: /Media mobile 7g/ })
     await expect(ma).toHaveAttribute('aria-pressed', 'false')
     await ma.click()
     await expect(ma).toHaveAttribute('aria-pressed', 'true')
-    const prev = chart.getByRole('button', { name: 'Periodo precedente' })
+    const prev = rest.getByRole('button', { name: 'Periodo precedente' })
     await prev.click()
     await expect(prev).toHaveAttribute('aria-pressed', 'true')
-    await expect(chart.getByTestId('chart-summary')).toContainText('Tendenza')
+    await expect(rest.getByTestId('chart-summary')).toContainText('Tendenza')
   })
 
   test('chart values are reachable by keyboard and exportable', async ({ page }) => {
@@ -270,6 +272,7 @@ test.describe('trends (synthetic data)', () => {
     await settled(page)
     await expect(chart.getByTestId('daypart-note')).toContainText('Notte')
     await expect(chart.getByTestId('chart-summary')).not.toContainText('FC notturna media')
+    await chart.screenshot({ path: join(SHOTS, 'heart-hourly-nights.png') })
   })
 
   test('hourly averages are offered up to 31 days', async ({ page }) => {
