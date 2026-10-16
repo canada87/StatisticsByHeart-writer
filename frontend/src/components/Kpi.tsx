@@ -134,9 +134,11 @@ interface KpiSectionProps {
   defs: MetricDef[]
   /** Extra cards built by the page (sleep schedule, workouts...). */
   extra?: KpiSpec[]
+  /** Extra hint line per metric id (e.g. what a number includes). */
+  hints?: Record<string, string>
 }
 
-export function KpiSection({ report, defs, extra = [] }: KpiSectionProps) {
+export function KpiSection({ report, defs, extra = [], hints = {} }: KpiSectionProps) {
   if (report.isPending) return <KpiSkeleton count={defs.length + extra.length} />
   if (report.isError) {
     return (
@@ -146,5 +148,12 @@ export function KpiSection({ report, defs, extra = [] }: KpiSectionProps) {
     )
   }
   const byKey = new Map(report.data.metrics.map((m) => [m.key, m]))
-  return <KpiGrid items={[...defs.map((d) => metricKpi(d, byKey.get(d.reportKey))), ...extra]} />
+  const cards = defs.map((d) => {
+    const spec = metricKpi(d, byKey.get(d.reportKey))
+    const note = hints[d.id]
+    return note
+      ? { ...spec, hint: (<>{spec.hint}<span className="block">{note}</span></>) }
+      : spec
+  })
+  return <KpiGrid items={[...cards, ...extra]} />
 }

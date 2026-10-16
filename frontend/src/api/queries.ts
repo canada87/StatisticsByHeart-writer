@@ -7,6 +7,7 @@ import type {
   DaypartResponse,
   ExerciseResponse,
   InventoryResponse,
+  OverrideResult,
   ReconciliationResponse,
   ReportDailyResponse,
   ReportResponse,
@@ -103,11 +104,15 @@ export const sleepNightsQuery = (w: Window) =>
     queryFn: () => api<SleepNightsResponse>(withQuery('/api/v1/sleep/nights', { ...w })),
   })
 
-export const exerciseQuery = (w: Window) =>
+export const exerciseQuery = (w: Window, scope: 'all' | 'real' = 'all') =>
   queryOptions({
-    queryKey: ['exercise', w],
-    queryFn: () => api<ExerciseResponse>(withQuery('/api/v1/exercise/sessions', { ...w })),
+    queryKey: ['exercise', w, scope],
+    queryFn: () => api<ExerciseResponse>(withQuery('/api/v1/exercise/sessions', { ...w, scope })),
   })
+
+/** Manual verdict for a session: true / false, or null = back to the automatic rule. */
+export const setWorkoutOverride = (id: number, value: boolean | null) =>
+  api<OverrideResult>(`/api/v1/exercise/sessions/${id}/override`, { method: 'PUT', body: { value } })
 
 export const reportQuery = (w: Window) =>
   queryOptions({
@@ -122,9 +127,20 @@ export const reportDailyQuery = (w: Window, enabled = true) =>
     enabled,
   })
 
-export const daypartQuery = (w: Window & { bucket?: 'day' | 'week' | 'month' }, enabled = true) =>
+export const daypartQuery = (
+  w: Window & { bucket?: 'day' | 'week' | 'month'; includeWorkouts?: boolean },
+  enabled = true,
+) =>
   queryOptions({
     queryKey: ['daypart', w],
-    queryFn: () => api<DaypartResponse>(withQuery('/api/v1/heart/daypart', { ...w })),
+    queryFn: () =>
+      api<DaypartResponse>(
+        withQuery('/api/v1/heart/daypart', {
+          from: w.from,
+          to: w.to,
+          bucket: w.bucket,
+          include_workouts: w.includeWorkouts ? 'true' : undefined,
+        }),
+      ),
     enabled,
   })

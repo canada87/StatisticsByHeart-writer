@@ -25,7 +25,7 @@ export function withQuery(path: string, params?: Params): string {
 }
 
 interface Options {
-  method?: 'GET' | 'POST' | 'DELETE'
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
   body?: unknown
   signal?: AbortSignal
 }

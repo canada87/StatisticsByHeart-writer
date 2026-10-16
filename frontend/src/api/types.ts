@@ -278,6 +278,15 @@ export interface ExerciseRow {
   avg_hr: number | null
   source_package: string
   has_route: boolean
+  /** Share (0..1) of the session's minutes with a heart-rate sample. */
+  hr_coverage: number | null
+  has_hr: boolean
+  recording_method: string
+  started_by_user: boolean
+  /** Verdict of the rule alone / manual verdict (null = automatic) / what counts. */
+  auto_real: boolean
+  override: boolean | null
+  is_real: boolean
 }
 
 export interface ExerciseStats {
@@ -291,6 +300,9 @@ export interface ExerciseStats {
 export interface ExerciseResponse {
   from: string
   to: string
+  scope: 'all' | 'real'
+  total_count: number
+  real_count: number
   sessions: ExerciseRow[]
   weekly: { week_start: string; count: number; duration_s: number; kcal: number }[]
   summary: ExerciseStats
@@ -342,6 +354,8 @@ export interface ReportResponse {
     avg_duration_s: number | null
     per_week: number | null
     by_type: Record<string, number>
+    scope: 'real'
+    excluded: number
   }
 }
 
@@ -358,6 +372,18 @@ export interface NightInterval {
   end: string
   /** sleep = recorded sleep session(s); fixed = fallback window 23:00-07:00 */
   source: 'sleep' | 'fixed'
+}
+
+export interface WorkoutInterval {
+  start: string
+  end: string
+  recovery_end: string
+}
+
+export interface OverrideResult {
+  id: number
+  override: boolean | null
+  is_real: boolean
 }
 
 export interface DaypartPoint {
@@ -386,6 +412,9 @@ export interface DaypartResponse {
   timezone: string
   fixed_window: string
   nights: NightInterval[]
+  include_workouts: boolean
+  /** Real workouts (with 30 min recovery) overlapping the range. */
+  workouts: WorkoutInterval[]
   points: DaypartPoint[]
   summary: DaypartSummary
   previous_from: string

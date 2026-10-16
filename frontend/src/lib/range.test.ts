@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { addDays, daysBetween, fmtDuration, fmtNumber, timeAgo, todayLocal } from './format'
-import { parseRangeSearch, resolveRange, shiftRange, toSearch } from './range'
+import { parseRangeSearch, resolveRange, shiftRange, todayRange, toSearch } from './range'
 
 const TODAY = '2026-10-15'
 
@@ -65,6 +65,14 @@ describe('range shifting (arrows)', () => {
     const c = resolveRange({ r: 'custom', from: '2026-09-01', to: '2026-09-30' }, TODAY)
     expect(shiftRange(c, -1, TODAY)).toEqual({ preset: 'custom', from: '2026-08-02', to: '2026-08-31' })
     expect(shiftRange(c, 1, TODAY)).toEqual({ preset: 'custom', from: '2026-09-16', to: TODAY }) // clamped at today, same length
+  })
+  it('"Oggi" drops the end and only exists when the window is in the past', () => {
+    expect(todayRange(resolveRange({ r: '7d' }, TODAY), TODAY)).toBeNull()
+    expect(todayRange(resolveRange({ r: '7d', end: '2026-10-10' }, TODAY), TODAY)).toEqual({ preset: '7d' })
+    expect(toSearch(todayRange(resolveRange({ r: '30d', end: '2026-09-01' }, TODAY), TODAY) as never)).toEqual({ r: '30d' })
+    const custom = resolveRange({ r: 'custom', from: '2026-09-01', to: '2026-09-30' }, TODAY)
+    expect(todayRange(custom, TODAY)).toEqual({ preset: 'custom', from: '2026-09-16', to: TODAY })
+    expect(todayRange(resolveRange({ r: 'all' }, TODAY, '2025-01-01'), TODAY)).toBeNull()
   })
   it('has no arrows for "all"', () => {
     expect(shiftRange(resolveRange({ r: 'all' }, TODAY, '2025-01-01'), -1, TODAY)).toBeNull()

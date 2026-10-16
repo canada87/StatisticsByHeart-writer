@@ -1,4 +1,10 @@
-import type { Bucket, DaypartPoint, NightInterval } from '../api/types'
+import type { Bucket, DaypartPoint } from '../api/types'
+
+/** Anything with a start and an end instant (night, workout with recovery). */
+export interface Span {
+  start: string
+  end: string
+}
 
 type DaypartBucket = 'day' | 'week' | 'month'
 
@@ -17,7 +23,7 @@ export function daypartBucketFor(effective: Bucket, days: number): DaypartBucket
 const STEP_MS: Partial<Record<Bucket, number>> = { '15min': 15 * 60_000, hour: 60 * 60_000 }
 
 /** For each intraday point: does its time slot overlap a night? */
-export function nightFlags(pointTimes: string[], bucket: Bucket, nights: NightInterval[]): boolean[] {
+export function nightFlags(pointTimes: string[], bucket: Bucket, nights: Span[]): boolean[] {
   const step = STEP_MS[bucket]
   if (!step) return pointTimes.map(() => false)
   const spans = nights.map((n) => [Date.parse(n.start), Date.parse(n.end)] as const)

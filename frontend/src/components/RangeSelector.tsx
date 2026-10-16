@@ -1,9 +1,9 @@
-import { CaretLeft, CaretRight } from '@phosphor-icons/react'
+import { CalendarCheck, CaretLeft, CaretRight } from '@phosphor-icons/react'
 import * as ToggleGroup from '@radix-ui/react-toggle-group'
 import { useId } from 'react'
 import { t } from '../i18n'
 import { addDays, fmtDayLong, todayLocal } from '../lib/format'
-import { MAX_CUSTOM_DAYS, PRESETS, type RangeInput, type RangePreset, type ResolvedRange, shiftRange } from '../lib/range'
+import { MAX_CUSTOM_DAYS, PRESETS, type RangeInput, type RangePreset, type ResolvedRange, shiftRange, todayRange } from '../lib/range'
 
 interface Props {
   range: ResolvedRange
@@ -30,6 +30,7 @@ export function RangeSelector({ range, onChange }: Props) {
   const today = todayLocal()
   const prev = shiftRange(range, -1, today)
   const next = shiftRange(range, 1, today)
+  const toToday = todayRange(range, today)
   const showWindow = range.preset !== 'custom' && range.preset !== 'all' && !range.current
   const arrow =
     'inline-flex min-h-11 min-w-11 items-center justify-center border border-border-control hover:bg-accent-glow/10 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent'
@@ -82,6 +83,18 @@ export function RangeSelector({ range, onChange }: Props) {
           >
             <CaretRight size={20} aria-hidden />
           </button>
+          {toToday && (
+            <button
+              type="button"
+              className="inline-flex min-h-11 items-center gap-1.5 border border-border-control px-3 font-display text-sm uppercase tracking-wider hover:bg-accent-glow/10"
+              aria-label={t('range.today.aria')}
+              data-testid="range-today"
+              onClick={() => onChange(toToday)}
+            >
+              <CalendarCheck size={18} aria-hidden />
+              {t('range.today')}
+            </button>
+          )}
           {showWindow && (
             <span className="px-1 text-sm" data-testid="range-window">
               {range.days <= 1

@@ -328,6 +328,161 @@ describe('sleep page', () => {
   })
 })
 
+describe('"Oggi" button', () => {
+  it('only exists when the window is in the past and removes `end` from the URL', async () => {
+    const { router } = renderApp('/heart?r=30d')
+    const user = userEvent.setup()
+    await screen.findByRole('button', { name: 'Intervallo successivo' })
+    expect(screen.queryByTestId('range-today')).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Intervallo precedente' }))
+    const today = await screen.findByRole('button', { name: /Torna a oggi/ })
+    expect(today).toHaveTextContent('Oggi')
+    await user.click(today)
+    await waitFor(() => expect((router.state.location.search as { end?: string }).end).toBeUndefined())
+    expect(router.state.location.search).toMatchObject({ r: '30d' })
+    expect(screen.queryByTestId('range-today')).toBeNull()
+  })
+  it('is there for a deep link to a past window, and not for "Tutto"', async () => {
+    renderApp('/heart?r=7d&end=2026-01-31')
+    expect(await screen.findByTestId('range-today')).toBeInTheDocument()
+  })
+})
+
+describe('real workouts (activity page)', () => {
+  it('asks for real workouts only by default and lets you see all of them (URL filter)', async () => {
+    const { router } = renderApp('/activity')
+    const user = userEvent.setup()
+    await screen.findAllByTestId('workout-row')
+    expect(urls.some((u) => u.pathname === '/api/v1/exercise/sessions' && u.searchParams.get('scope') === 'real')).toBe(true)
+    const filter = screen.getByTestId('workouts-filter')
+    expect(within(filter).getByRole('radio', { name: 'Solo veri' })).toHaveAttribute('aria-checked', 'true')
+    expect(within(filter).getByTestId('workouts-counts')).toHaveTextContent('2 veri su 3 sessioni')
+    await user.click(within(filter).getByRole('radio', { name: 'Tutti' }))
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ workouts: 'all' }))
+    await waitFor(() =>
+      expect(urls.some((u) => u.pathname === '/api/v1/exercise/sessions' && u.searchParams.get('scope') === 'all')).toBe(true),
+    )
+  })
+
+  it('shows the signals as icon + text badges and the verdict, with its source', async () => {
+    renderApp('/activity')
+    const rows = await screen.findAllByTestId('workout-row')
+    expect(within(rows[0] as HTMLElement).getByTestId('signals')).toHaveTextContent('FC sì 95%')
+    expect(within(rows[0] as HTMLElement).getByTestId('signals')).toHaveTextContent('GPS sì')
+    expect(within(rows[0] as HTMLElement).getByTestId('signals')).toHaveTextContent('Avvio: da te')
+    expect(within(rows[0] as HTMLElement).getByTestId('verdict')).toHaveTextContent('Vero')
+    const second = rows[1] as HTMLElement
+    expect(within(second).getByTestId('signals')).toHaveTextContent('FC no 10%')
+    expect(within(second).getByTestId('signals')).toHaveTextContent('GPS no')
+    expect(within(second).getByTestId('signals')).toHaveTextContent('Avvio: automatico')
+    expect(within(second).getByTestId('verdict')).toHaveTextContent('manuale') // overridden by the user
+    expect(within(second).getByTestId('signals').querySelector('svg')).not.toBeNull()
+  })
+
+  it('the override control sends the verdict (CSRF header) and refreshes the page data', async () => {
+    const calls: { url: string; body: unknown; header: string | null }[] = []
+    const base = fetch as unknown as (...a: Parameters<typeof fetch>) => ReturnType<typeof fetch>
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = new URL(String(input), 'http://localhost')
+        if (init?.method === 'PUT') {
+          calls.push({
+            url: url.pathname,
+            body: JSON.parse(String(init.body)),
+            header: new Headers(init.headers).get('X-SBH-Client'),
+          })
+          return json({ id: 1, override: false, is_real: false })
+        }
+        return base(input, init)
+      }),
+    )
+    renderApp('/activity')
+    const user = userEvent.setup()
+    const select = await screen.findByRole('combobox', { name: 'Verdetto per Easy run' })
+    expect(select).toHaveValue('auto')
+    await user.selectOptions(select, 'no')
+    await waitFor(() => expect(calls).toHaveLength(1))
+    expect(calls[0]).toEqual({ url: '/api/v1/exercise/sessions/1/override', body: { value: false }, header: 'web' })
+    await user.selectOptions(select, 'auto')
+    await waitFor(() => expect(calls[1]?.body).toEqual({ value: null }))
+  })
+
+  it('says so when no session is a real workout', async () => {
+    handlers['/api/v1/exercise/sessions'] = () => ({ body: { ...fx2.exercise, sessions: [], real_count: 0, total_count: 3 } })
+    renderApp('/activity')
+    expect(await screen.findByText('Nessun allenamento vero nel periodo')).toBeInTheDocument()
+  })
+})
+
+describe('report', () => {
+  it('states that only real workouts count', async () => {
+    renderApp('/report?p=month')
+    expect(await screen.findByTestId('report-workouts-note')).toHaveTextContent('solo quelli veri')
+    expect(await screen.findByTestId('report-workouts-excluded')).toHaveTextContent('4 attività escluse')
+  })
+})
+
+describe('heart rate without workouts', () => {
+  it('KPIs say what they include and the general HR KPI says it includes everything', async () => {
+    renderApp('/heart')
+    expect(await screen.findByTestId('kpi-heartRate')).toHaveTextContent('Include tutto')
+    expect(await screen.findByTestId('kpi-heart-day')).toHaveTextContent('Senza allenamenti veri (+30 min)')
+  })
+
+  it('the toggle is off by default, lives in the URL and asks the server to include workouts', async () => {
+    const { router } = renderApp('/heart')
+    const user = userEvent.setup()
+    const chart = await screen.findByTestId('trend-heartRate')
+    const toggle = await within(chart).findByRole('button', { name: 'Includi allenamenti' })
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    expect(urls.some((u) => u.pathname === '/api/v1/heart/daypart' && u.searchParams.has('include_workouts'))).toBe(false)
+    await user.click(toggle)
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ incl: '1' }))
+    await waitFor(() =>
+      expect(urls.some((u) => u.pathname === '/api/v1/heart/daypart' && u.searchParams.get('include_workouts') === 'true')).toBe(true),
+    )
+    expect(within(chart).getByRole('button', { name: 'Includi allenamenti' })).toHaveAttribute('aria-pressed', 'true')
+    await waitFor(() => expect(screen.getByTestId('kpi-heart-day')).toHaveTextContent('Con gli allenamenti'))
+  })
+
+  it('only the heart-rate chart has the toggle', async () => {
+    renderApp('/heart')
+    const rest = await screen.findByTestId('trend-restingHr')
+    expect(within(rest).queryByRole('button', { name: 'Includi allenamenti' })).toBeNull()
+  })
+
+  it('intraday: excluded workouts are dashed bands labelled "Allenamento", next to the night bands', async () => {
+    handlers['/api/v1/metrics/HeartRate/series'] = () => {
+      const base = fx2.trendSeries('HeartRate', [60, 61, 62, 63, 64, 65, 66, 67])
+      return {
+        body: {
+          ...base,
+          bucket: 'hour',
+          points: base.points.map((p, i) => ({ ...p, t: `2026-10-14T${String(10 + i).padStart(2, '0')}:00:00+02:00` })),
+        },
+      }
+    }
+    handlers['/api/v1/heart/daypart'] = (url) => ({
+      body: fx2.daypart({
+        include_workouts: url.searchParams.get('include_workouts') === 'true',
+        nights: [{ date: '2026-10-14', start: '2026-10-14T06:00:00Z', end: '2026-10-14T08:30:00Z', source: 'sleep' }],
+        workouts: [{ start: '2026-10-14T11:00:00Z', end: '2026-10-14T11:20:00Z', recovery_end: '2026-10-14T11:50:00Z' }],
+      }),
+    })
+    renderApp('/heart?r=24h&end=2026-10-14')
+    const chart = await screen.findByTestId('trend-heartRate')
+    await waitFor(() => expect(within(chart).getByTestId('echart-stub')).toHaveAttribute('data-bands', '2'))
+    expect(within(chart).getByTestId('echart-stub').getAttribute('data-series')).toContain('Allenamento:')
+    expect(within(chart).getByTestId('daypart-workout-note')).toHaveTextContent('30 minuti di recupero')
+    // with the workouts included nothing is excluded: only the night band is left
+    const user = userEvent.setup()
+    await user.click(within(chart).getByRole('button', { name: 'Includi allenamenti' }))
+    await waitFor(() => expect(within(chart).getByTestId('echart-stub')).toHaveAttribute('data-bands', '1'))
+    expect(within(chart).queryByTestId('daypart-workout-note')).toBeNull()
+  })
+})
+
 describe('activity page', () => {
   it('lists workouts with type, date, duration, kcal and average heart rate', async () => {
     renderApp('/activity')

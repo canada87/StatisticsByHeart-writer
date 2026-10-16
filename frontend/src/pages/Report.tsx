@@ -237,6 +237,9 @@ function ReportBody({ report, period }: { report: ReportResponse; period: Period
         <p className="text-sm text-fg-muted">
           {t('report.compared', { from: fmtDayLong(report.previous_from), to: fmtDayLong(report.previous_to) })}
         </p>
+        <p className="text-sm text-fg-muted" data-testid="report-workouts-note">
+          {t('report.workoutsRealNote')}
+        </p>
         <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={t('report.summary')}>
           <table className="w-full border-collapse text-sm">
             <caption className="sr-only">{t('report.summary')}</caption>
@@ -286,6 +289,11 @@ function ReportBody({ report, period }: { report: ReportResponse; period: Period
             </dl>
           ) : (
             <EmptyState title={t('workouts.none')} />
+          )}
+          {w.excluded > 0 && (
+            <p className="mt-2 text-xs text-fg-muted" data-testid="report-workouts-excluded">
+              {t('report.workoutsReal', { n: w.excluded })}
+            </p>
           )}
         </Panel>
       </div>

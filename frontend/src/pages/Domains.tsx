@@ -10,6 +10,7 @@ import { t } from '../i18n'
 import { describeDelta, describeMinutes } from '../lib/delta'
 import { fmtDuration, fmtNumber } from '../lib/format'
 import { METRICS } from '../lib/metrics'
+import { useIncludeWorkouts } from '../lib/useFlags'
 import { useRange } from '../lib/useRange'
 import { clock } from '../components/DomainCharts'
 import { ErrorState } from '../components/states'
@@ -19,7 +20,11 @@ const GRID = 'grid gap-3 xl:grid-cols-2'
 // --------------------------------------------------------------------------- Cuore
 
 /** Day and night mean heart rate, each with its change versus the previous period. */
-export function daypartKpis(data: DaypartResponse | undefined, failed: boolean): KpiSpec[] {
+export function daypartKpis(
+  data: DaypartResponse | undefined,
+  failed: boolean,
+  includeWorkouts = false,
+): KpiSpec[] {
   const card = (id: 'day' | 'night'): KpiSpec => {
     const label = t(id === 'day' ? 'daypart.kpi.day' : 'daypart.kpi.night')
     const cur = data?.summary[id]
@@ -40,7 +45,10 @@ export function daypartKpis(data: DaypartResponse | undefined, failed: boolean):
       unit: 'bpm',
       delta: describeDelta(cur.avg, prev.avg),
       stats: [{ label: t('daypart.kpi.samples'), value: fmtNumber(cur.samples) }],
-      hint: t('daypart.kpi.hint', { n: cur.days, prev: fmtNumber(prev.days) }),
+      hint: t(
+        id === 'night' ? 'daypart.kpi.hint' : includeWorkouts ? 'daypart.kpi.hintDayIncl' : 'daypart.kpi.hintDay',
+        { n: cur.days, prev: fmtNumber(prev.days) },
+      ),
     }
   }
   return [card('day'), card('night')]
@@ -49,12 +57,15 @@ export function daypartKpis(data: DaypartResponse | undefined, failed: boolean):
 export function HeartPage() {
   const [range] = useRange()
   const report = useQuery(reportQuery({ from: range.from, to: range.to }))
-  const dp = useQuery(daypartQuery({ from: range.from, to: range.to, bucket: 'day' }))
+  const [includeWorkouts] = useIncludeWorkouts()
+  const dp = useQuery(daypartQuery({ from: range.from, to: range.to, bucket: 'day', includeWorkouts }))
   const M = METRICS
   return (
     <div>
       <PageTitle sub={t('heart.page.sub')}>{t('nav.heart')}</PageTitle>
-      <KpiSection report={report} defs={[M.heartRate, M.restingHr, M.hrv, M.spo2]} extra={daypartKpis(dp.data, dp.isError)} />
+      <KpiSection report={report} defs={[M.heartRate, M.restingHr, M.hrv, M.spo2]} extra={daypartKpis(dp.data, dp.isError, includeWorkouts)}
+        hints={{ heartRate: t('kpi.hrAll') }}
+      />
       <div className={GRID}>
         <div className="xl:col-span-2">
           <TrendChart def={M.heartRate} daypart range={range} icon={Heartbeat} accent="heart" index={0} />

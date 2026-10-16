@@ -89,6 +89,15 @@ export function shiftRange(range: ResolvedRange, direction: -1 | 1, today: strin
   return { preset: range.preset, end: to === today ? undefined : to }
 }
 
+/** "Today": the same window, ending today (no `end` in the URL). Null when already there. */
+export function todayRange(range: ResolvedRange, today: string = todayLocal()): RangeInput | null {
+  if (range.preset === 'all' || range.to >= today) return null
+  if (range.preset === 'custom') {
+    return { preset: 'custom', from: addDays(today, -(range.days - 1)), to: today }
+  }
+  return { preset: range.preset }
+}
+
 /** Keep the URL clean: the default preset is not written. */
 export function toSearch(range: RangeInput): RangeSearch {
   if (range.preset === 'custom') return { r: 'custom', from: range.from, to: range.to }

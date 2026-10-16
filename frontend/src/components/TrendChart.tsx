@@ -13,6 +13,7 @@ import { fmtNumber } from '../lib/format'
 import { type MetricDef, fmtMetric, scaled, withUnit } from '../lib/metrics'
 import type { ResolvedRange } from '../lib/range'
 import { ChartFrame, type TableSpec } from './ChartCard'
+import { useIncludeWorkouts } from '../lib/useFlags'
 import { type Accent, Panel } from './hud'
 import { Async, Skeleton } from './states'
 
@@ -131,8 +132,12 @@ export function TrendChart({
   })
 
   const dpBucket = daypartBucketFor(effective, range.days)
+  const [includeWorkouts, setIncludeWorkouts] = useIncludeWorkouts()
   const dpQuery = useQuery(
-    daypartQuery({ from: range.from, to: range.to, bucket: dpBucket ?? 'day' }, !!daypart && !pair),
+    daypartQuery(
+      { from: range.from, to: range.to, bucket: dpBucket ?? 'day', includeWorkouts },
+      !!daypart && !pair,
+    ),
   )
 
   const built = useMemo(() => {
@@ -151,6 +156,16 @@ export function TrendChart({
     const aligned = split && dp ? alignDaypart(pts.map((x) => x.t), dp.points) : null
     const flags = dp && !split ? nightFlags(pts.map((x) => x.t), d.bucket, dp.nights) : null
     const runs = flags ? nightRuns(flags) : []
+    // real workouts (+30 min) left out of the daytime heart rate: shown as dashed bands
+    const wflags =
+      dp && !split && !includeWorkouts && dp.workouts.length
+        ? nightFlags(
+            pts.map((x) => x.t),
+            d.bucket,
+            dp.workouts.map((w) => ({ start: w.start, end: w.recovery_end })),
+          )
+        : null
+    const wruns = wflags ? nightRuns(wflags) : []
     const dayName = t('daypart.day')
     const nightName = t('daypart.night')
     const main = aligned ? aligned.day : pts.map((x) => scaled(def, x.v))
@@ -217,26 +232,57 @@ export function TrendChart({
       )
       option.legend = { ...option.legend, data: [label, bandName, ...(showMa && ma ? [maName] : []), ...(showPrev && hasPrev ? [prevName] : [])] }
     }
-    if (runs.length) {
+    if (runs.length || wruns.length) {
       const bandName = t('daypart.band')
+      const workName = t('daypart.workoutBand')
       const first = option.series[0] as Record<string, unknown>
+      const labelOn = (n: number, color: string) =>
+        n <= 6 ? { show: true, color, position: 'insideTop', fontSize: 11 } : { show: false }
       first.markArea = {
         silent: true,
         itemStyle: { color: p.sleep, opacity: 0.16 },
-        label: runs.length <= 6 ? { show: true, color: p.sleep, position: 'insideTop', fontSize: 11 } : { show: false },
-        data: runs.map(([a, b]) => [{ xAxis: a - 0.5, name: bandName }, { xAxis: b + 0.5 }]),
+        label: labelOn(runs.length, p.sleep),
+        data: [
+          ...runs.map(([a, b]) => [{ xAxis: a - 0.5, name: bandName }, { xAxis: b + 0.5 }]),
+          // workouts: amber, dashed outline and the word "Allenamento" (not colour alone)
+          ...wruns.map(([a, b]) => [
+            {
+              xAxis: a - 0.5,
+              name: workName,
+              label: labelOn(wruns.length, p.energy),
+              itemStyle: { color: p.energy, opacity: 0.14, borderColor: p.energy, borderWidth: 1, borderType: 'dashed' },
+            },
+            { xAxis: b + 0.5 },
+          ]),
+        ],
       }
-      // legend entry (an empty series carries the swatch): text + colour, not colour alone
-      option.series.push({
-        name: bandName,
-        type: 'line',
-        data: [],
-        silent: true,
-        itemStyle: { color: p.sleep },
-        lineStyle: { opacity: 0 },
-        areaStyle: { color: p.sleep, opacity: 0.3 },
-      })
-      if (Array.isArray(option.legend.data)) option.legend.data = [...(option.legend.data as string[]), bandName]
+      // legend entries (an empty series carries the swatch): text + colour, not colour alone
+      const legendNames: string[] = []
+      if (runs.length) {
+        legendNames.push(bandName)
+        option.series.push({
+          name: bandName,
+          type: 'line',
+          data: [],
+          silent: true,
+          itemStyle: { color: p.sleep },
+          lineStyle: { opacity: 0 },
+          areaStyle: { color: p.sleep, opacity: 0.3 },
+        })
+      }
+      if (wruns.length) {
+        legendNames.push(workName)
+        option.series.push({
+          name: workName,
+          type: 'line',
+          data: [],
+          silent: true,
+          itemStyle: { color: p.energy },
+          lineStyle: { opacity: 0 },
+          areaStyle: { color: p.energy, opacity: 0.3 },
+        })
+      }
+      if (Array.isArray(option.legend.data)) option.legend.data = [...(option.legend.data as string[]), ...legendNames]
     }
     for (const which of [0, 1] as const) {
       const refs = (reference ?? []).filter((r) => (r.series ?? 0) === which)
@@ -263,6 +309,7 @@ export function TrendChart({
             ? `<div>${dayName}: <b>${withUnit(def, fmtNumber(aligned.day[i] ?? null, def.digits))}</b></div><div>${nightName}: <b>${withUnit(def, fmtNumber(aligned.night[i] ?? null, def.digits))}</b></div>`
             : line(label, x.v),
           flags?.[i] ? `<div>${t('daypart.band')}</div>` : '',
+          wflags?.[i] ? `<div>${t('daypart.workoutBand')}</div>` : '',
           pair && d2 ? line(label2, d2.points[i]?.v, pair.digits) : '',
           hasBand && x.lo != null && x.hi != null
             ? `<div>${bandName}: <b>${fmtMetric(def, x.lo)}–${withUnit(def, fmtMetric(def, x.hi))}</b></div>`
@@ -340,14 +387,15 @@ export function TrendChart({
         bucketLabelLong(x.t, d.bucket),
         x.v === null ? t('chart.noValue') : withUnit(def, fmtMetric(def, x.v)),
         flags?.[i] ? t('daypart.inNight') : '',
+        wflags?.[i] ? t('daypart.workoutBand').toLowerCase() : '',
         showMa && x.ma != null ? `${maName}: ${fmtMetric(def, x.ma)}` : '',
         showPrev && x.prev != null ? `${prevName}: ${fmtMetric(def, x.prev)}` : '',
       ]
         .filter(Boolean)
         .join(' · ')
     }
-    return { option, table, csv, summary: parts.filter(Boolean).join(' '), readout, d, hasPrev, hasMa: !!ma, split: !!aligned, banded: runs.length > 0 }
-  }, [query.data, query2.data, dpQuery.data, dpBucket, daypart, def, pair, showMa, showPrev, reduced, reference, range.days])
+    return { option, table, csv, summary: parts.filter(Boolean).join(' '), readout, d, hasPrev, hasMa: !!ma, split: !!aligned, banded: runs.length > 0, workBanded: wruns.length > 0 }
+  }, [query.data, query2.data, dpQuery.data, dpBucket, includeWorkouts, daypart, def, pair, showMa, showPrev, reduced, reference, range.days])
 
   const controls = built && (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 no-print" data-testid="trend-controls">
@@ -395,6 +443,17 @@ export function TrendChart({
       >
         {t('chart.prev')}
       </button>
+      {daypart && !pair && (
+        <button
+          type="button"
+          className="btn min-h-11 text-xs"
+          aria-pressed={includeWorkouts}
+          data-testid="include-workouts"
+          onClick={() => setIncludeWorkouts(!includeWorkouts)}
+        >
+          {t('daypart.include')}
+        </button>
+      )}
     </div>
   )
 
@@ -434,9 +493,14 @@ export function TrendChart({
                       {t('daypart.bandNote')}
                     </p>
                   )}
+                  {built.workBanded && (
+                    <p className="text-xs text-fg-muted" data-testid="daypart-workout-note">
+                      {t('daypart.workoutNote')}
+                    </p>
+                  )}
                   {built.split && (
                     <p className="text-xs text-fg-muted" data-testid="daypart-note">
-                      {t('daypart.splitNote')}
+                      {t('daypart.splitNote')} {t(includeWorkouts ? 'daypart.includedNote' : 'daypart.excludedNote')}
                     </p>
                   )}
                   {reference?.length ? (

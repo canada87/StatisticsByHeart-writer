@@ -1,14 +1,27 @@
-import { Clock, DownloadSimple, Moon, PersonSimpleRun } from '@phosphor-icons/react'
-import { useQuery } from '@tanstack/react-query'
+import {
+  Check,
+  Clock,
+  DownloadSimple,
+  Heartbeat,
+  MapPin,
+  Moon,
+  PersonSimpleRun,
+  Robot,
+  User,
+  X,
+} from '@phosphor-icons/react'
+import * as ToggleGroup from '@radix-ui/react-toggle-group'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useReducedMotion } from 'motion/react'
 import { useMemo, useState } from 'react'
-import { exerciseQuery, sleepNightsQuery } from '../api/queries'
+import { exerciseQuery, setWorkoutOverride, sleepNightsQuery } from '../api/queries'
 import type { ExerciseResponse, ExerciseRow, SleepNight } from '../api/types'
 import { type MessageKey, t } from '../i18n'
 import { baseOption, palette } from '../lib/charts'
 import { csvName, downloadCsv, toCsv } from '../lib/csv'
 import { fmtDateTime, fmtDay, fmtDayShort, fmtDuration, fmtNumber } from '../lib/format'
 import type { ResolvedRange } from '../lib/range'
+import { useWorkoutScope } from '../lib/useFlags'
 import { ChartFrame } from './ChartCard'
 import { Panel } from './hud'
 import { Async, EmptyState, Skeleton } from './states'
@@ -245,14 +258,105 @@ export function WeeklyVolumeChart({ data }: { data: ExerciseResponse }) {
   )
 }
 
+function Badge({ icon: Icon, text, label, tone = 'muted' }: { icon: typeof Heartbeat; text: string; label?: string; tone?: 'ok' | 'muted' }) {
+  // icon + words: the meaning never depends on colour alone
+  return (
+    <span
+      className={`inline-flex items-center gap-1 whitespace-nowrap border px-1.5 py-0.5 text-xs ${tone === 'ok' ? 'border-ok/60 text-ok' : 'border-border-control text-fg-muted'}`}
+      aria-label={label}
+    >
+      <Icon size={14} aria-hidden />
+      {text}
+    </span>
+  )
+}
+
+export function Signals({ s }: { s: ExerciseRow }) {
+  const pct = fmtNumber(Math.round((s.hr_coverage ?? 0) * 100))
+  return (
+    <span className="flex flex-wrap gap-1" data-testid="signals">
+      {s.has_hr ? (
+        <Badge icon={Heartbeat} tone="ok" text={t('workouts.sig.hrYes', { pct })} label={t('workouts.sig.hrAria', { pct })} />
+      ) : (
+        <Badge icon={Heartbeat} text={s.hr_coverage ? t('workouts.sig.hrNo', { pct }) : t('workouts.sig.hrNone')} label={t('workouts.sig.hrNoAria', { pct })} />
+      )}
+      <Badge icon={MapPin} tone={s.has_route ? 'ok' : 'muted'} text={t(s.has_route ? 'workouts.sig.gpsYes' : 'workouts.sig.gpsNo')} />
+      <Badge
+        icon={s.started_by_user ? User : Robot}
+        tone={s.started_by_user ? 'ok' : 'muted'}
+        text={t(s.started_by_user ? 'workouts.sig.startUser' : 'workouts.sig.startAuto')}
+      />
+    </span>
+  )
+}
+
+export function Verdict({ s }: { s: ExerciseRow }) {
+  return (
+    <span className="inline-flex items-center gap-1 text-sm" data-testid="verdict" data-real={s.is_real}>
+      {s.is_real ? <Check size={16} weight="bold" aria-hidden /> : <X size={16} weight="bold" aria-hidden />}
+      {t(s.is_real ? 'workouts.verdict.real' : 'workouts.verdict.notReal')}
+      {s.override !== null && <span className="text-xs text-fg-muted">({t('workouts.verdict.manual')})</span>}
+    </span>
+  )
+}
+
+function OverrideSelect({ s }: { s: ExerciseRow }) {
+  const queryClient = useQueryClient()
+  const mutation = useMutation({
+    mutationFn: (value: boolean | null) => setWorkoutOverride(s.id, value),
+    onSuccess: () => {
+      for (const key of ['exercise', 'report', 'report-daily', 'daypart']) {
+        void queryClient.invalidateQueries({ queryKey: [key] })
+      }
+    },
+  })
+  const name = s.title || activityLabel(s.type)
+  const value = s.override === null ? 'auto' : s.override ? 'yes' : 'no'
+  return (
+    <span className="flex flex-col gap-0.5">
+      <select
+        className="input w-auto min-w-[8.5rem]"
+        aria-label={t('workouts.override.label', { name })}
+        data-testid="override-select"
+        value={value}
+        disabled={mutation.isPending}
+        onChange={(e) => mutation.mutate(e.target.value === 'auto' ? null : e.target.value === 'yes')}
+      >
+        <option value="auto">{t('workouts.override.auto')}</option>
+        <option value="yes">{t('workouts.override.yes')}</option>
+        <option value="no">{t('workouts.override.no')}</option>
+      </select>
+      {mutation.isPending && <span className="text-xs text-fg-muted">{t('workouts.override.saving')}</span>}
+      {mutation.isError && (
+        <span className="text-xs text-danger-text" role="alert">
+          {t('workouts.override.error')}
+        </span>
+      )}
+    </span>
+  )
+}
+
 export function WorkoutsTable({ sessions, from, to }: { sessions: ExerciseRow[]; from: string; to: string }) {
   if (sessions.length === 0) return <EmptyState title={t('workouts.none')} hint={t('workouts.noneHint')} />
   const csv = () =>
     downloadCsv(
       csvName('allenamenti', from, to),
       toCsv(
-        ['inizio', 'tipo', 'titolo', 'durata_s', 'kcal_attive', 'fc_media_bpm', 'sorgente'],
-        sessions.map((s) => [s.start, s.type, s.title, Math.round(s.duration_s), s.kcal === null ? null : Math.round(s.kcal), s.avg_hr === null ? null : Math.round(s.avg_hr), s.source_package]),
+        ['inizio', 'tipo', 'titolo', 'durata_s', 'kcal_attive', 'fc_media_bpm', 'copertura_fc', 'gps', 'avvio_da_te', 'vero', 'verdetto_manuale', 'sorgente'],
+        sessions.map((s) => [
+          s.start,
+          s.type,
+          s.title,
+          Math.round(s.duration_s),
+          s.kcal === null ? null : Math.round(s.kcal),
+          s.avg_hr === null ? null : Math.round(s.avg_hr),
+          s.hr_coverage === null ? null : Math.round(s.hr_coverage * 100) / 100,
+          s.has_route ? 'si' : 'no',
+          s.started_by_user ? 'si' : 'no',
+          s.is_real ? 'si' : 'no',
+          s.override === null ? 'automatico' : s.override ? 'vero' : 'non vero',
+          s.source_package,
+        ]),
       ),
     )
   return (
@@ -262,7 +366,7 @@ export function WorkoutsTable({ sessions, from, to }: { sessions: ExerciseRow[];
           <caption className="sr-only">{t('workouts.list')}</caption>
           <thead className="sticky top-0 bg-surface-muted">
             <tr>
-              {(['workouts.col.type', 'workouts.col.date', 'workouts.col.duration', 'workouts.col.kcal', 'workouts.col.hr'] as const).map((k) => (
+              {(['workouts.col.type', 'workouts.col.date', 'workouts.col.duration', 'workouts.col.kcal', 'workouts.col.hr', 'workouts.col.signals', 'workouts.col.verdict'] as const).map((k) => (
                 <th key={k} scope="col" className="whitespace-nowrap px-2 py-1.5 text-left font-normal text-fg-muted">
                   {t(k)}
                 </th>
@@ -271,7 +375,7 @@ export function WorkoutsTable({ sessions, from, to }: { sessions: ExerciseRow[];
           </thead>
           <tbody>
             {sessions.map((s) => (
-              <tr key={s.id} className="border-t border-border" data-testid="workout-row">
+              <tr key={s.id} className="border-t border-border align-top" data-testid="workout-row" data-real={s.is_real}>
                 <th scope="row" className="whitespace-nowrap px-2 py-1.5 text-left font-normal">
                   {s.title || activityLabel(s.type)}
                   <span className="block text-xs text-fg-muted">{activityLabel(s.type)}</span>
@@ -280,11 +384,21 @@ export function WorkoutsTable({ sessions, from, to }: { sessions: ExerciseRow[];
                 <td className="whitespace-nowrap px-2 py-1.5">{fmtDuration(s.duration_s)}</td>
                 <td className="whitespace-nowrap px-2 py-1.5">{s.kcal === null ? '—' : `${fmtNumber(s.kcal)} kcal`}</td>
                 <td className="whitespace-nowrap px-2 py-1.5">{s.avg_hr === null ? '—' : `${fmtNumber(s.avg_hr)} bpm`}</td>
+                <td className="px-2 py-1.5">
+                  <Signals s={s} />
+                </td>
+                <td className="px-2 py-1.5">
+                  <div className="flex flex-col gap-1">
+                    <Verdict s={s} />
+                    <OverrideSelect s={s} />
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      <p className="text-xs text-fg-muted">{t('workouts.rule')}</p>
       <div className="no-print">
         <button type="button" className="btn min-h-11 text-xs" onClick={csv}>
           <DownloadSimple size={16} aria-hidden />
@@ -295,8 +409,36 @@ export function WorkoutsTable({ sessions, from, to }: { sessions: ExerciseRow[];
   )
 }
 
+function ScopeFilter({ scope, onChange, real, total }: { scope: 'real' | 'all'; onChange: (s: 'real' | 'all') => void; real: number; total: number }) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 no-print" data-testid="workouts-filter">
+      <ToggleGroup.Root
+        type="single"
+        value={scope}
+        onValueChange={(v) => v && onChange(v as 'real' | 'all')}
+        aria-label={t('workouts.filter.label')}
+        className="inline-flex border border-border-control"
+      >
+        {(['real', 'all'] as const).map((k) => (
+          <ToggleGroup.Item
+            key={k}
+            value={k}
+            className="min-h-11 min-w-11 border-r border-border-control px-3 font-display text-sm uppercase tracking-wider last:border-r-0 hover:bg-accent-glow/10 data-[state=on]:bg-accent data-[state=on]:text-black data-[state=on]:hover:bg-accent"
+          >
+            {t(k === 'real' ? 'workouts.filter.real' : 'workouts.filter.all')}
+          </ToggleGroup.Item>
+        ))}
+      </ToggleGroup.Root>
+      <span className="text-sm text-fg-muted" data-testid="workouts-counts">
+        {t('workouts.filter.counts', { real, total })}
+      </span>
+    </div>
+  )
+}
+
 export function WorkoutsSection({ range }: { range: ResolvedRange }) {
-  const q = useQuery(exerciseQuery({ from: range.from, to: range.to }))
+  const [scope, setScope] = useWorkoutScope()
+  const q = useQuery(exerciseQuery({ from: range.from, to: range.to }, scope))
   return (
     <div className="grid gap-3 xl:grid-cols-2">
       <Panel title={t('workouts.weekly.title')} icon={PersonSimpleRun} accent="activity" testId="chart-workouts-weekly">
@@ -305,9 +447,18 @@ export function WorkoutsSection({ range }: { range: ResolvedRange }) {
         </Async>
       </Panel>
       <Panel title={t('workouts.list')} icon={PersonSimpleRun} accent="activity" testId="panel-workouts">
-        <Async query={q} skeleton={skeleton}>
-          {(d) => <WorkoutsTable sessions={d.sessions} from={d.from} to={d.to} />}
-        </Async>
+        <div className="flex flex-col gap-3">
+          {q.data && <ScopeFilter scope={scope} onChange={setScope} real={q.data.real_count} total={q.data.total_count} />}
+          <Async query={q} skeleton={skeleton}>
+            {(d) =>
+              d.sessions.length === 0 && d.total_count > 0 ? (
+                <EmptyState title={t('workouts.noReal')} hint={t('workouts.noRealHint')} />
+              ) : (
+                <WorkoutsTable sessions={d.sessions} from={d.from} to={d.to} />
+              )
+            }
+          </Async>
+        </div>
       </Panel>
     </div>
   )

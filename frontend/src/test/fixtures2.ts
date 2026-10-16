@@ -82,7 +82,7 @@ export function report(opts: { noBloodPressure?: boolean } = {}): ReportResponse
       bedtime_sd_min: 22,
       wake_sd_min: 18,
     },
-    workouts: { count: 3, duration_s: 8100, avg_duration_s: 2700, per_week: 3, by_type: { WALKING: 2, RUNNING: 1 } },
+    workouts: { count: 3, duration_s: 8100, avg_duration_s: 2700, per_week: 3, by_type: { WALKING: 2, RUNNING: 1 }, scope: 'real', excluded: 4 },
   }
 }
 
@@ -117,9 +117,12 @@ export const nights: SleepNightsResponse = {
 export const exercise: ExerciseResponse = {
   from: '2026-10-09',
   to: '2026-10-15',
+  scope: 'real',
+  total_count: 3,
+  real_count: 2,
   sessions: [
-    { id: 1, type: 'RUNNING', title: 'Easy run', start: '2026-10-14T16:00:00Z', end: '2026-10-14T16:35:00Z', duration_s: 2100, kcal: 310, avg_hr: 148, source_package: 'synthetic.watch', has_route: true },
-    { id: 2, type: 'WALKING', title: null, start: '2026-10-12T16:00:00Z', end: '2026-10-12T16:30:00Z', duration_s: 1800, kcal: null, avg_hr: null, source_package: 'synthetic.watch', has_route: false },
+    { id: 1, type: 'RUNNING', title: 'Easy run', start: '2026-10-14T16:00:00Z', end: '2026-10-14T16:35:00Z', duration_s: 2100, kcal: 310, avg_hr: 148, source_package: 'synthetic.watch', has_route: true, hr_coverage: 0.95, has_hr: true, recording_method: 'active', started_by_user: true, auto_real: true, override: null, is_real: true },
+    { id: 2, type: 'WALKING', title: null, start: '2026-10-12T16:00:00Z', end: '2026-10-12T16:30:00Z', duration_s: 1800, kcal: null, avg_hr: null, source_package: 'synthetic.watch', has_route: false, hr_coverage: 0.1, has_hr: false, recording_method: 'automatic', started_by_user: false, auto_real: false, override: true, is_real: true },
   ],
   weekly: [
     { week_start: '2026-10-05', count: 1, duration_s: 1800, kcal: 0 },
@@ -139,6 +142,8 @@ export function daypart(over: Partial<DaypartResponse> = {}): DaypartResponse {
     bucket: 'day',
     timezone: 'Europe/Rome',
     fixed_window: '23:00-07:00',
+    include_workouts: false,
+    workouts: [],
     nights: days.map((d, i) => ({
       date: `2026-10-${dd(d)}`,
       start: `2026-10-${dd(d - 1)}T21:30:00Z`,
