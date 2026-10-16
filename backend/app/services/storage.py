@@ -9,7 +9,7 @@ estimate for big tables and an exact ``count(*)`` only where that is cheap (belo
 from __future__ import annotations
 
 import shutil
-from datetime import UTC, datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select, text
@@ -26,7 +26,7 @@ EXACT_COUNT_BELOW = 100_000
 """Tables estimated below this many rows are counted exactly (cheap); bigger ones stay estimated."""
 
 GROWTH_WINDOW_DAYS = 30
-"""Growth is measured over the last 30 days of ingestion (fewer if the data is younger)."""
+"""Growth is measured over the last 30 complete days of DATA (fewer if the history is shorter)."""
 
 _TABLES = text(
     """
@@ -41,11 +41,13 @@ _TABLES = text(
     """
 )
 
-_INGESTED = text(
+_IN_WINDOW = text(
     """
     SELECT count(*) AS records,
-           coalesce(sum(coalesce((data->>'sample_count')::bigint, 0)), 0) AS samples
-    FROM health_record WHERE ingested_at >= :since
+           coalesce(sum(coalesce((data->>'sample_count')::bigint, 0)), 0) AS samples,
+           min(local_date) AS first_day
+    FROM health_record
+    WHERE deleted_at IS NULL AND local_date >= :lo AND local_date <= :hi
     """
 )
 
@@ -81,26 +83,38 @@ def _bytes_per_row(tables: list[dict[str, Any]], name: str) -> float:
     return 0.0
 
 
-async def _growth(session: AsyncSession, tables: list[dict[str, Any]]) -> dict[str, Any]:
-    """Records and samples ingested in the window, their estimated size and a one-year projection.
+async def _growth(
+    session: AsyncSession, tables: list[dict[str, Any]], today: date
+) -> dict[str, Any]:
+    """Growth per month/year from the TIME OF THE DATA, not from when it was ingested.
 
-    An ESTIMATE: bytes = ingested rows x the average size of a row of that table. A first
-    backfill (years of old data ingested in days) inflates it; the window shrinks to the age of
-    the data when that is younger than 30 days.
+    Records (and their series samples) whose local day falls in the last 30 complete days
+    (today excluded: it is partial) times the average size of a row of their table, scaled to a
+    month and to a year. A backfill (years of old data ingested in a day) therefore changes
+    nothing. If the history is shorter than 30 days the real length is used and flagged.
+    An ESTIMATE: it ignores index/bloat growth beyond the average row size.
     """
-    now = datetime.now(UTC)
-    first = (await session.execute(select(func.min(HealthRecord.ingested_at)))).scalar()
-    if first is None:
-        return {
-            "window_days": 0,
-            "records": 0,
-            "samples": 0,
-            "bytes": 0,
-            "bytes_per_year": 0,
-            "estimated": True,
-        }
-    window = int(min(GROWTH_WINDOW_DAYS, max(1, (now - first).days + 1)))
-    row = (await session.execute(_INGESTED, {"since": now - timedelta(days=window)})).one()
+    yesterday = today - timedelta(days=1)
+    first = (
+        await session.execute(
+            select(func.min(HealthRecord.local_date)).where(HealthRecord.deleted_at.is_(None))
+        )
+    ).scalar()
+    empty = {
+        "window_days": 0,
+        "records": 0,
+        "samples": 0,
+        "bytes": 0,
+        "bytes_per_month": 0,
+        "bytes_per_year": 0,
+        "partial_history": False,
+        "estimated": True,
+    }
+    if first is None or first > yesterday:
+        return empty
+    lo = max(first, yesterday - timedelta(days=GROWTH_WINDOW_DAYS - 1))
+    window = (yesterday - lo).days + 1
+    row = (await session.execute(_IN_WINDOW, {"lo": lo, "hi": yesterday})).one()
     records, samples = int(row.records), int(row.samples)
     size = int(
         records * _bytes_per_row(tables, "health_record")
@@ -111,7 +125,9 @@ async def _growth(session: AsyncSession, tables: list[dict[str, Any]]) -> dict[s
         "records": records,
         "samples": samples,
         "bytes": size,
+        "bytes_per_month": int(size / window * 30),
         "bytes_per_year": int(size / window * 365),
+        "partial_history": window < GROWTH_WINDOW_DAYS,
         "estimated": True,
     }
 
@@ -196,7 +212,7 @@ async def storage_report(session: AsyncSession, settings: Settings) -> dict[str,
         "first_data": first,
         "last_data": last,
         "last_ingest": last_ingest,
-        "growth": await _growth(session, tables),
+        "growth": await _growth(session, tables, datetime.now(settings.tz).date()),
         "disk": {
             "total_bytes": usage.total,
             "used_bytes": usage.used,

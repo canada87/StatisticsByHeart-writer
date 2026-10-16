@@ -493,7 +493,16 @@ describe('space and limits (Sync / Dati)', () => {
     expect(disk).toHaveTextContent('disco di Docker sulla VM')
     const growth = screen.getByTestId('kpi-storage-growth')
     expect(within(growth).getByTestId('kpi-value')).toHaveTextContent('≈ 36,5 MB')
-    expect(growth).toHaveTextContent('Stima')
+    expect(growth).toHaveTextContent('Stima: 3 MB/mese di dati negli ultimi 30 giorni (3000 record, 40.000 campioni), proiettata a un anno')
+    expect(growth).not.toHaveTextContent('backfill')
+  })
+
+  it('says so when the history is shorter than 30 days', async () => {
+    handlers['/api/v1/storage'] = () => ({
+      body: { ...fx2.storage, growth: { ...fx2.storage.growth, window_days: 9, partial_history: true } },
+    })
+    renderApp('/sync?tab=storage')
+    expect(await screen.findByTestId('kpi-storage-growth')).toHaveTextContent('calcolata sui soli 9 giorni di storico')
   })
 
   it('lists every table with readable units, marking the estimated row counts', async () => {
@@ -617,13 +626,13 @@ describe('space and limits (Sync / Dati)', () => {
         first_data: null,
         last_data: null,
         last_ingest: null,
-        growth: { window_days: 0, records: 0, samples: 0, bytes: 0, bytes_per_year: 0, estimated: true },
+        growth: { window_days: 0, records: 0, samples: 0, bytes: 0, bytes_per_month: 0, bytes_per_year: 0, partial_history: false, estimated: true },
       },
     })
     renderApp('/sync?tab=storage')
     const growth = await screen.findByTestId('kpi-storage-growth')
     expect(within(growth).getByTestId('kpi-value')).toHaveTextContent('—')
-    expect(growth).toHaveTextContent('Ancora nessun dato')
+    expect(growth).toHaveTextContent('Ancora nessun giorno completo')
     expect(within(screen.getByTestId('storage-facts')).getAllByText('—').length).toBeGreaterThanOrEqual(3)
   })
 })

@@ -1168,12 +1168,17 @@
       "GrowthEstimate": {
         "properties": {
           "bytes": {
-            "description": "Estimated size of what was ingested",
+            "description": "Estimated size of those records and samples",
             "title": "Bytes",
             "type": "integer"
           },
+          "bytes_per_month": {
+            "description": "The same pace scaled to 30 days",
+            "title": "Bytes Per Month",
+            "type": "integer"
+          },
           "bytes_per_year": {
-            "description": "Projection to one year at the same pace",
+            "description": "The same pace projected to 365 days",
             "title": "Bytes Per Year",
             "type": "integer"
           },
@@ -1182,8 +1187,13 @@
             "title": "Estimated",
             "type": "boolean"
           },
+          "partial_history": {
+            "description": "True when the history is shorter than 30 days",
+            "title": "Partial History",
+            "type": "boolean"
+          },
           "records": {
-            "description": "Records ingested in the window (by ingested_at)",
+            "description": "Records whose day falls in the window (by data time)",
             "title": "Records",
             "type": "integer"
           },
@@ -1193,7 +1203,7 @@
             "type": "integer"
           },
           "window_days": {
-            "description": "Days measured: up to 30, fewer if the data is younger",
+            "description": "Complete days of DATA measured (today excluded): up to 30, or the history",
             "title": "Window Days",
             "type": "integer"
           }
@@ -1203,7 +1213,9 @@
           "records",
           "samples",
           "bytes",
+          "bytes_per_month",
           "bytes_per_year",
+          "partial_history",
           "estimated"
         ],
         "title": "GrowthEstimate",

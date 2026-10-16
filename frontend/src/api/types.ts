@@ -476,7 +476,9 @@ export interface StorageResponse {
     records: number
     samples: number
     bytes: number
+    bytes_per_month: number
     bytes_per_year: number
+    partial_history: boolean
     estimated: boolean
   }
   disk: { total_bytes: number; used_bytes: number; free_bytes: number; free_percent: number }

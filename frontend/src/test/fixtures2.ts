@@ -198,7 +198,7 @@ export const storage: StorageResponse = {
   first_data: '2026-01-01T06:00:00Z',
   last_data: '2026-10-15T10:00:00Z',
   last_ingest: '2026-10-15T10:05:00Z',
-  growth: { window_days: 30, records: 3_000, samples: 40_000, bytes: 3_145_728, bytes_per_year: 38_273_024, estimated: true },
+  growth: { window_days: 30, records: 3_000, samples: 40_000, bytes: 3_145_728, bytes_per_month: 3_145_728, bytes_per_year: 38_273_024, partial_history: false, estimated: true },
   disk: { total_bytes: 107_374_182_400, used_bytes: 32_212_254_720, free_bytes: 75_161_927_680, free_percent: 70 },
   limits: {
     items: [

@@ -1,6 +1,7 @@
 """Space and limits panel: sizes, estimates, soft deletes, disk, limits; ordinary DB role only."""
 
 import json
+from datetime import timedelta
 
 import httpx
 import pytest
@@ -11,8 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.config import Settings
 from app.health_types import MAX_ROUTE_POINTS
+from app.seed.loader import load_synthetic
+from app.seed.synthetic import SeedConfig, generate
 from app.services import storage
 from app.services.queries import INTRADAY_MAX_DAYS, MAX_POINTS, MAX_SERIES_DAYS
+from tests.conftest import TODAY
 from tests.helpers import DEVICE, post, post_records, record, rows, scalar
 
 
@@ -56,9 +60,10 @@ async def test_shape_and_consistency_on_synthetic_data(
     assert body["first_data"] < body["last_data"] and body["last_ingest"] is not None
 
     g = body["growth"]
-    assert g["estimated"] is True and 1 <= g["window_days"] <= 30
+    assert g["estimated"] is True and g["window_days"] == 9 and g["partial_history"] is True
     assert g["records"] > 0 and g["samples"] > 0 and g["bytes"] > 0
-    assert g["bytes_per_year"] == int(g["bytes"] / g["window_days"] * 365)
+    assert g["bytes_per_month"] == int(g["bytes"] / 9 * 30)
+    assert g["bytes_per_year"] == int(g["bytes"] / 9 * 365)
 
     d = body["disk"]
     assert 0 < d["free_bytes"] <= d["total_bytes"] and 0 <= d["free_percent"] <= 100
@@ -74,7 +79,9 @@ async def test_empty_database(web: httpx.AsyncClient) -> None:
         "records": 0,
         "samples": 0,
         "bytes": 0,
+        "bytes_per_month": 0,
         "bytes_per_year": 0,
+        "partial_history": False,
         "estimated": True,
     }
     assert body["database_bytes"] > 0 and body["limits"]["items"]
@@ -115,26 +122,62 @@ async def test_soft_deleted_records_are_counted_and_lose_their_samples(
     assert await scalar(app, "SELECT count(*) FROM health_record") == 2
 
 
-async def test_growth_counts_what_was_ingested(
+async def test_growth_follows_the_time_of_the_data_not_the_ingest_day(
+    app: FastAPI, settings: Settings, web: httpx.AsyncClient
+) -> None:
+    """Everything ingested in one go, but spread over 90 days: the pace is per DATA day."""
+    cfg = SeedConfig(days=90, seed=11, end_date=TODAY, hr_interval_min=30)
+    await load_synthetic(app.state.sessionmaker, settings, generate(cfg))
+    # all the rows were ingested within the last minute
+    assert await scalar(
+        app, "SELECT max(ingested_at) - min(ingested_at) < interval '10 minutes' FROM health_record"
+    )
+    body = (await web.get("/api/v1/storage")).json()
+    g = body["growth"]
+    assert g["window_days"] == 30 and g["partial_history"] is False  # not 1 day of ingestion
+    in_window = await scalar(
+        app,
+        "SELECT count(*) FROM health_record WHERE deleted_at IS NULL "
+        "AND local_date BETWEEN :lo AND :hi",
+        lo=TODAY - timedelta(days=30),
+        hi=TODAY - timedelta(days=1),
+    )
+    assert g["records"] == in_window  # today (partial) is not counted
+    assert g["bytes_per_month"] == int(g["bytes"] / 30 * 30)
+    assert g["bytes_per_year"] == int(g["bytes"] / 30 * 365)
+    # coherent with the data: ~30 of the 90 days, so a year is about 365/90 of what is stored
+    by = {t["name"]: t for t in body["tables"]}
+    stored = by["health_record"]["total_bytes"] + by["health_sample"]["total_bytes"]
+    expected = stored * 365 / 90
+    assert 0.6 * expected <= g["bytes_per_year"] <= 1.4 * expected
+    # the wrong way (all of it in one ingest day, x365) would be ~90 times bigger
+    assert g["bytes_per_year"] < stored * 365 / 10
+
+
+async def test_growth_on_a_short_history_uses_its_real_length(
+    seeded: None, web: httpx.AsyncClient
+) -> None:
+    g = (await web.get("/api/v1/storage")).json()["growth"]
+    assert g["window_days"] == 9 and g["partial_history"] is True  # 10 seeded days, today excluded
+
+
+async def test_a_record_of_today_is_not_counted_and_old_data_gives_no_recent_growth(
     web: httpx.AsyncClient, client: httpx.AsyncClient, auth: dict[str, str]
 ) -> None:
-    samples = [{"time": f"2026-10-14T10:{m:02d}:00+02:00", "value": 70 + m} for m in range(5)]
+    today = TODAY.isoformat()
     await post_records(
         client,
         auth,
-        [
-            record(
-                "HeartRate",
-                "h1",
-                "2026-10-14T10:00:00+02:00",
-                "2026-10-14T10:10:00+02:00",
-                {"samples": samples},
-            )
-        ],
+        [record("Weight", "w-today", f"{today}T07:00:00+02:00", None, {"value": 78.2})],
     )
     g = (await web.get("/api/v1/storage")).json()["growth"]
-    assert (g["window_days"], g["records"], g["samples"]) == (1, 1, 5)
-    assert g["bytes"] > 0 and g["bytes_per_year"] == g["bytes"] * 365
+    assert g["window_days"] == 0 and g["bytes_per_year"] == 0  # only a partial day: no estimate yet
+    old = (TODAY - timedelta(days=400)).isoformat()
+    await post_records(
+        client, auth, [record("Weight", "w-old", f"{old}T07:00:00+02:00", None, {"value": 78.0})]
+    )
+    g = (await web.get("/api/v1/storage")).json()["growth"]
+    assert g["window_days"] == 30 and g["records"] == 0 and g["bytes_per_year"] == 0
 
 
 async def test_no_health_value_leaves_the_endpoint(

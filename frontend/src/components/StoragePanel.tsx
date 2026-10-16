@@ -169,9 +169,9 @@ function kpis(d: StorageResponse): KpiSpec[] {
       hint:
         d.growth.window_days === 0
           ? t('storage.growth.none')
-          : t('storage.growth.hint', {
+          : t(d.growth.partial_history ? 'storage.growth.hintPartial' : 'storage.growth.hint', {
               days: fmtNumber(d.growth.window_days),
-              size: fmtBytes(d.growth.bytes),
+              month: fmtBytes(d.growth.bytes_per_month),
               records: fmtNumber(d.growth.records),
               samples: fmtNumber(d.growth.samples),
             }),

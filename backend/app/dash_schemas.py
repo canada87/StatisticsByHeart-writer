@@ -534,11 +534,15 @@ class TableStorage(BaseModel):
 
 
 class GrowthEstimate(BaseModel):
-    window_days: int = Field(description="Days measured: up to 30, fewer if the data is younger")
-    records: int = Field(description="Records ingested in the window (by ingested_at)")
+    window_days: int = Field(
+        description="Complete days of DATA measured (today excluded): up to 30, or the history"
+    )
+    records: int = Field(description="Records whose day falls in the window (by data time)")
     samples: int = Field(description="Series samples carried by those records")
-    bytes: int = Field(description="Estimated size of what was ingested")
-    bytes_per_year: int = Field(description="Projection to one year at the same pace")
+    bytes: int = Field(description="Estimated size of those records and samples")
+    bytes_per_month: int = Field(description="The same pace scaled to 30 days")
+    bytes_per_year: int = Field(description="The same pace projected to 365 days")
+    partial_history: bool = Field(description="True when the history is shorter than 30 days")
     estimated: bool = Field(description="Always true: bytes = rows x average row size")
 
 
