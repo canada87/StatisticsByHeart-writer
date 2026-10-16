@@ -32,6 +32,9 @@ class SeedConfig:
     end_date: date | None = None  # last generated local day (default: today)
     tz: str = "Europe/Rome"
     hr_interval_min: int = 5
+    # Nights (counted back from the last day, 0 = last night) with NO sleep session recorded:
+    # they exercise the fixed 23:00-07:00 fallback of the day/night heart rate split.
+    unrecorded_nights: tuple[int, ...] = ()
 
 
 @dataclass
@@ -56,6 +59,7 @@ class _Builder:
         self.tz = ZoneInfo(cfg.tz)
         self.rng = random.Random(cfg.seed)
         self.records: list[dict[str, Any]] = []
+        self.unrecorded: set[date] = set()
 
     def add(
         self,
@@ -88,6 +92,15 @@ class _Builder:
     def at(self, day: date, hour: int, minute: int = 0) -> datetime:
         return datetime.combine(day, time(hour, minute), tzinfo=self.tz)
 
+    def sleep_window(self, day: date) -> tuple[datetime, datetime]:
+        """Bedtime and wake-up of the night that ends on ``day`` (own RNG: stable per day)."""
+        rng = random.Random(f"{self.cfg.seed}|sleep|{day.isoformat()}")
+        bedtime = datetime.combine(
+            day - timedelta(days=1), time(23, 0), tzinfo=self.tz
+        ) + timedelta(minutes=rng.randint(-30, 60))
+        wake = self.at(day, 6, 30) + timedelta(minutes=rng.randint(-20, 40))
+        return bedtime, wake
+
     # ----------------------------------------------------------------- per-day generators
 
     def steps_and_energy(self, day: date) -> None:
@@ -118,16 +131,25 @@ class _Builder:
     def heart(self, day: date) -> None:
         rng = self.rng
         step = self.cfg.hr_interval_min
+        # Asleep (recorded session, or the 23:00-07:00 fallback night) -> low resting-like rate.
+        bedtime, wake = self.sleep_window(day)
+        next_bed, next_wake = self.sleep_window(day + timedelta(days=1))
+        asleep = [(bedtime, wake), (next_bed, next_wake)]
         for hour in range(24):
             start = self.at(day, hour)
             end = start + timedelta(hours=1)
-            base = 54 if hour < 6 else 72 + 6 * math.sin((hour - 6) / 16 * math.pi)
+            day_base = 72 + 6 * math.sin((hour - 6) / 16 * math.pi) if hour >= 6 else 66
             samples = []
             for minute in range(0, 60, step):
-                bpm = round(base + rng.gauss(0, 4) + (35 if rng.random() < 0.02 else 0))
+                when = start + timedelta(minutes=minute)
+                sleeping = any(a <= when < b for a, b in asleep)
+                base = 54 if sleeping else day_base
+                bpm = round(
+                    base + rng.gauss(0, 4) + (35 if rng.random() < 0.02 and not sleeping else 0)
+                )
                 samples.append(
                     {
-                        "time": _iso(start + timedelta(minutes=minute)),
+                        "time": _iso(when),
                         "value": max(40, min(bpm, 190)),
                     }
                 )
@@ -136,26 +158,30 @@ class _Builder:
     def night(self, day: date) -> None:
         """Sleep that ends on ``day`` morning (attributed to ``day``), plus night vitals."""
         rng = self.rng
-        bedtime = datetime.combine(
-            day - timedelta(days=1), time(23, 0), tzinfo=self.tz
-        ) + timedelta(minutes=rng.randint(-30, 60))
-        wake = self.at(day, 6, 30) + timedelta(minutes=rng.randint(-20, 40))
+        bedtime, wake = self.sleep_window(day)
+        stage_rng = random.Random(f"{self.cfg.seed}|stages|{day.isoformat()}")
+        recorded = day not in self.unrecorded
         stages = []
         t = bedtime
         cycle = ["light", "deep", "light", "rem"]
         i = 0
         while t < wake:
-            length = timedelta(minutes=rng.randint(15, 50))
-            stage = "awake" if rng.random() < 0.05 else cycle[i % len(cycle)]
+            length = timedelta(minutes=stage_rng.randint(15, 50))
+            stage = "awake" if stage_rng.random() < 0.05 else cycle[i % len(cycle)]
             end = min(t + length, wake)
             stages.append({"stage": stage, "start_time": _iso(t), "end_time": _iso(end)})
             t = end
             i += 1
-        self.add("SleepSession", WATCH, bedtime, wake, {"title": "Night", "stages": stages})
-        # the phone also logs "something" for the same night, without stages and slightly shifted
-        self.add(
-            "SleepSession", PHONE, bedtime + timedelta(minutes=5), wake - timedelta(minutes=3), {}
-        )
+        if recorded:
+            self.add("SleepSession", WATCH, bedtime, wake, {"title": "Night", "stages": stages})
+            # the phone also logs "something" for the same night, no stages and slightly shifted
+            self.add(
+                "SleepSession",
+                PHONE,
+                bedtime + timedelta(minutes=5),
+                wake - timedelta(minutes=3),
+                {},
+            )
         mid = bedtime + (wake - bedtime) / 2
         self.add("OxygenSaturation", WATCH, mid, None, {"value": round(rng.uniform(94, 99), 1)})
         self.add(
@@ -282,6 +308,7 @@ def generate(cfg: SeedConfig | None = None) -> SyntheticData:
     builder = _Builder(cfg)
     end = cfg.end_date or datetime.now(builder.tz).date()
     days = [end - timedelta(days=n) for n in range(cfg.days - 1, -1, -1)]
+    builder.unrecorded = {end - timedelta(days=n) for n in cfg.unrecorded_nights}
     for index, day in enumerate(days):
         builder.steps_and_energy(day)
         builder.heart(day)

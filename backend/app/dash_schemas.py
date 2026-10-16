@@ -408,3 +408,47 @@ class ReportDailyResponse(BaseModel):
     to: Date
     columns: list[ReportColumn]
     rows: list[ReportDailyRow]
+
+
+class NightInterval(BaseModel):
+    date: Date = Field(description="Wake-up day the night belongs to (rule of PROJECT_GUIDE 5.2.3)")
+    start: datetime
+    end: datetime
+    source: Literal["sleep", "fixed"] = Field(
+        description="sleep = recorded SleepSession(s); fixed = fallback window 23:00-07:00 local"
+    )
+
+
+class DaypartPoint(BaseModel):
+    t: str = Field(description="Bucket start (local day, Monday of the week, or first of month)")
+    day: float | None = Field(description="Mean heart rate outside the nights (bpm)")
+    night: float | None = Field(description="Mean heart rate inside the nights (bpm)")
+    day_n: int = Field(description="Samples behind `day`")
+    night_n: int = Field(description="Samples behind `night`")
+
+
+class DaypartStats(BaseModel):
+    avg: float | None = Field(description="Mean of the daily means (same rule as the report KPIs)")
+    days: int = Field(description="Days with a value")
+    samples: int
+
+
+class DaypartSummary(BaseModel):
+    day: DaypartStats
+    night: DaypartStats
+
+
+class DaypartResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_: Date = Field(alias="from")
+    to: Date
+    bucket: Literal["day", "week", "month"]
+    timezone: str
+    fixed_window: str = Field(description="Fallback night when a day has no sleep session")
+    nights: list[NightInterval]
+    points: list[DaypartPoint]
+    summary: DaypartSummary
+    previous_from: Date
+    previous_to: Date
+    previous_summary: DaypartSummary

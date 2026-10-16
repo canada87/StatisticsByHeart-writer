@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Query
 
@@ -12,6 +12,7 @@ from app.dash_schemas import (
     Agg,
     Bucket,
     DataBounds,
+    DaypartResponse,
     ExerciseResponse,
     InventoryResponse,
     ReconciliationResponse,
@@ -26,7 +27,7 @@ from app.dash_schemas import (
 from app.deps import AdminAuth, Db, SettingsDep
 from app.errors import ApiError
 from app.schemas import ErrorResponse
-from app.services import analytics, queries
+from app.services import analytics, daypart, queries
 
 router = APIRouter(prefix="/api/v1", tags=["dashboard"])
 _AUTH: dict[int | str, dict[str, Any]] = {401: {"model": ErrorResponse}}
@@ -149,6 +150,25 @@ def _window(
 )
 async def data_bounds(_: AdminAuth, session: Db) -> DataBounds:
     return await analytics.bounds(session)
+
+
+@router.get(
+    "/heart/daypart",
+    response_model=DaypartResponse,
+    response_model_by_alias=True,
+    summary="Heart rate by day part: night = inside sleep sessions (fallback 23:00-07:00)",
+    responses={**_AUTH, 422: {"model": ErrorResponse}},
+)
+async def heart_daypart(
+    _: AdminAuth,
+    session: Db,
+    settings: SettingsDep,
+    from_: Annotated[date | None, Query(alias="from")] = None,
+    to: date | None = None,
+    bucket: Annotated[Literal["day", "week", "month"], Query()] = "day",
+) -> DaypartResponse:
+    first, last = _window(settings, from_, to, 7)
+    return await daypart.daypart(session, settings, first, last, bucket)
 
 
 @router.get(

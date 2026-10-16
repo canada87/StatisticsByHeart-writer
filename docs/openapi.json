@@ -297,6 +297,183 @@
         "title": "DayValue",
         "type": "object"
       },
+      "DaypartPoint": {
+        "properties": {
+          "day": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mean heart rate outside the nights (bpm)",
+            "title": "Day"
+          },
+          "day_n": {
+            "description": "Samples behind `day`",
+            "title": "Day N",
+            "type": "integer"
+          },
+          "night": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mean heart rate inside the nights (bpm)",
+            "title": "Night"
+          },
+          "night_n": {
+            "description": "Samples behind `night`",
+            "title": "Night N",
+            "type": "integer"
+          },
+          "t": {
+            "description": "Bucket start (local day, Monday of the week, or first of month)",
+            "title": "T",
+            "type": "string"
+          }
+        },
+        "required": [
+          "t",
+          "day",
+          "night",
+          "day_n",
+          "night_n"
+        ],
+        "title": "DaypartPoint",
+        "type": "object"
+      },
+      "DaypartResponse": {
+        "properties": {
+          "bucket": {
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ],
+            "title": "Bucket",
+            "type": "string"
+          },
+          "fixed_window": {
+            "description": "Fallback night when a day has no sleep session",
+            "title": "Fixed Window",
+            "type": "string"
+          },
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "nights": {
+            "items": {
+              "$ref": "#/components/schemas/NightInterval"
+            },
+            "title": "Nights",
+            "type": "array"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/DaypartPoint"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "previous_from": {
+            "format": "date",
+            "title": "Previous From",
+            "type": "string"
+          },
+          "previous_summary": {
+            "$ref": "#/components/schemas/DaypartSummary"
+          },
+          "previous_to": {
+            "format": "date",
+            "title": "Previous To",
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/DaypartSummary"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "to": {
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "bucket",
+          "timezone",
+          "fixed_window",
+          "nights",
+          "points",
+          "summary",
+          "previous_from",
+          "previous_to",
+          "previous_summary"
+        ],
+        "title": "DaypartResponse",
+        "type": "object"
+      },
+      "DaypartStats": {
+        "properties": {
+          "avg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mean of the daily means (same rule as the report KPIs)",
+            "title": "Avg"
+          },
+          "days": {
+            "description": "Days with a value",
+            "title": "Days",
+            "type": "integer"
+          },
+          "samples": {
+            "title": "Samples",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "avg",
+          "days",
+          "samples"
+        ],
+        "title": "DaypartStats",
+        "type": "object"
+      },
+      "DaypartSummary": {
+        "properties": {
+          "day": {
+            "$ref": "#/components/schemas/DaypartStats"
+          },
+          "night": {
+            "$ref": "#/components/schemas/DaypartStats"
+          }
+        },
+        "required": [
+          "day",
+          "night"
+        ],
+        "title": "DaypartSummary",
+        "type": "object"
+      },
       "DeletionItem": {
         "additionalProperties": false,
         "properties": {
@@ -1062,6 +1239,43 @@
           "value"
         ],
         "title": "MetricValue",
+        "type": "object"
+      },
+      "NightInterval": {
+        "properties": {
+          "date": {
+            "description": "Wake-up day the night belongs to (rule of PROJECT_GUIDE 5.2.3)",
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "source": {
+            "description": "sleep = recorded SleepSession(s); fixed = fallback window 23:00-07:00 local",
+            "enum": [
+              "sleep",
+              "fixed"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "start": {
+            "format": "date-time",
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "start",
+          "end",
+          "source"
+        ],
+        "title": "NightInterval",
         "type": "object"
       },
       "PeriodStats": {
@@ -4289,6 +4503,98 @@
         "summary": "Liveness (no auth)",
         "tags": [
           "public"
+        ]
+      }
+    },
+    "/api/v1/heart/daypart": {
+      "get": {
+        "operationId": "heart_daypart_api_v1_heart_daypart_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "bucket",
+            "required": false,
+            "schema": {
+              "default": "day",
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ],
+              "title": "Bucket",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DaypartResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Heart rate by day part: night = inside sleep sessions (fallback 23:00-07:00)",
+        "tags": [
+          "dashboard"
         ]
       }
     },

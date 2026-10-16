@@ -93,7 +93,7 @@ def cmd_seed(args: argparse.Namespace, settings: Settings) -> int:
             if args.if_empty and (await s.execute(select(func.count(HealthRecord.id)))).scalar():
                 print("Database already has records: skipping seed.")
                 return
-        data = generate(SeedConfig(days=args.days, seed=args.seed))
+        data = generate(SeedConfig(days=args.days, seed=args.seed, unrecorded_nights=(2, 9)))
         totals = await load_synthetic(sm, settings, data)
         print(f"Seeded synthetic data: {totals}")
 

@@ -368,7 +368,9 @@ e **mai più**; il writer conserva solo l'hash SHA‑256. Un token revocato risp
 ## 7. Fuori contratto (non stabile)
 
 `/api/v1/auth/*`, `/api/v1/admin/*`, `/api/docs`, `/api/openapi.json` e le API della dashboard sono
-interne al writer e possono cambiare senza cambio di versione del contratto.
+interne al writer e possono cambiare senza cambio di versione del contratto. Dalla 0.4.0 la dashboard
+usa anche `GET /api/v1/heart/daypart` (FC diurna/notturna, vedi ADR 0005): è un'estensione additiva
+della sola API dashboard e **non** modifica il contratto Reader → Writer (resta `1.0.0`).
 
 ---
 
