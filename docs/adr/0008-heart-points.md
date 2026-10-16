@@ -52,6 +52,18 @@ grafico a barre nella pagina Cuore. Health Connect non fornisce i punti: vanno r
    l'obiettivo»; la settimana in corso non è conteggiata). Il confronto con il periodo precedente è nel riepilogo
    testuale (totale del periodo precedente), non una seconda serie.
 
+## Aggiornamento 0.6.1 — granularità giornaliera
+
+- `GET /heart/points` accetta anche `bucket=day` (additivo). Come per gli altri grafici vale `MAX_POINTS` (1000): oltre,
+  il bucket si allarga da solo (giorno → settimana), la risposta riporta il bucket realmente usato e `coarsened: true`, e il
+  grafico lo dichiara. Il default del grafico resta la settimana, tranne a 7G e 30G (finestre di al massimo 30 giorni) dove
+  diventa il giorno; la scelta esplicita dell'utente vince.
+- Nella vista giornaliera una linea tratteggiata a **`WEEKLY_GOAL / 7` ≈ 21,4 punti al giorno** (`daily_reference`,
+  calcolata dalla costante, nessun numero scritto altrove), con etichetta «Riferimento ~21/giorno (150/7)». È **un
+  riferimento indicativo, non un obiettivo giornaliero**: il riepilogo scrive «N giorni su M sopra ~21 (riferimento
+  indicativo, non un obiettivo)» e non dichiara mai un obiettivo raggiunto. I giorni «completi» escludono oggi (parziale).
+  Nelle viste mese/anno nessuna linea. La riga corrispondente è nel pannello delle regole, generata dal backend.
+
 ## Limiti noti
 
 - Senza FCmax i punti sono solo da cadenza e sottostimano le attività senza passi (ciclismo, nuoto, forza).

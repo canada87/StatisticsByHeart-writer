@@ -1912,6 +1912,11 @@
             "title": "Combine",
             "type": "string"
           },
+          "daily_reference": {
+            "description": "weekly_goal / 7: indicative, not a goal",
+            "title": "Daily Reference",
+            "type": "number"
+          },
           "heart_rate": {
             "$ref": "#/components/schemas/PointsHeartRateRule"
           },
@@ -1943,6 +1948,7 @@
           "combine",
           "met_used",
           "weekly_goal",
+          "daily_reference",
           "week_starts",
           "timezone"
         ],
@@ -1952,13 +1958,25 @@
       "PointsSeriesResponse": {
         "properties": {
           "bucket": {
+            "description": "The bucket actually used (a wider one than asked when there are too many days)",
             "enum": [
+              "day",
               "week",
               "month",
               "year"
             ],
             "title": "Bucket",
             "type": "string"
+          },
+          "coarsened": {
+            "description": "True: day was asked but there were too many points",
+            "title": "Coarsened",
+            "type": "boolean"
+          },
+          "daily_reference": {
+            "description": "weekly_goal / 7: a reference line, not a goal",
+            "title": "Daily Reference",
+            "type": "number"
           },
           "from": {
             "format": "date",
@@ -2012,6 +2030,8 @@
           "to",
           "bucket",
           "weekly_goal",
+          "daily_reference",
+          "coarsened",
           "timezone",
           "hr_configured",
           "points",
@@ -2032,6 +2052,18 @@
           "days": {
             "title": "Days",
             "type": "integer"
+          },
+          "days_over_reference": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Complete days at or above goal/7 (day bucket only): indicative, not a goal",
+            "title": "Days Over Reference"
           },
           "total": {
             "title": "Total",
@@ -4879,7 +4911,7 @@
   "info": {
     "description": "Ingest API (contract v1: docs/api-contract.md) and admin endpoints.",
     "title": "StatisticsByHeart Writer",
-    "version": "0.6.0"
+    "version": "0.6.1"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -5761,6 +5793,7 @@
             "schema": {
               "default": "week",
               "enum": [
+                "day",
                 "week",
                 "month",
                 "year"
@@ -5802,7 +5835,7 @@
             "description": "Unprocessable Entity"
           }
         },
-        "summary": "Heart Points per week / month / year (sum of the daily points)",
+        "summary": "Heart Points per day / week / month / year (sum of the daily points)",
         "tags": [
           "dashboard"
         ]

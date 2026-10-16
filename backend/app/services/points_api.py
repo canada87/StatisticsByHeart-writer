@@ -12,16 +12,24 @@ from app.config import Settings
 from app.errors import ApiError
 from app.models import DailyMetric
 from app.services import heartpoints as hp
-from app.services.queries import MAX_SERIES_DAYS, _span_days, bucket_start
+from app.services.queries import MAX_POINTS, MAX_SERIES_DAYS, _span_days, bucket_start
 
-Bucket = Literal["week", "month", "year"]
+Bucket = Literal["day", "week", "month", "year"]
+
+
+DAILY_REFERENCE = hp.WEEKLY_GOAL / 7
+"""Indicative points per day (goal / 7): a reference line, NOT a daily goal."""
 
 
 def _start(day: date, bucket: Bucket) -> date:
+    if bucket == "day":
+        return day
     return date(day.year, 1, 1) if bucket == "year" else bucket_start(day, bucket)
 
 
 def _next(start: date, bucket: Bucket) -> date:
+    if bucket == "day":
+        return start + timedelta(days=1)
     if bucket == "week":
         return start + timedelta(days=7)
     if bucket == "month":
@@ -54,6 +62,10 @@ async def points_series(
     span = _span_days(first, last)
     if span > MAX_SERIES_DAYS:
         raise ApiError(422, "range_too_long", f"At most {MAX_SERIES_DAYS} days")
+    # like the other charts: too many points -> a wider bucket, and the answer says so
+    coarsened = bucket == "day" and span > MAX_POINTS
+    if coarsened:
+        bucket = "week"
     today = datetime.now(settings.tz).date()
     daily = await _daily(session, first, last)
     sums: dict[date, float] = {}
@@ -79,6 +91,7 @@ async def points_series(
         cursor = _next(cursor, bucket)
     complete = [p for p in points if p["complete"]]
     over = sum(1 for p in complete if p["v"] >= hp.WEEKLY_GOAL) if bucket == "week" else None
+    days_over = sum(1 for p in complete if p["v"] >= DAILY_REFERENCE) if bucket == "day" else None
     prev_last = first - timedelta(days=1)
     prev_first = prev_last - timedelta(days=span - 1)
     return {
@@ -86,6 +99,8 @@ async def points_series(
         "to": last,
         "bucket": bucket,
         "weekly_goal": hp.WEEKLY_GOAL,
+        "daily_reference": DAILY_REFERENCE,
+        "coarsened": coarsened,
         "timezone": settings.local_timezone,
         "hr_configured": hp.hr_max_for(settings, today)[0] is not None,
         "points": points,
@@ -93,6 +108,7 @@ async def points_series(
             **_total(daily),
             "buckets_complete": len(complete),
             "weeks_over_goal": over,
+            "days_over_reference": days_over,
         },
         "previous_from": prev_first,
         "previous_to": prev_last,
@@ -166,6 +182,7 @@ def describe_points_rules(settings: Settings) -> dict[str, Any]:
         "combine": "max",
         "met_used": False,
         "weekly_goal": hp.WEEKLY_GOAL,
+        "daily_reference": DAILY_REFERENCE,
         "week_starts": "monday",
         "timezone": settings.local_timezone,
     }

@@ -195,7 +195,7 @@ async def storage_info(_: AdminAuth, session: Db, settings: SettingsDep) -> dict
     "/heart/points",
     response_model=PointsSeriesResponse,
     response_model_by_alias=True,
-    summary="Heart Points per week / month / year (sum of the daily points)",
+    summary="Heart Points per day / week / month / year (sum of the daily points)",
     responses={**_AUTH, 422: {"model": ErrorResponse}},
 )
 async def heart_points(
@@ -204,7 +204,7 @@ async def heart_points(
     settings: SettingsDep,
     from_: Annotated[date | None, Query(alias="from")] = None,
     to: date | None = None,
-    bucket: Annotated[Literal["week", "month", "year"], Query()] = "week",
+    bucket: Annotated[Literal["day", "week", "month", "year"], Query()] = "week",
 ) -> dict[str, Any]:
     first, last = _window(settings, from_, to, 84)
     return await points_api.points_series(session, settings, first, last, bucket)

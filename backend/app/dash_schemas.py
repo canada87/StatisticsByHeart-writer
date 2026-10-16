@@ -608,6 +608,10 @@ class PointsSummary(PointsTotal):
     weeks_over_goal: int | None = Field(
         default=None, description="Complete weeks at or above the weekly goal (week bucket only)"
     )
+    days_over_reference: int | None = Field(
+        default=None,
+        description="Complete days at or above goal/7 (day bucket only): indicative, not a goal",
+    )
 
 
 class PointsSeriesResponse(BaseModel):
@@ -615,8 +619,12 @@ class PointsSeriesResponse(BaseModel):
 
     from_: Date = Field(alias="from")
     to: Date
-    bucket: Literal["week", "month", "year"]
+    bucket: Literal["day", "week", "month", "year"] = Field(
+        description="The bucket actually used (a wider one than asked when there are too many days)"
+    )
     weekly_goal: int
+    daily_reference: float = Field(description="weekly_goal / 7: a reference line, not a goal")
+    coarsened: bool = Field(description="True: day was asked but there were too many points")
     timezone: str
     hr_configured: bool = Field(
         description="False: SBH_BIRTH_YEAR / SBH_HR_MAX not set (cadence only)"
@@ -675,5 +683,6 @@ class PointsRules(BaseModel):
     combine: Literal["max"]
     met_used: bool
     weekly_goal: int
+    daily_reference: float = Field(description="weekly_goal / 7: indicative, not a goal")
     week_starts: Literal["monday"]
     timezone: str

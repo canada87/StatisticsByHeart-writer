@@ -17,7 +17,7 @@ vi.mock('../components/EChart', () => ({
   }: {
     label: string
     activeIndex?: number | null
-    option?: { series?: { name: string; lineStyle?: { type?: string }; markArea?: { data: unknown[] }; markLine?: { data: { yAxis: number }[] } }[] }
+    option?: { series?: { name: string; lineStyle?: { type?: string }; markArea?: { data: unknown[] }; markLine?: { data: { yAxis: number }[]; label?: { formatter?: string } } }[] }
   }) => (
     <div
       data-testid="echart-stub"
@@ -25,6 +25,7 @@ vi.mock('../components/EChart', () => ({
       data-series={(option?.series ?? []).map((s) => `${s.name}:${s.lineStyle?.type ?? ''}`).join('|')}
       data-bands={option?.series?.find((s) => s.markArea)?.markArea?.data.length ?? 0}
       data-goal={option?.series?.find((s) => s.markLine)?.markLine?.data[0]?.yAxis ?? ''}
+      data-goal-label={option?.series?.find((s) => s.markLine)?.markLine?.label?.formatter ?? ''}
     >
       {label}
     </div>
@@ -53,7 +54,10 @@ beforeEach(() => {
     '/api/v1/storage': () => ({ body: fx2.storage }),
     '/api/v1/heart/points/week': () => ({ body: fx2.pointsWeek() }),
     '/api/v1/heart/points/rules': () => ({ body: fx2.pointsRules }),
-    '/api/v1/heart/points': (url) => ({ body: fx2.pointsSeries({ bucket: (url.searchParams.get('bucket') as 'week') ?? 'week' }) }),
+    '/api/v1/heart/points': (url) =>
+      url.searchParams.get('bucket') === 'day'
+        ? { body: fx2.pointsSeriesDaily() }
+        : { body: fx2.pointsSeries({ bucket: (url.searchParams.get('bucket') as 'week') ?? 'week' }) },
     '/api/v1/data/bounds': () => ({ body: { first: '2026-01-01', last: '2026-10-15' } }),
     '/api/v1/report/daily': () => ({
       body: {
@@ -516,15 +520,15 @@ describe('Heart Points', () => {
   })
 
   it('Cuore: bar chart with weekly granularity and the goal line, table and CSV', async () => {
-    renderApp('/heart')
+    renderApp('/heart?r=90d')
     const user = userEvent.setup()
     const chart = await screen.findByTestId('chart-heartpoints')
     await waitFor(() =>
       expect(urls.some((u) => u.pathname === '/api/v1/heart/points' && u.searchParams.get('bucket') === 'week')).toBe(true),
     )
     const select = await within(chart).findByLabelText('Granularità')
-    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['Settimana', 'Mese', 'Anno'])
-    expect(within(select).queryByRole('option', { name: 'Giorno' })).toBeNull() // never per day
+    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['Giorno', 'Settimana', 'Mese', 'Anno'])
+    expect(select).toHaveValue('week') // 90 days: the weekly view stays the default
     expect(within(chart).getByTestId('echart-stub')).toHaveAttribute('data-goal', '150')
     expect(within(chart).getByTestId('chart-summary')).toHaveTextContent('2 settimane su 3 sopra l’obiettivo di 150')
     expect(within(chart).getByTestId('chart-summary')).toHaveTextContent('Periodo precedente: 400 punti')
@@ -539,6 +543,55 @@ describe('Heart Points', () => {
     await user.click(within(chart).getByRole('button', { name: 'Esporta CSV' }))
     await waitFor(() => expect(csvDownloads.length).toBe(1))
     expect(csvDownloads[0]?.text.split('\r\n')[0]).toContain('Obiettivo raggiunto')
+  })
+
+  it('7 and 30 day windows default to the daily view, with the 150/7 reference line, labelled', async () => {
+    renderApp('/heart?r=30d')
+    const chart = await screen.findByTestId('chart-heartpoints')
+    await waitFor(() =>
+      expect(urls.some((u) => u.pathname === '/api/v1/heart/points' && u.searchParams.get('bucket') === 'day')).toBe(true),
+    )
+    expect(await within(chart).findByLabelText('Granularità')).toHaveValue('day')
+    await waitFor(() => expect(Number(within(chart).getByTestId('echart-stub').getAttribute('data-goal'))).toBeCloseTo(150 / 7, 5))
+    const summary = within(chart).getByTestId('chart-summary')
+    expect(summary).toHaveTextContent('5 giorni su 9 sopra ~21 (riferimento indicativo, non un obiettivo)')
+    expect(summary).not.toHaveTextContent('obiettivo di 150')
+    expect(summary).not.toHaveTextContent('raggiunto')
+    expect(summary).toHaveTextContent('Oggi (parziale) non è conteggiato')
+    expect(within(chart).getByTestId('points-chart-note')).toHaveTextContent('solo un riferimento indicativo')
+    const user = userEvent.setup()
+    await user.click(within(chart).getByRole('button', { name: 'Mostra tabella' }))
+    expect(within(chart).getByRole('columnheader', { name: 'Sopra ~21' })).toBeInTheDocument()
+  })
+
+  it('the reference line label is generated from the backend values', async () => {
+    handlers['/api/v1/heart/points'] = () => ({
+      body: fx2.pointsSeriesDaily({ weekly_goal: 210, daily_reference: 30 }),
+    })
+    renderApp('/heart?r=7d')
+    const chart = await screen.findByTestId('chart-heartpoints')
+    await waitFor(() => expect(within(chart).getByTestId('echart-stub')).toHaveAttribute('data-goal', '30'))
+    expect(within(chart).getByTestId('echart-stub').getAttribute('data-goal-label')).toBe('Riferimento ~30/giorno (210/7)')
+  })
+
+  it('says so when the daily view was widened to weeks', async () => {
+    handlers['/api/v1/heart/points'] = () => ({ body: fx2.pointsSeries({ coarsened: true }) })
+    renderApp('/heart?r=30d')
+    const chart = await screen.findByTestId('chart-heartpoints')
+    await waitFor(() => expect(within(chart).getByTestId('chart-summary')).toHaveTextContent('Troppi giorni per il grafico: i dati sono aggregati per settimana'))
+    // the chart follows the bucket the server used: the weekly goal line, not the daily reference
+    expect(within(chart).getByTestId('echart-stub')).toHaveAttribute('data-goal', '150')
+  })
+
+  it('the day choice survives changing nothing else; the user can still pick another one', async () => {
+    renderApp('/heart?r=30d')
+    const user = userEvent.setup()
+    const chart = await screen.findByTestId('chart-heartpoints')
+    await user.selectOptions(await within(chart).findByLabelText('Granularità'), 'week')
+    expect(within(chart).getByLabelText('Granularità')).toHaveValue('week')
+    await waitFor(() =>
+      expect(urls.some((u) => u.pathname === '/api/v1/heart/points' && u.searchParams.get('bucket') === 'week')).toBe(true),
+    )
   })
 
   it('month view has no goal line', async () => {
@@ -564,6 +617,8 @@ describe('Heart Points', () => {
     expect(list).toHaveTextContent('nessuna esclusione degli allenamenti')
     expect(list).toHaveTextContent('Obiettivo settimanale: 150 punti')
     expect(list).toHaveTextContent('più lunghi di 60 minuti')
+    expect(list).toHaveTextContent('150/7 ≈ 21 punti al giorno')
+    expect(list).toHaveTextContent('non un obiettivo giornaliero')
   })
 
   it('the rules follow the backend values and the HRmax warning replaces the number', async () => {
@@ -592,7 +647,7 @@ describe('Heart Points', () => {
 
   it('shows an empty state when there are no points', async () => {
     handlers['/api/v1/heart/points'] = () => ({
-      body: fx2.pointsSeries({ points: [], summary: { total: 0, days: 0, buckets_complete: 0, weeks_over_goal: 0 } }),
+      body: fx2.pointsSeries({ points: [], summary: { total: 0, days: 0, buckets_complete: 0, weeks_over_goal: 0, days_over_reference: null } }),
     })
     renderApp('/heart')
     expect(await screen.findByText('Nessun punto cardio nell’intervallo')).toBeInTheDocument()

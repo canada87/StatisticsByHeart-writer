@@ -1,6 +1,6 @@
 [project]
 name = "statisticsbyheart-writer"
-version = "0.6.0"
+version = "0.6.1"
 description = "StatisticsByHeart writer: ingest API + storage for Health Connect data"
 requires-python = ">=3.12,<3.13"
 dependencies = [

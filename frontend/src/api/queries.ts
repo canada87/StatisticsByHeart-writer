@@ -167,7 +167,7 @@ export const storageQuery = () =>
   })
 
 /** Heart Points per week / month / year. */
-export const pointsSeriesQuery = (p: { from: string; to: string; bucket: 'week' | 'month' | 'year' }) =>
+export const pointsSeriesQuery = (p: { from: string; to: string; bucket: 'day' | 'week' | 'month' | 'year' }) =>
   queryOptions({
     queryKey: ['points-series', p],
     queryFn: () => api<PointsSeriesResponse>(withQuery('/api/v1/heart/points', { ...p })),

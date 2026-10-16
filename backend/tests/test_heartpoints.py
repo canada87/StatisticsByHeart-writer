@@ -449,7 +449,7 @@ async def test_weeks_over_the_goal_and_the_other_buckets(
 
 
 async def test_series_validation(web: httpx.AsyncClient) -> None:
-    assert (await web.get("/api/v1/heart/points?bucket=day")).status_code == 422
+    assert (await web.get("/api/v1/heart/points?bucket=hour")).status_code == 422
     r = await web.get("/api/v1/heart/points?from=2026-10-10&to=2026-10-01")
     assert r.status_code == 422 and r.json()["error"]["code"] == "invalid_range"
     empty = (await web.get("/api/v1/heart/points")).json()
@@ -586,3 +586,73 @@ async def test_the_seed_has_runs_fast_walks_and_weeks_above_and_below_the_goal(
     )
     assert any(hr_p >= 40 for hr_p, _ in rows_)
     assert any(cad >= 20 for _, cad in rows_)
+
+
+async def _seed_days(app: FastAPI, first: date, values: list[float]) -> None:
+    from app.models import DailyMetric
+
+    async with app.state.sessionmaker() as s:
+        for i, v in enumerate(values):
+            s.add(
+                DailyMetric(
+                    local_date=first + timedelta(days=i),
+                    type="HeartPoints",
+                    source="computed",
+                    sum_value=v,
+                    count=1,
+                    unit="points",
+                    detail={},
+                )
+            )
+        await s.commit()
+
+
+async def test_day_bucket_and_the_indicative_reference(
+    web: httpx.AsyncClient, app: FastAPI
+) -> None:
+    first = TODAY - timedelta(days=10)
+    # 21 sits just under 150/7 = 21.43, 22 just over
+    values = [0.0, 21.0, 22.0, 50.0, 21.0, 30.0, 22.0, 5.0, 100.0, 21.0]
+    await _seed_days(app, first, values)
+    last = TODAY - timedelta(days=1)
+    r = (await web.get(f"/api/v1/heart/points?from={first}&to={last}&bucket=day")).json()
+    assert r["bucket"] == "day" and r["coarsened"] is False
+    assert [p["v"] for p in r["points"]] == values and len(r["points"]) == 10
+    assert next(p["t"] for p in r["points"]) == first.isoformat()
+    assert r["daily_reference"] == pytest.approx(150 / 7)  # from WEEKLY_GOAL, not a typed number
+    assert r["weekly_goal"] == 150
+    assert all(p["complete"] for p in r["points"])
+    # 22, 50, 30, 22, 100 are at or above 21.43; 0, 21, 21, 5, 21 are not
+    assert r["summary"]["days_over_reference"] == 5 and r["summary"]["buckets_complete"] == 10
+    assert r["summary"]["weeks_over_goal"] is None and r["summary"]["total"] == sum(values)
+    # today is partial: never counted as a complete day
+    now = (await web.get(f"/api/v1/heart/points?from={last}&to={TODAY}&bucket=day")).json()
+    assert [p["complete"] for p in now["points"]] == [True, False]
+    # the other buckets carry no day reference
+    week = (await web.get(f"/api/v1/heart/points?from={first}&to={last}&bucket=week")).json()
+    assert week["summary"]["days_over_reference"] is None and week["coarsened"] is False
+    assert week["daily_reference"] == pytest.approx(150 / 7)
+
+
+async def test_day_bucket_widens_to_week_beyond_the_chart_point_limit(
+    web: httpx.AsyncClient,
+) -> None:
+    from app.services.queries import MAX_POINTS
+
+    last = TODAY
+    ok_first = last - timedelta(days=MAX_POINTS - 1)  # exactly MAX_POINTS days: still per day
+    ok = (await web.get(f"/api/v1/heart/points?from={ok_first}&to={last}&bucket=day")).json()
+    assert ok["bucket"] == "day" and ok["coarsened"] is False and len(ok["points"]) == MAX_POINTS
+    wide_first = last - timedelta(days=MAX_POINTS)  # one more: the bucket widens, and says so
+    wide = (await web.get(f"/api/v1/heart/points?from={wide_first}&to={last}&bucket=day")).json()
+    assert wide["bucket"] == "week" and wide["coarsened"] is True
+    assert len(wide["points"]) <= MAX_POINTS // 7 + 2
+    assert wide["summary"]["days_over_reference"] is None
+    # asking for a week never reports "coarsened"
+    asked = (await web.get(f"/api/v1/heart/points?from={wide_first}&to={last}&bucket=week")).json()
+    assert asked["bucket"] == "week" and asked["coarsened"] is False
+
+
+async def test_rules_include_the_daily_reference(web: httpx.AsyncClient) -> None:
+    body = (await web.get("/api/v1/heart/points/rules")).json()
+    assert body["daily_reference"] == pytest.approx(body["weekly_goal"] / 7)

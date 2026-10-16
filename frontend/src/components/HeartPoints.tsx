@@ -14,10 +14,15 @@ import { Ring } from './gauges'
 import { Panel } from './hud'
 import { Async, SkeletonLines, Skeleton } from './states'
 
-const BUCKETS = ['week', 'month', 'year'] as const
+const BUCKETS = ['day', 'week', 'month', 'year'] as const
 type PointsBucket = (typeof BUCKETS)[number]
 
 const monthFmt = new Intl.DateTimeFormat('it-IT', { timeZone: 'UTC', month: 'short', year: '2-digit' })
+
+/** 7 and 30 day windows read best per day; longer ones per week (the previous default). */
+export function defaultPointsBucket(days: number): PointsBucket {
+  return days <= 30 ? 'day' : 'week'
+}
 
 function bucketText(day: string, bucket: PointsBucket): string {
   if (bucket === 'year') return day.slice(0, 4)
@@ -94,7 +99,8 @@ export function HeartPointsWeekPanel({ day, index = 0 }: { day: string; index?: 
 
 // --------------------------------------------------------------------------- Cuore: bar chart
 
-function buildChart(d: PointsSeriesResponse, bucket: PointsBucket, reduced: boolean) {
+function buildChart(d: PointsSeriesResponse, reduced: boolean) {
+  const bucket: PointsBucket = d.bucket // what the server really used (it may have widened it)
   const p = palette()
   const label = t('points.title')
   const pts = d.points
@@ -103,6 +109,17 @@ function buildChart(d: PointsSeriesResponse, bucket: PointsBucket, reduced: bool
     [{ name: label, color: p.heart, kind: 'bar', data: pts.map((x) => x.v) }],
     { unit: t('points.unit'), showLegend: true, reducedMotion: reduced },
   ) as Record<string, unknown> & { series: Record<string, unknown>[] }
+  const ref = Math.round(d.daily_reference)
+  if (bucket === 'day') {
+    // an indicative reference (goal / 7), dashed and labelled: never presented as a goal
+    ;(option.series[0] as Record<string, unknown>).markLine = {
+      silent: true,
+      symbol: 'none',
+      lineStyle: { color: p.warn, type: 'dashed', width: 2 },
+      label: { color: p.warn, formatter: t('points.refLine', { ref: fmtNumber(ref), goal: fmtNumber(d.weekly_goal) }), position: 'insideEndTop' },
+      data: [{ yAxis: d.daily_reference }],
+    }
+  }
   if (bucket === 'week') {
     // the weekly goal as a dashed line with its own label (not just a colour)
     ;(option.series[0] as Record<string, unknown>).markLine = {
@@ -120,13 +137,20 @@ function buildChart(d: PointsSeriesResponse, bucket: PointsBucket, reduced: bool
     weekly && s.weeks_over_goal !== null && s.buckets_complete > 0
       ? t('points.summary.goal', { over: fmtNumber(s.weeks_over_goal), total: fmtNumber(s.buckets_complete), goal: fmtNumber(d.weekly_goal) })
       : '',
+    bucket === 'day' && s.days_over_reference !== null && s.buckets_complete > 0
+      ? t('points.summary.dayRef', { over: fmtNumber(s.days_over_reference), total: fmtNumber(s.buckets_complete), ref: fmtNumber(ref) })
+      : '',
     weekly && pts.some((x) => !x.complete) ? t('points.summary.partial') : '',
+    bucket === 'day' && pts.some((x) => !x.complete) ? t('points.summary.partialDay') : '',
+    d.coarsened ? t('points.summary.coarsened') : '',
     t('points.summary.prev', { total: fmtNumber(d.previous_summary.total) }),
     d.hr_configured ? '' : t('points.warn.noHrMax'),
   ]
+  const target = weekly ? d.weekly_goal : d.daily_reference
+  const hasTarget = weekly || bucket === 'day'
   const goalCell = (x: PointsSeriesResponse['points'][number]) =>
-    !weekly ? [] : [x.complete ? t(x.v >= d.weekly_goal ? 'points.col.yes' : 'points.col.no') : t('points.col.running')]
-  const columns = [t('chart.col.when'), `${label} (${t('points.unit')})`, ...(weekly ? [t('points.col.goal', { goal: fmtNumber(d.weekly_goal) })] : [])]
+    !hasTarget ? [] : [x.complete ? t(x.v >= target ? 'points.col.yes' : 'points.col.no') : t('points.col.running')]
+  const columns = [t('chart.col.when'), `${label} (${t('points.unit')})`, ...(weekly ? [t('points.col.goal', { goal: fmtNumber(d.weekly_goal) })] : bucket === 'day' ? [t('points.col.reference', { ref: fmtNumber(ref) })] : [])]
   const table: TableSpec = {
     caption: t('chart.tableCaption', { label, bucket: t(`points.bucket.${bucket}` as const) }),
     columns,
@@ -134,8 +158,8 @@ function buildChart(d: PointsSeriesResponse, bucket: PointsBucket, reduced: bool
   }
   const csv = {
     filename: csvName('punti_cardio', d.from, d.to, bucket),
-    columns: [t('chart.col.date'), `${label} (${t('points.unit')})`, t('points.col.days'), ...(weekly ? [t('points.col.goalReached')] : [])],
-    rows: pts.map((x) => [x.t, x.v, x.days, ...(weekly ? [x.complete ? (x.v >= d.weekly_goal ? 'si' : 'no') : 'in_corso'] : [])]),
+    columns: [t('chart.col.date'), `${label} (${t('points.unit')})`, t('points.col.days'), ...(weekly ? [t('points.col.goalReached')] : bucket === 'day' ? [t('points.col.refReached')] : [])],
+    rows: pts.map((x) => [x.t, x.v, x.days, ...(hasTarget ? [x.complete ? (x.v >= target ? 'si' : 'no') : 'in_corso'] : [])]),
   }
   return {
     option,
@@ -151,11 +175,12 @@ function buildChart(d: PointsSeriesResponse, bucket: PointsBucket, reduced: bool
 
 export function HeartPointsChart({ range }: { range: ResolvedRange }) {
   const reduced = useReducedMotion() ?? false
-  const [bucket, setBucket] = useState<PointsBucket>('week')
+  const [chosen, setChosen] = useState<PointsBucket | null>(null)
+  const bucket = chosen ?? defaultPointsBucket(range.days)
   const [cursor, setCursor] = useState<number | null>(null)
   const id = useId()
   const q = useQuery(pointsSeriesQuery({ from: range.from, to: range.to, bucket }))
-  const built = useMemo(() => (q.data ? buildChart(q.data, bucket, reduced) : null), [q.data, bucket, reduced])
+  const built = useMemo(() => (q.data ? buildChart(q.data, reduced) : null), [q.data, reduced])
   return (
     <Panel title={t('points.title')} icon={Lightning} accent="heart" testId="chart-heartpoints">
       <Async
@@ -183,7 +208,7 @@ export function HeartPointsChart({ range }: { range: ResolvedRange }) {
                     className="input w-auto"
                     value={bucket}
                     onChange={(e) => {
-                      setBucket(e.target.value as PointsBucket)
+                      setChosen(e.target.value as PointsBucket)
                       setCursor(null)
                     }}
                   >
@@ -276,6 +301,9 @@ function RulesBody({ r }: { r: PointsRules }) {
           {t('points.rules.met')}
         </li>
         <li data-rule="all">{t('points.rules.all')}</li>
+        <li data-rule="daily_reference">
+          {t('points.rules.dayRef', { goal: fmtNumber(r.weekly_goal), ref: fmtNumber(Math.round(r.daily_reference)) })}
+        </li>
         <li data-rule="goal">
           {t('points.rules.goal', { goal: fmtNumber(r.weekly_goal), tz: r.timezone.split('/').pop() ?? r.timezone })}
         </li>

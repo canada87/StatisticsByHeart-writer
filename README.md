@@ -23,7 +23,7 @@ design-system/   MASTER.md + override per pagina
 | Pagina | Cosa mostra |
 |---|---|
 | **Panoramica** | Card **Punti cardio · settimana** (anello verso 150: punti, quanti ne mancano e giorni rimasti), stato di oggi (passi, FC, sonno, calorie, SpO₂/HRV, attività recenti) e trend dell'intervallo scelto |
-| **Cuore** | **Punti cardio** (barre per settimana/mese/anno con la linea dell'obiettivo di 150 a settimana; regole visibili nel pannello «Regole dei Punti cardio»), FC (media giornaliera con banda min–max; con granularità oraria/15 min le **notti** sono fasce ombreggiate, con granularità giorno/settimana/mese due serie **diurna** e **notturna**), FC a riposo, HRV, SpO₂; KPI di FC media diurna e notturna con variazione |
+| **Cuore** | **Punti cardio** (barre per giorno/settimana/mese/anno: a 7G e 30G di default per giorno con una linea di riferimento indicativa a 150/7, per settimana con la linea dell'obiettivo di 150; regole visibili nel pannello «Regole dei Punti cardio»), FC (media giornaliera con banda min–max; con granularità oraria/15 min le **notti** sono fasce ombreggiate, con granularità giorno/settimana/mese due serie **diurna** e **notturna**), FC a riposo, HRV, SpO₂; KPI di FC media diurna e notturna con variazione |
 | **Sonno** | Durata per notte, stadi (barre impilate), orari di addormentamento/risveglio e regolarità |
 | **Attività** | Passi, distanza, calorie attive e totali, elenco allenamenti (kcal, FC media, segnali FC/GPS/avvio e verdetto) con filtro **Solo veri / Tutti** e correzione manuale, volume settimanale |
 | **Corpo** | Peso e pressione arteriosa (sistolica continua, diastolica tratteggiata; fasce solo indicative) |
@@ -106,8 +106,8 @@ L'immagine **non si builda sulla VM**: la costruisce GitHub Actions e Portainer 
 Per rilasciare (dal tuo PC):
 
 ```bash
-git tag v0.6.0
-git push origin main v0.6.0
+git tag v0.6.1
+git push origin main v0.6.1
 ```
 
 ### Una tantum: rendere pubblico il pacchetto
@@ -151,7 +151,7 @@ variables* (vedi `docker/.env.example`; puoi usare «Load variables from .env fi
 | Variabile | Valore |
 |---|---|
 | `SBH_DB_PASSWORD` | **obbligatoria**, es. output di `openssl rand -hex 24` |
-| `SBH_IMAGE_TAG` | `0.6.0` (la versione da usare) oppure `latest` |
+| `SBH_IMAGE_TAG` | `0.6.1` (la versione da usare) oppure `latest` |
 | `SBH_HTTP_PORT` | `8742` (o quella libera che hai scelto) |
 | `SBH_DATA_DIR` | cartella locale della VM che contiene `db/` (default nel compose) |
 | `SBH_BIRTH_YEAR` | opzionale ma consigliata: il tuo anno di nascita, per la FCmax dei Punti cardio (`220 − età`). **Valore personale: solo qui, mai nel repository** |
@@ -203,13 +203,16 @@ Verifica da un dispositivo sulla tailnet: `curl https://<il-tuo-dominio>/api/v1/
 
 ### Aggiornare e tornare indietro
 
-1. Rilascia un nuovo tag (`git tag v0.6.1 && git push origin v0.6.1`) e attendi che il workflow *Release* finisca.
+1. Rilascia un nuovo tag (`git tag v0.6.2 && git push origin v0.6.2`) e attendi che il workflow *Release* finisca.
 2. Prima di un upgrade con migrazioni: snapshot PBS (e dump, vedi sotto).
-3. In Portainer cambia `SBH_IMAGE_TAG=0.6.1` → **Update the stack** con *Re-pull image* attivo. Se usi `latest`:
+3. In Portainer cambia `SBH_IMAGE_TAG=0.6.2` → **Update the stack** con *Re-pull image* attivo. Se usi `latest`:
    *Update the stack* con **Pull latest image**.
-4. **Rollback**: rimetti il tag precedente (`SBH_IMAGE_TAG=0.5.3`) e aggiorna lo stack. Le migrazioni sono solo «in
+4. **Rollback**: rimetti il tag precedente (`SBH_IMAGE_TAG=0.6.0`) e aggiorna lo stack. Le migrazioni sono solo «in
    avanti»: se una migrazione va annullata ripristina lo snapshot PBS (o il dump) invece di fare `downgrade`.
 
+> **Aggiornamento alla 0.6.1: nessuna migrazione** (solo la granularità «Giorno» dei Punti cardio, con la linea di riferimento
+> 150/7 ≈ 21 punti al giorno, indicativa e non un obiettivo; nessun ricalcolo necessario).
+>
 > **Aggiornamento alla 0.6.0: nessuna migrazione** (i Punti cardio sono righe `daily_metric` calcolate). Passi dopo il deploy:
 >
 > 1. In Portainer aggiungi `SBH_BIRTH_YEAR` (e, se la conosci, `SBH_HR_MAX`) alle variabili dello stack: senza, i Punti

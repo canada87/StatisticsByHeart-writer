@@ -22,7 +22,7 @@ from app.scheduler import build_scheduler
 from app.services import maintenance
 from app.spa import install_spa
 
-VERSION = "0.6.0"
+VERSION = "0.6.1"
 
 
 class SecurityHeadersMiddleware:

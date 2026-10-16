@@ -226,6 +226,7 @@ export const pointsRules: PointsRules = {
   combine: 'max',
   met_used: false,
   weekly_goal: 150,
+  daily_reference: 150 / 7,
   week_starts: 'monday',
   timezone: 'Europe/Rome',
 }
@@ -252,6 +253,8 @@ export function pointsSeries(over: Partial<PointsSeriesResponse> = {}): PointsSe
     to: '2026-10-15',
     bucket: 'week',
     weekly_goal: 150,
+    daily_reference: 150 / 7,
+    coarsened: false,
     timezone: 'Europe/Rome',
     hr_configured: true,
     points: [
@@ -260,10 +263,28 @@ export function pointsSeries(over: Partial<PointsSeriesResponse> = {}): PointsSe
       { t: '2026-10-05', v: 175, days: 7, complete: true },
       { t: '2026-10-12', v: 96, days: 4, complete: false },
     ],
-    summary: { total: 551, days: 25, buckets_complete: 3, weeks_over_goal: 2 },
+    summary: { total: 551, days: 25, buckets_complete: 3, weeks_over_goal: 2, days_over_reference: null },
     previous_from: '2026-08-27',
     previous_to: '2026-09-20',
     previous_summary: { total: 400, days: 25 },
     ...over,
   }
+}
+
+/** Ten complete days (the last two partial) for the daily view. */
+export function pointsSeriesDaily(over: Partial<PointsSeriesResponse> = {}): PointsSeriesResponse {
+  const vals = [0, 21, 22, 50, 21, 30, 22, 5, 100, 12]
+  return pointsSeries({
+    bucket: 'day',
+    from: '2026-10-06',
+    to: '2026-10-15',
+    points: vals.map((v, i) => ({
+      t: `2026-10-${String(6 + i).padStart(2, '0')}`,
+      v,
+      days: 1,
+      complete: i < 9,
+    })),
+    summary: { total: vals.reduce((a, b) => a + b, 0), days: 10, buckets_complete: 9, weeks_over_goal: null, days_over_reference: 5 },
+    ...over,
+  })
 }

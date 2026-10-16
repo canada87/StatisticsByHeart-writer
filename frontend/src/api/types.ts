@@ -495,12 +495,22 @@ export interface PointsBucket {
 export interface PointsSeriesResponse {
   from: string
   to: string
-  bucket: 'week' | 'month' | 'year'
+  /** The bucket actually used: wider than asked when there were too many days. */
+  bucket: 'day' | 'week' | 'month' | 'year'
   weekly_goal: number
+  /** weekly_goal / 7: an indicative line, not a goal. */
+  daily_reference: number
+  coarsened: boolean
   timezone: string
   hr_configured: boolean
   points: PointsBucket[]
-  summary: { total: number; days: number; buckets_complete: number; weeks_over_goal: number | null }
+  summary: {
+    total: number
+    days: number
+    buckets_complete: number
+    weeks_over_goal: number | null
+    days_over_reference: number | null
+  }
   previous_from: string
   previous_to: string
   previous_summary: { total: number; days: number }
@@ -533,6 +543,7 @@ export interface PointsRules {
   combine: 'max'
   met_used: boolean
   weekly_goal: number
+  daily_reference: number
   week_starts: 'monday'
   timezone: string
 }
