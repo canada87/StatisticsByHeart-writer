@@ -1,6 +1,6 @@
 # StatisticsByHeart — Contratto API Reader → Writer
 
-**Versione contratto: `1.0.0`** · API: `/api/v1` · Stato: **CONGELATO** (2026-10-14)
+**Versione contratto: `1.1.0`** · API: `/api/v1` · Stato: **CONGELATO** (2026-10-14; 1.1.0 additiva, 2026-10-16)
 
 Questa è la **fonte di verità** per il Reader (app Android). Il file OpenAPI generato dal codice
 (`docs/openapi.json`) descrive gli stessi payload in forma macchina; in caso di discrepanza fa fede
@@ -64,8 +64,11 @@ Tutti gli errori (non‑2xx) hanno questa forma:
 
 - Ogni richiesta è **idempotente**: reinviare lo stesso batch (anche N volte) non crea duplicati né cambia i
   risultati oltre al contatore `unchanged`.
-- Chiave di upsert dei record: `(type, hc_id)`. Un record già presente viene **aggiornato solo se
-  `last_modified` in ingresso è maggiore** di quello salvato; altrimenti è `unchanged`.
+- Chiave di upsert dei record: `(type, hc_id)`. Un record già presente viene **aggiornato se
+  `last_modified` in ingresso è maggiore** di quello salvato **oppure è uguale ma `data` è diverso** (es. la
+  `route` GPS aggiunta a una sessione già inviata: il Reader può rimandare le sessioni passate con lo stesso
+  `last_modified`); se `last_modified` è uguale e `data` identico, o è minore, è `unchanged`. Un record
+  cancellato non viene mai riattivato da un reinvio con lo stesso `last_modified`.
 - Il Reader marca un batch come consegnato **solo dopo una risposta 2xx**.
 - **Ordine:** consegnare i batch in ordine FIFO (un record modificato e poi cancellato deve arrivare come
   `records` e poi `deletions`). Il writer è comunque robusto a riordini di `records` (via `last_modified`), ma una
@@ -326,7 +329,12 @@ Colonna *forma*: `interval` = valore cumulato su `[start,end]` (end obbligatorio
   `exercise_type_id`: intero HC grezzo.
 - `route` (opzionale, ≤50 000 punti): `{ "time", "lat" (−90..90), "lon" (−180..180), "alt_m?", "horizontal_accuracy_m?" }`.
   Il tipo separato `ExerciseRoute` della guida **non esiste**: la rotta viaggia dentro la sessione. Richiede il
-  consenso per sessione di HC; inviarla solo se concessa.
+  consenso per sessione di HC; inviarla solo se concessa. Una sessione con 50 000 punti pesa alcuni MiB di JSON:
+  rientra nei limiti della §1 (500 elementi e 32 MiB decompressi per richiesta; gzip consigliato), ma conviene
+  chiudere il batch a ~5 MiB e mandare le sessioni con rotta poche per volta.
+- `source.recording_method` conta per la dashboard: **`active` e `manual` = sessione avviata dall'utente**,
+  `automatic`/`unknown` = rilevata. Insieme alla copertura della frequenza cardiaca e alla presenza della `route`
+  decide quali sessioni sono «allenamenti veri» (ADR 0006). Inviare il valore corretto di `metadata.recordingMethod`.
 
 **`MindfulnessSession`** — `data = { "mindfulness_type?": str, "title?": str }`.
 
@@ -370,7 +378,9 @@ e **mai più**; il writer conserva solo l'hash SHA‑256. Un token revocato risp
 `/api/v1/auth/*`, `/api/v1/admin/*`, `/api/docs`, `/api/openapi.json` e le API della dashboard sono
 interne al writer e possono cambiare senza cambio di versione del contratto. Dalla 0.4.0 la dashboard
 usa anche `GET /api/v1/heart/daypart` (FC diurna/notturna, vedi ADR 0005): è un'estensione additiva
-della sola API dashboard e **non** modifica il contratto Reader → Writer (resta `1.0.0`).
+della sola API dashboard e **non** modifica il contratto Reader → Writer. Dalla 0.5.0 anche
+`PUT /api/v1/exercise/sessions/{id}/override` (verdetto manuale «allenamento vero»), `?scope=real` su
+`/exercise/sessions` e `?include_workouts` su `/heart/daypart` (ADR 0006).
 
 ---
 
@@ -378,4 +388,5 @@ della sola API dashboard e **non** modifica il contratto Reader → Writer (rest
 
 | Versione | Data | Modifica |
 |---|---|---|
+| **1.1.0** | 2026-10-16 | Additiva, nessun campo nuovo. Chiarito e implementato: un record con `last_modified` uguale ma `data` diverso viene **aggiornato** (rotta GPS aggiunta a sessioni passate) invece di essere `unchanged`; documentati i limiti di dimensione per le sessioni con `route` (≤50 000 punti, 32 MiB decompressi) e il significato di `recording_method` (`active`/`manual` = avviata dall'utente). Le API della dashboard aggiunte (`/heart/daypart`, override degli allenamenti) sono fuori contratto (§7). |
 | **1.0.0** | 2026-10-14 | Prima versione congelata. Differenze rispetto alla bozza di PROJECT_GUIDE §6: `device_id` e `sync_id` (UUID) obbligatori in **tutte** le richieste di ingest; `type` opzionale nelle deletions; risposta `records` con `inserted`/`updated` e `rejected[].index`; aggiunto `GET /health` pubblico; `ExerciseRoute` incorporato in `ExerciseSession.data.route`. |
