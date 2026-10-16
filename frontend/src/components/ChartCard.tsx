@@ -3,7 +3,7 @@ import { ChartLine, DownloadSimple, Table } from '@phosphor-icons/react'
 import type { UseQueryResult } from '@tanstack/react-query'
 import type { EChartsCoreOption } from 'echarts/core'
 import { useReducedMotion } from 'motion/react'
-import { type ReactNode, Suspense, lazy, useId, useMemo, useState } from 'react'
+import { type KeyboardEvent, type ReactNode, Suspense, lazy, useId, useMemo, useState } from 'react'
 import type { SeriesResponse } from '../api/types'
 import { t } from '../i18n'
 import { baseOption, bucketLabel, bucketLabelLong, describeSeries, palette } from '../lib/charts'
@@ -47,11 +47,39 @@ interface ChartFrameProps {
   note?: ReactNode
 }
 
-/** A chart is never alone: summary above, keyboard cursor, table alternative and CSV export below. */
+/** Arrow keys / Home / End move the cursor over the points, Escape clears it (PROJECT_GUIDE 8.5.3). */
+function onChartKey(e: KeyboardEvent<HTMLDivElement>, cursor: CursorSpec) {
+  if (cursor.count < 2) return
+  const last = cursor.count - 1
+  const i = cursor.index
+  let next: number | null | undefined
+  switch (e.key) {
+    case 'ArrowRight':
+      next = i === null ? 0 : Math.min(last, i + 1)
+      break
+    case 'ArrowLeft':
+      next = i === null ? last : Math.max(0, i - 1)
+      break
+    case 'Home':
+      next = 0
+      break
+    case 'End':
+      next = last
+      break
+    case 'Escape':
+      next = null
+      break
+  }
+  if (next === undefined) return
+  e.preventDefault()
+  cursor.onChange(next)
+}
+
+/** A chart is never alone: summary above, focusable chart with keyboard cursor, table alternative and CSV export below. */
 export function ChartFrame({ summary, option, height = 220, table, csv, controls, cursor, note }: ChartFrameProps) {
   const [showTable, setShowTable] = useState(false)
   const summaryId = useId()
-  const cursorId = useId()
+  const keysId = useId()
   return (
     <div className="flex flex-col gap-2">
       <p id={summaryId} className="text-sm text-fg-muted" data-testid="chart-summary">
@@ -86,36 +114,35 @@ export function ChartFrame({ summary, option, height = 220, table, csv, controls
         </div>
       ) : (
         <>
-          <Suspense fallback={<Skeleton className="w-full" label={t('state.loading')} />}>
-            <EChart
-              option={option}
-              height={height}
-              label={table.caption}
-              describedBy={summaryId}
-              activeIndex={cursor?.index ?? null}
-            />
-          </Suspense>
-          {cursor && cursor.count > 1 && (
-            <div className="flex flex-col gap-1 no-print">
-              <label htmlFor={cursorId} className="hud-label">
-                {t('chart.cursor')}
-              </label>
-              <input
-                id={cursorId}
-                type="range"
-                min={0}
-                max={cursor.count - 1}
-                step={1}
-                value={cursor.index ?? 0}
-                onChange={(e) => cursor.onChange(Number(e.target.value))}
-                onBlur={() => cursor.onChange(null)}
-                aria-valuetext={cursor.readout}
-                className="h-11 w-full accent-[var(--color-accent-glow)]"
+          <div
+            tabIndex={cursor && cursor.count > 1 ? 0 : undefined}
+            role={cursor && cursor.count > 1 ? 'group' : undefined}
+            aria-label={cursor && cursor.count > 1 ? table.caption : undefined}
+            aria-describedby={cursor && cursor.count > 1 ? `${summaryId} ${keysId}` : undefined}
+            aria-keyshortcuts={cursor && cursor.count > 1 ? 'ArrowLeft ArrowRight Home End Escape' : undefined}
+            onKeyDown={cursor ? (e) => onChartKey(e, cursor) : undefined}
+            onBlur={cursor && cursor.count > 1 ? () => cursor.onChange(null) : undefined}
+            data-testid="chart-focus"
+          >
+            <Suspense fallback={<Skeleton className="w-full" label={t('state.loading')} />}>
+              <EChart
+                option={option}
+                height={height}
+                label={table.caption}
+                describedBy={summaryId}
+                activeIndex={cursor?.index ?? null}
               />
-              <p aria-live="polite" className="min-h-5 text-sm" data-testid="chart-readout">
+            </Suspense>
+          </div>
+          {cursor && cursor.count > 1 && (
+            <>
+              <p id={keysId} className="sr-only">
+                {t('chart.keys')}
+              </p>
+              <p aria-live="polite" className="min-h-5 text-sm no-print" data-testid="chart-readout">
                 {cursor.index !== null ? cursor.readout : ''}
               </p>
-            </div>
+            </>
           )}
         </>
       )}
