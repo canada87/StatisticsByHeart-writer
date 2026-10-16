@@ -6,7 +6,14 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from app.services.workouts import HR_COVERAGE_MIN, NOT_REAL_TYPES, RECOVERY_AFTER_S
+from app.services.workouts import (
+    HR_COVERAGE_MIN,
+    MIN_DURATION,
+    NOT_REAL_TYPES,
+    RECOVERY_AFTER_S,
+    describe_rules,
+    evaluate_rules,
+)
 from tests.conftest import TODAY
 from tests.helpers import DEVICE, post, post_records, record
 
@@ -38,6 +45,7 @@ def _workout(
     hc: str = "w1",
     *,
     kind: str = "RUNNING",
+    end: str = END,
     method: str | None = None,
     route: bool = False,
     last_modified: str = "2026-10-14T20:00:00Z",
@@ -50,7 +58,7 @@ def _workout(
             {"time": f"{DAY}T18:01:00+02:00", "lat": 0.0002, "lon": 0.0003},
         ]
     return record(
-        "ExerciseSession", hc, START, END, data, method=method, last_modified=last_modified, pkg=pkg
+        "ExerciseSession", hc, START, end, data, method=method, last_modified=last_modified, pkg=pkg
     )
 
 
@@ -63,6 +71,7 @@ async def _session(web: httpx.AsyncClient, scope: str = "all") -> list[dict]:
 def test_the_thresholds_are_the_documented_ones() -> None:
     assert HR_COVERAGE_MIN == 0.5 and RECOVERY_AFTER_S == 30 * 60
     assert {"WALKING"} == NOT_REAL_TYPES  # the one place to refine the rule
+    assert MIN_DURATION.total_seconds() == 15 * 60
 
 
 # --------------------------------------------------------------------------- the rule
@@ -104,6 +113,78 @@ async def test_the_rule_is_the_exercise_type(
     assert s["started_by_user"] is (method in ("active", "manual"))
     assert s["hr_coverage"] == pytest.approx(1.0 if dense_hr else 0.1, abs=0.04)
     assert len(await _session(web, "real")) == (1 if real else 0)
+
+
+def test_evaluation_order_type_then_duration_then_real() -> None:
+    assert evaluate_rules("WALKING", 3600) == "type"
+    assert (
+        evaluate_rules("WALKING", 60) == "type"
+    )  # both apply: the first rule in the order is shown
+    assert evaluate_rules("RUNNING", 14 * 60 + 59) == "duration"
+    assert evaluate_rules("RUNNING", 15 * 60) == "ok"  # exactly the minimum is real
+    assert evaluate_rules("HIKING", 15 * 60 + 1) == "ok"
+
+
+@pytest.mark.parametrize(
+    ("end", "rule", "real"),
+    [
+        (f"{DAY}T18:10:00+02:00", "duration", False),  # a 10-minute run
+        (f"{DAY}T18:14:59+02:00", "duration", False),
+        (f"{DAY}T18:15:00+02:00", "ok", True),  # exactly 15 minutes
+        (f"{DAY}T18:30:00+02:00", "ok", True),
+    ],
+)
+async def test_minimum_duration(
+    web: httpx.AsyncClient,
+    client: httpx.AsyncClient,
+    auth: dict[str, str],
+    end: str,
+    rule: str,
+    real: bool,
+) -> None:
+    await post_records(client, auth, [_workout(end=end, method="active")])
+    (s,) = await _session(web)
+    assert (s["auto_rule"], s["auto_real"], s["is_real"]) == (rule, real, real)
+    assert s["min_duration_min"] == 15
+
+
+async def test_a_short_walk_is_reported_as_a_walk_first(
+    web: httpx.AsyncClient, client: httpx.AsyncClient, auth: dict[str, str]
+) -> None:
+    await post_records(client, auth, [_workout(kind="WALKING", end=f"{DAY}T18:05:00+02:00")])
+    (s,) = await _session(web)
+    assert s["auto_rule"] == "type"  # the first rule in the order, not the duration
+
+
+async def test_the_override_beats_the_minimum_duration(
+    web: httpx.AsyncClient, client: httpx.AsyncClient, auth: dict[str, str]
+) -> None:
+    await post_records(client, auth, [_workout(end=f"{DAY}T18:08:00+02:00")])
+    (s,) = await _session(web)
+    assert s["is_real"] is False
+    r = await web.put(
+        f"/api/v1/exercise/sessions/{s['id']}/override", json={"value": True}, headers=CSRF
+    )
+    assert r.json()["is_real"] is True
+    (s,) = await _session(web)
+    assert (s["auto_rule"], s["is_real"]) == ("duration", True)
+    assert len(await _session(web, "real")) == 1
+
+
+async def test_rules_endpoint_is_built_from_the_constants(web: httpx.AsyncClient) -> None:
+    r = await web.get("/api/v1/exercise/rules")
+    assert r.status_code == 200, r.text
+    assert r.json() == describe_rules()
+    rules = r.json()["rules"]
+    assert [x["id"] for x in rules] == ["override", "type", "duration", "default"]  # the order
+    assert rules[1]["params"] == {"types": sorted(NOT_REAL_TYPES)}
+    assert rules[2]["params"] == {"min_minutes": 15}
+    assert r.json()["daytime_hr"] == {"excludes": "real_workouts", "recovery_minutes": 30}
+    assert r.json()["signals"]["informative_only"] is True
+
+
+async def test_the_rules_endpoint_needs_a_session(client: httpx.AsyncClient) -> None:
+    assert (await client.get("/api/v1/exercise/rules")).status_code == 401
 
 
 async def test_signals_of_the_duplicate_copy_are_merged_but_do_not_decide(
@@ -305,6 +386,53 @@ async def test_daytime_heart_rate_excludes_a_real_workout_and_30_minutes_after(
     assert full["points"][0]["day_n"] == 66 and full["points"][0]["day"] > 120
 
 
+async def _post_run(client: httpx.AsyncClient, auth: dict[str, str], minutes: int) -> None:
+    samples = (
+        _minutes(DAY, 12, 0, 3, 70)
+        + _minutes(DAY, 18, 0, minutes, 150)  # the run
+        + _minutes(DAY, 18, minutes, 30, 120)  # the 30 minutes after it
+        + _minutes(DAY, 19, 30, 3, 72)
+    )
+    await post_records(
+        client,
+        auth,
+        [
+            _hr("h1", f"{DAY}T12:00:00+02:00", f"{DAY}T19:40:00+02:00", samples),
+            _workout(end=f"{DAY}T18:{minutes:02d}:00+02:00"),
+        ],
+    )
+
+
+async def test_a_run_under_15_minutes_is_not_real_and_not_excluded_from_the_daytime_hr(
+    web: httpx.AsyncClient, client: httpx.AsyncClient, auth: dict[str, str]
+) -> None:
+    await _post_run(client, auth, 10)
+    assert await _session(web, "real") == []
+    body = (await web.get(f"/api/v1/heart/daypart?from={DAY}&to={DAY}")).json()
+    assert body["workouts"] == []
+    assert body["points"][0]["day_n"] == 3 + 10 + 30 + 3  # every sample is daytime
+
+
+async def test_a_run_of_15_minutes_is_real_and_excluded_with_its_recovery(
+    web: httpx.AsyncClient, client: httpx.AsyncClient, auth: dict[str, str]
+) -> None:
+    await _post_run(client, auth, 15)
+    assert len(await _session(web, "real")) == 1
+    body = (await web.get(f"/api/v1/heart/daypart?from={DAY}&to={DAY}")).json()
+    assert len(body["workouts"]) == 1
+    assert body["points"][0]["day_n"] == 3 + 3  # run and the 30 minutes after are left out
+    report = (await web.get(f"/api/v1/report?from={DAY}&to={DAY}")).json()
+    assert report["workouts"]["count"] == 1
+
+
+async def test_a_short_run_is_left_out_of_the_report(
+    web: httpx.AsyncClient, client: httpx.AsyncClient, auth: dict[str, str]
+) -> None:
+    await _post_run(client, auth, 10)
+    report = (await web.get(f"/api/v1/report?from={DAY}&to={DAY}")).json()
+    assert report["workouts"]["count"] == 0 and report["workouts"]["excluded"] == 1
+
+
 async def test_walks_are_not_excluded_from_the_daytime_heart_rate(
     web: httpx.AsyncClient, client: httpx.AsyncClient, auth: dict[str, str]
 ) -> None:
@@ -374,10 +502,14 @@ async def test_the_seed_follows_the_rule(seeded: None, web: httpx.AsyncClient) -
     first = TODAY - timedelta(days=9)
     rows = (await web.get(f"/api/v1/exercise/sessions?from={first}&to={TODAY}")).json()["sessions"]
     walks = [s for s in rows if s["type"] == "WALKING"]
-    others = [s for s in rows if s["type"] != "WALKING"]
-    assert walks and others
-    assert all(not s["is_real"] for s in walks)  # detected AND started walks alike
+    short = [s for s in rows if s["type"] != "WALKING" and s["duration_s"] < 15 * 60]
+    others = [s for s in rows if s["type"] != "WALKING" and s["duration_s"] >= 15 * 60]
+    assert walks and short and others
+    assert all(not s["is_real"] and s["auto_rule"] == "type" for s in walks)
     assert any(s["started_by_user"] for s in walks) and any(not s["started_by_user"] for s in walks)
+    # a started, non-walking session under the minimum is still not real
+    assert all(not s["is_real"] and s["auto_rule"] == "duration" for s in short)
+    assert any(s["started_by_user"] for s in short)
     assert all(s["is_real"] for s in others)  # running / cycling / gym, with or without HR or GPS
     assert any(s["is_real"] and not s["has_hr"] for s in others)  # the gym session, watch off
     assert any(s["is_real"] and not s["has_route"] for s in others)

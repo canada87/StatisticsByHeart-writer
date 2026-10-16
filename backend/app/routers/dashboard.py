@@ -14,6 +14,7 @@ from app.dash_schemas import (
     DataBounds,
     DaypartResponse,
     ExerciseResponse,
+    ExerciseRules,
     InventoryResponse,
     OverrideBody,
     OverrideResult,
@@ -249,6 +250,16 @@ async def report_daily(
 ) -> ReportDailyResponse:
     first, last = _window(settings, from_, to, 7)
     return await analytics.report_daily(session, settings, first, last)
+
+
+@router.get(
+    "/exercise/rules",
+    response_model=ExerciseRules,
+    summary="The active rules that decide which sessions are real workouts (from the constants)",
+    responses=_AUTH,
+)
+async def exercise_rules(_: AdminAuth) -> dict[str, Any]:
+    return workouts.describe_rules()
 
 
 @router.put(

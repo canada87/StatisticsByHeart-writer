@@ -45,7 +45,7 @@ from app.services.queries import (
     bucket_start,
     unit_of,
 )
-from app.services.workouts import Classified, Workout, classify
+from app.services.workouts import MIN_DURATION, Classified, Workout, classify
 
 DASHBOARD_TYPES = [
     "Steps",
@@ -325,6 +325,8 @@ async def exercise_sessions(
                 recording_method=c.workout.recording_method,
                 started_by_user=c.user_started,
                 auto_real=c.auto_real,
+                auto_rule=c.auto_rule,
+                min_duration_min=int(MIN_DURATION.total_seconds() // 60),
                 override=c.override,
                 is_real=c.is_real,
             )

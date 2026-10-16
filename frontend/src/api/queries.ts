@@ -6,6 +6,7 @@ import type {
   DataBounds,
   DaypartResponse,
   ExerciseResponse,
+  ExerciseRules,
   InventoryResponse,
   OverrideResult,
   ReconciliationResponse,
@@ -108,6 +109,14 @@ export const exerciseQuery = (w: Window, scope: 'all' | 'real' = 'all') =>
   queryOptions({
     queryKey: ['exercise', w, scope],
     queryFn: () => api<ExerciseResponse>(withQuery('/api/v1/exercise/sessions', { ...w, scope })),
+  })
+
+/** The rules that decide which sessions are real workouts (text is built from these values). */
+export const exerciseRulesQuery = () =>
+  queryOptions({
+    queryKey: ['exercise-rules'],
+    queryFn: () => api<ExerciseRules>('/api/v1/exercise/rules'),
+    staleTime: 10 * 60_000,
   })
 
 /** Manual verdict for a session: true / false, or null = back to the automatic rule. */

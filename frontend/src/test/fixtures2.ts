@@ -1,6 +1,7 @@
 import type {
   DaypartResponse,
   ExerciseResponse,
+  ExerciseRules,
   PeriodStats,
   ReportMetric,
   ReportResponse,
@@ -121,8 +122,8 @@ export const exercise: ExerciseResponse = {
   total_count: 3,
   real_count: 2,
   sessions: [
-    { id: 1, type: 'RUNNING', title: 'Easy run', start: '2026-10-14T16:00:00Z', end: '2026-10-14T16:35:00Z', duration_s: 2100, kcal: 310, avg_hr: 148, source_package: 'synthetic.watch', has_route: true, hr_coverage: 0.95, has_hr: true, recording_method: 'active', started_by_user: true, auto_real: true, override: null, is_real: true },
-    { id: 2, type: 'WALKING', title: null, start: '2026-10-12T16:00:00Z', end: '2026-10-12T16:30:00Z', duration_s: 1800, kcal: null, avg_hr: null, source_package: 'synthetic.watch', has_route: false, hr_coverage: 0.1, has_hr: false, recording_method: 'automatic', started_by_user: false, auto_real: false, override: true, is_real: true },
+    { id: 1, type: 'RUNNING', title: 'Easy run', start: '2026-10-14T16:00:00Z', end: '2026-10-14T16:35:00Z', duration_s: 2100, kcal: 310, avg_hr: 148, source_package: 'synthetic.watch', has_route: true, hr_coverage: 0.95, has_hr: true, recording_method: 'active', started_by_user: true, auto_real: true, auto_rule: 'ok', min_duration_min: 15, override: null, is_real: true },
+    { id: 2, type: 'WALKING', title: null, start: '2026-10-12T16:00:00Z', end: '2026-10-12T16:30:00Z', duration_s: 1800, kcal: null, avg_hr: null, source_package: 'synthetic.watch', has_route: false, hr_coverage: 0.1, has_hr: false, recording_method: 'automatic', started_by_user: false, auto_real: false, auto_rule: 'type', min_duration_min: 15, override: true, is_real: true },
   ],
   weekly: [
     { week_start: '2026-10-05', count: 1, duration_s: 1800, kcal: 0 },
@@ -169,4 +170,15 @@ export function daypart(over: Partial<DaypartResponse> = {}): DaypartResponse {
     },
     ...over,
   }
+}
+
+export const exerciseRules: ExerciseRules = {
+  rules: [
+    { id: 'override', params: {} },
+    { id: 'type', params: { types: ['WALKING'] } },
+    { id: 'duration', params: { min_minutes: 15 } },
+    { id: 'default', params: {} },
+  ],
+  daytime_hr: { excludes: 'real_workouts', recovery_minutes: 30 },
+  signals: { hr_min_share: 0.5, user_started_methods: ['active', 'manual'], informative_only: true },
 }

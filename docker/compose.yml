@@ -41,7 +41,7 @@ services:
     mem_limit: 384m
 
   sbh-api:
-    image: ghcr.io/canada87/statisticsbyheart-writer:${SBH_IMAGE_TAG:-0.5.1}
+    image: ghcr.io/canada87/statisticsbyheart-writer:${SBH_IMAGE_TAG:-0.5.2}
     restart: unless-stopped
     depends_on:
       sbh-db:

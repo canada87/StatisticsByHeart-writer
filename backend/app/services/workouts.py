@@ -1,7 +1,12 @@
 """Which exercise sessions are "real workouts" (ADR 0006). Read-only except the override.
 
-A real workout is any session whose exercise type is not in ``NOT_REAL_TYPES`` (today: walking).
-The user can overrule the rule per session. Heart-rate coverage, GPS and who started the session
+Rules, in this order (the first one that applies decides):
+  1. the user's manual verdict (override) always wins;
+  2. exercise type in ``NOT_REAL_TYPES`` (today: walking) -> not real;
+  3. shorter than ``MIN_DURATION`` (15 minutes, whatever the type) -> not real;
+  4. otherwise -> real.
+``describe_rules()`` turns these same constants into what the dashboard shows on the "Rules" panel,
+so the text and the code cannot drift apart. Heart-rate coverage, GPS and who started the session
 are still computed, but only as information (badges): Google derives GPS even for activities the
 user never started, so they do not tell workouts apart (ADR 0006). Records are never loaded with
 their ``data``: a GPS route can be 50 000 points, so only the flags we need are selected.
@@ -13,6 +18,7 @@ from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
+from typing import Any, Literal
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -26,6 +32,9 @@ from app.services.daily import Coverage, rank_sources
 NOT_REAL_TYPES = frozenset({"WALKING"})
 """Exercise types that are NOT real workouts. Everything else (running, cycling, hiking...) is."""
 
+MIN_DURATION = timedelta(minutes=15)
+"""A session shorter than this is not real, whatever its type (exactly this long is real)."""
+
 # --- information shown next to each session (not part of the rule) --------------------------
 HR_COVERAGE_MIN = 0.5
 """Share of the session minutes with a heart-rate sample: the "heart rate present" badge."""
@@ -38,6 +47,40 @@ RECOVERY_AFTER_S = 30 * 60
 
 DUPLICATE_OVERLAP = 0.5
 """Two sessions overlapping more than this are the same workout logged by two apps."""
+
+
+Rule = Literal["type", "duration", "ok"]
+"""Which rule decided the automatic verdict ("ok" = no exclusion rule applied -> real)."""
+
+
+def evaluate_rules(exercise_type: str, duration_s: float) -> Rule:
+    """The automatic verdict, in order: excluded type, then too short, else real."""
+    if exercise_type in NOT_REAL_TYPES:
+        return "type"
+    if duration_s < MIN_DURATION.total_seconds():
+        return "duration"
+    return "ok"
+
+
+def describe_rules() -> dict[str, Any]:
+    """The active rules in evaluation order, built from the constants the classifier uses."""
+    return {
+        "rules": [
+            {"id": "override", "params": {}},
+            {"id": "type", "params": {"types": sorted(NOT_REAL_TYPES)}},
+            {"id": "duration", "params": {"min_minutes": int(MIN_DURATION.total_seconds() // 60)}},
+            {"id": "default", "params": {}},
+        ],
+        "daytime_hr": {
+            "excludes": "real_workouts",
+            "recovery_minutes": RECOVERY_AFTER_S // 60,
+        },
+        "signals": {
+            "hr_min_share": HR_COVERAGE_MIN,
+            "user_started_methods": sorted(USER_STARTED_METHODS),
+            "informative_only": True,
+        },
+    }
 
 
 @dataclass(frozen=True)
@@ -76,8 +119,12 @@ class Classified:
         return self.hr_coverage is not None and self.hr_coverage >= HR_COVERAGE_MIN
 
     @property
+    def auto_rule(self) -> Rule:
+        return evaluate_rules(self.workout.exercise_type, self.workout.duration_s)
+
+    @property
     def auto_real(self) -> bool:
-        return self.workout.exercise_type not in NOT_REAL_TYPES
+        return self.auto_rule == "ok"
 
     @property
     def is_real(self) -> bool:

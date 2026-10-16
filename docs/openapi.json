@@ -489,6 +489,25 @@
         "title": "DaypartSummary",
         "type": "object"
       },
+      "DaytimeHrRule": {
+        "properties": {
+          "excludes": {
+            "const": "real_workouts",
+            "title": "Excludes",
+            "type": "string"
+          },
+          "recovery_minutes": {
+            "title": "Recovery Minutes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "excludes",
+          "recovery_minutes"
+        ],
+        "title": "DaytimeHrRule",
+        "type": "object"
+      },
       "DeletionItem": {
         "additionalProperties": false,
         "properties": {
@@ -866,9 +885,20 @@
         "properties": {
           "auto_real": {
             "default": false,
-            "description": "Verdict of the rule alone",
+            "description": "Verdict of the rules alone",
             "title": "Auto Real",
             "type": "boolean"
+          },
+          "auto_rule": {
+            "default": "ok",
+            "description": "Rule that decided the automatic verdict: excluded type, too short, or none",
+            "enum": [
+              "type",
+              "duration",
+              "ok"
+            ],
+            "title": "Auto Rule",
+            "type": "string"
           },
           "avg_hr": {
             "anyOf": [
@@ -935,6 +965,12 @@
             "description": "Active kcal during the session, de-duplicated",
             "title": "Kcal"
           },
+          "min_duration_min": {
+            "default": 15,
+            "description": "Minimum duration (minutes) below which a session is not real",
+            "title": "Min Duration Min",
+            "type": "integer"
+          },
           "override": {
             "anyOf": [
               {
@@ -996,6 +1032,31 @@
           "has_route"
         ],
         "title": "ExerciseRow",
+        "type": "object"
+      },
+      "ExerciseRules": {
+        "properties": {
+          "daytime_hr": {
+            "$ref": "#/components/schemas/DaytimeHrRule"
+          },
+          "rules": {
+            "description": "Classification rules in evaluation order",
+            "items": {
+              "$ref": "#/components/schemas/RuleItem"
+            },
+            "title": "Rules",
+            "type": "array"
+          },
+          "signals": {
+            "$ref": "#/components/schemas/SignalsInfo"
+          }
+        },
+        "required": [
+          "rules",
+          "daytime_hr",
+          "signals"
+        ],
+        "title": "ExerciseRules",
         "type": "object"
       },
       "ExerciseStats": {
@@ -2409,6 +2470,32 @@
         "title": "ReportWorkouts",
         "type": "object"
       },
+      "RuleItem": {
+        "properties": {
+          "id": {
+            "enum": [
+              "override",
+              "type",
+              "duration",
+              "default"
+            ],
+            "title": "Id",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": true,
+            "description": "Values of the rule: types, min_minutes...",
+            "title": "Params",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "params"
+        ],
+        "title": "RuleItem",
+        "type": "object"
+      },
       "SeriesPoint": {
         "properties": {
           "hi": {
@@ -2753,6 +2840,32 @@
           "expires_at"
         ],
         "title": "SessionInfo",
+        "type": "object"
+      },
+      "SignalsInfo": {
+        "properties": {
+          "hr_min_share": {
+            "title": "Hr Min Share",
+            "type": "number"
+          },
+          "informative_only": {
+            "title": "Informative Only",
+            "type": "boolean"
+          },
+          "user_started_methods": {
+            "items": {
+              "type": "string"
+            },
+            "title": "User Started Methods",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hr_min_share",
+          "user_started_methods",
+          "informative_only"
+        ],
+        "title": "SignalsInfo",
         "type": "object"
       },
       "SleepNight": {
@@ -4085,7 +4198,7 @@
   "info": {
     "description": "Ingest API (contract v1: docs/api-contract.md) and admin endpoints.",
     "title": "StatisticsByHeart Writer",
-    "version": "0.5.1"
+    "version": "0.5.2"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -4586,6 +4699,37 @@
           }
         },
         "summary": "Official Health Connect daily totals vs totals computed from raw records",
+        "tags": [
+          "dashboard"
+        ]
+      }
+    },
+    "/api/v1/exercise/rules": {
+      "get": {
+        "operationId": "exercise_rules_api_v1_exercise_rules_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExerciseRules"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          }
+        },
+        "summary": "The active rules that decide which sessions are real workouts (from the constants)",
         "tags": [
           "dashboard"
         ]

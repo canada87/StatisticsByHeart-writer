@@ -3,6 +3,7 @@ import {
   Clock,
   DownloadSimple,
   Heartbeat,
+  ListChecks,
   MapPin,
   Moon,
   PersonSimpleRun,
@@ -13,8 +14,8 @@ import {
 import * as ToggleGroup from '@radix-ui/react-toggle-group'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useReducedMotion } from 'motion/react'
-import { useMemo, useState } from 'react'
-import { exerciseQuery, setWorkoutOverride, sleepNightsQuery } from '../api/queries'
+import { type MouseEvent, useMemo, useState } from 'react'
+import { exerciseQuery, exerciseRulesQuery, setWorkoutOverride, sleepNightsQuery } from '../api/queries'
 import type { ExerciseResponse, ExerciseRow, SleepNight } from '../api/types'
 import { type MessageKey, t } from '../i18n'
 import { baseOption, palette } from '../lib/charts'
@@ -290,12 +291,22 @@ export function Signals({ s }: { s: ExerciseRow }) {
   )
 }
 
+/** The rule that decided the automatic verdict, with the values the backend used. */
+export function autoReason(s: ExerciseRow): string {
+  if (s.auto_rule === 'type') return t('workouts.reason.type', { type: activityLabel(s.type) })
+  if (s.auto_rule === 'duration') {
+    return t('workouts.reason.duration', {
+      min: fmtNumber(Math.floor(s.duration_s / 60)),
+      limit: fmtNumber(s.min_duration_min),
+    })
+  }
+  return t('workouts.reason.ok')
+}
+
 export function Verdict({ s }: { s: ExerciseRow }) {
-  // why: the rule is the activity type (walking is not a workout); a manual verdict overrules it
+  // why: the rule that decided; a manual verdict overrules it and says what the rule would say
   const reason =
-    s.override !== null
-      ? t('workouts.reason.manual', { auto: t(s.auto_real ? 'workouts.reason.autoReal' : 'workouts.reason.autoNotReal') })
-      : t(s.auto_real ? 'workouts.reason.real' : 'workouts.reason.notReal')
+    s.override !== null ? t('workouts.reason.manual', { auto: autoReason(s) }) : autoReason(s)
   return (
     <span className="flex flex-col" data-testid="verdict" data-real={s.is_real}>
       <span className="inline-flex items-center gap-1 text-sm">
@@ -343,6 +354,55 @@ function OverrideSelect({ s }: { s: ExerciseRow }) {
         </span>
       )}
     </span>
+  )
+}
+
+function goToRules(e: MouseEvent<HTMLAnchorElement>) {
+  e.preventDefault()
+  const panel = document.getElementById('workout-rules')
+  panel?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  panel?.focus({ preventScroll: true })
+}
+
+/** Panel "Regole degli allenamenti": text from i18n, values from GET /exercise/rules. */
+export function WorkoutRulesPanel() {
+  const q = useQuery(exerciseRulesQuery())
+  return (
+    <section
+      id="workout-rules"
+      tabIndex={-1}
+      className="hud-panel flex min-w-0 flex-col gap-3 outline-none xl:col-span-2"
+      aria-labelledby="workout-rules-title"
+      data-testid="workout-rules"
+    >
+      <h2 id="workout-rules-title" className="hud-label flex items-center gap-2">
+        <ListChecks size={18} aria-hidden />
+        {t('workouts.rules.title')}
+      </h2>
+      <Async query={q} skeleton={<Skeleton className="h-24 w-full" />}>
+        {(d) => (
+          <div className="flex flex-col gap-2 text-sm">
+            <p className="text-fg-muted">{t('workouts.rules.intro')}</p>
+            <ol className="list-decimal space-y-1 pl-5" data-testid="rules-list">
+              {d.rules.map((r) => (
+                <li key={r.id} data-rule={r.id}>
+                  {r.id === 'override' && t('workouts.rules.override')}
+                  {r.id === 'type' &&
+                    t('workouts.rules.type', { types: r.params.types.map((x) => activityLabel(x).toLowerCase()).join(', ') })}
+                  {r.id === 'duration' && t('workouts.rules.duration', { min: fmtNumber(r.params.min_minutes) })}
+                  {r.id === 'default' && t('workouts.rules.default')}
+                </li>
+              ))}
+            </ol>
+            <p data-testid="rules-daytime-hr">{t('workouts.rules.daytimeHr', { min: fmtNumber(d.daytime_hr.recovery_minutes) })}</p>
+            <p className="text-fg-muted">{t('workouts.rules.signals', { pct: fmtNumber(Math.round(d.signals.hr_min_share * 100)) })}</p>
+            <p className="text-fg-muted" data-testid="rules-gps-note">
+              {t('workouts.rules.gpsNote')}
+            </p>
+          </div>
+        )}
+      </Async>
+    </section>
   )
 }
 
@@ -408,7 +468,12 @@ export function WorkoutsTable({ sessions, from, to }: { sessions: ExerciseRow[];
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-fg-muted">{t('workouts.rule')}</p>
+      <p className="text-xs text-fg-muted">
+        {t('workouts.rule')}{' '}
+        <a href="#workout-rules" className="underline" onClick={goToRules} data-testid="rules-link">
+          {t('workouts.rules.link')}
+        </a>
+      </p>
       <div className="no-print">
         <button type="button" className="btn min-h-11 text-xs" onClick={csv}>
           <DownloadSimple size={16} aria-hidden />
@@ -470,6 +535,7 @@ export function WorkoutsSection({ range }: { range: ResolvedRange }) {
           </Async>
         </div>
       </Panel>
+      <WorkoutRulesPanel />
     </div>
   )
 }

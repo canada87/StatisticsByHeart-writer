@@ -12,11 +12,15 @@ sessioni passate.
 
 ## Decisioni
 
-1. **Regola (0.5.1): un allenamento è vero se il tipo di attività non è una camminata.** Camminata = `exercise_type`
-   `WALKING`; tutto il resto (corsa, ciclismo, **escursionismo/HIKING**, forza, qualunque altro tipo) è vero. La regola
-   vive in un posto solo, l'insieme **`NOT_REAL_TYPES = {"WALKING"}`** in `services/workouts.py`: raffinarla è una
-   modifica di una riga (più il testo «camminata → non vero» nell'interfaccia). Copertura FC, GPS e `recording_method`
-   **non** fanno più parte della regola.
+1. **Regole (0.5.2), nell'ordine: la prima che si applica decide.**
+   1. il **verdetto manuale** dell'utente vince sempre;
+   2. `exercise_type` in **`NOT_REAL_TYPES = {"WALKING"}`** (camminata) → **non vero**;
+   3. durata (`end - start`) **minore di `MIN_DURATION` = 15 minuti** → **non vero**, qualunque sia il tipo; esattamente
+      15 minuti vale **vero**;
+   4. altrimenti → **vero** (corsa, ciclismo, **escursionismo/HIKING**, forza, qualunque altro tipo).
+   Una camminata di 5 minuti è «camminata → non vero» (la prima regola nell'ordine è quella mostrata). Copertura FC, GPS
+   e `recording_method` **non** fanno parte della regola. Le due costanti stanno nello stesso punto,
+   `services/workouts.py`: raffinare la regola è una modifica di quelle righe (nessuna configurazione via env).
 2. **Segnali solo informativi.** FC (quota di minuti con almeno un campione ≥ `HR_COVERAGE_MIN = 0.5`), GPS e «avviata da
    te» (`USER_STARTED_METHODS = {active, manual}`) restano calcolati e mostrati come badge accanto a ogni sessione, uniti
    tra le copie duplicate, ma non decidono il verdetto. Telefono e orologio registrano la stessa sessione: la copia
@@ -48,16 +52,32 @@ sessioni passate.
    arrivano, la regola «FC + avvio da te» basta da sola. Una richiesta con una sessione da 50 000 punti in gzip è coperta da test; oltre 32 MiB
    decompressi il writer risponde `413 body_too_large`.
 
+## Pannello «Regole degli allenamenti» e motivo del verdetto
+
+`GET /api/v1/exercise/rules` (autenticato) restituisce le regole **generate dalle stesse costanti** usate dalla
+classificazione (`describe_rules()`): l'elenco ordinato con i parametri (tipi esclusi, durata minima), l'esclusione dalla
+FC diurna (allenamenti veri + 30 minuti) e la natura informativa dei segnali. La pagina Attività mostra un pannello con
+questo elenco (il testo sotto l'elenco delle sessioni vi rimanda con un link): le frasi sono chiavi i18n parametrizzate
+con i valori del backend, quindi **nessun tipo o numero è scritto nella pagina**. Accanto a ogni verdetto, il motivo
+nomina la regola che ha deciso con i suoi valori («Camminata → non vero», «dura 12 min (< 15) → non vero», «nessuna
+regola di esclusione → vero») e, se c'è un override, cosa direbbe la regola. Le sessioni espongono `auto_rule`
+(`type`|`duration`|`ok`) e `min_duration_min`. Il pannello sta solo nella pagina Attività (una sola fonte).
+
 ## Cronologia della regola
 
 - **0.5.0:** FC presente (≥50% dei minuti) **E** (GPS **O** avviata da te). Provata in produzione con dati reali: **non
   funziona**, perché Google ricava la traccia GPS anche per attività che l'utente non ha avviato, quindi il GPS non
   distingue nulla (verificato dall'utente sui dati reali).
-- **0.5.1:** regola semplificata: *non camminata → vero*. L'utente la raffinerà più avanti. Nessuna migrazione: la
-  tabella `exercise_override` e i verdetti già salvati restano validi e vincono ancora sulla regola.
+- **0.5.1:** regola semplificata: *non camminata → vero*.
+- **0.5.2:** aggiunta la **durata minima** (15 minuti) e il pannello delle regole. Nessuna migrazione: la tabella
+  `exercise_override` e i verdetti salvati restano validi.
+- **Nota sui dati reali:** in Health Connect **nessuna app scrive la `route`** (su 2035 sessioni: 0 con traccia; Withings ne
+  scrive ~1969, Fit 58). Il badge GPS resta quindi «no» finché non c'è un'altra fonte; si tiene, solo informativo, e i testi
+  lo dicono.
 
 ## Limiti noti
 
+- **Una soglia secca:** un allenamento vero di 14 minuti non conta (e si corregge a mano); 15 sì.
 - **Una camminata vera** (una lunga camminata sportiva) non è un allenamento vero finché non la si corregge col
   verdetto manuale; viceversa **un'attività rilevata da sola di un altro tipo** (qualche minuto di «ciclismo» in
   macchina o in treno) risulta vera e dopo va corretta a mano. Senza FC, GPS o avvio la regola non può accorgersene.

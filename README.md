@@ -106,8 +106,8 @@ L'immagine **non si builda sulla VM**: la costruisce GitHub Actions e Portainer 
 Per rilasciare (dal tuo PC):
 
 ```bash
-git tag v0.5.1
-git push origin main v0.5.1
+git tag v0.5.2
+git push origin main v0.5.2
 ```
 
 ### Una tantum: rendere pubblico il pacchetto
@@ -151,7 +151,7 @@ variables* (vedi `docker/.env.example`; puoi usare «Load variables from .env fi
 | Variabile | Valore |
 |---|---|
 | `SBH_DB_PASSWORD` | **obbligatoria**, es. output di `openssl rand -hex 24` |
-| `SBH_IMAGE_TAG` | `0.5.1` (la versione da usare) oppure `latest` |
+| `SBH_IMAGE_TAG` | `0.5.2` (la versione da usare) oppure `latest` |
 | `SBH_HTTP_PORT` | `8742` (o quella libera che hai scelto) |
 | `SBH_DATA_DIR` | cartella locale della VM che contiene `db/` (default nel compose) |
 | `SBH_SOURCE_PRIORITY` | opzionale: pacchetti Android in ordine di fiducia (i nomi esatti li mostra la pagina *Sync / Dati → Inventario*) |
@@ -201,13 +201,16 @@ Verifica da un dispositivo sulla tailnet: `curl https://<il-tuo-dominio>/api/v1/
 
 ### Aggiornare e tornare indietro
 
-1. Rilascia un nuovo tag (`git tag v0.5.2 && git push origin v0.5.2`) e attendi che il workflow *Release* finisca.
+1. Rilascia un nuovo tag (`git tag v0.5.3 && git push origin v0.5.3`) e attendi che il workflow *Release* finisca.
 2. Prima di un upgrade con migrazioni: snapshot PBS (e dump, vedi sotto).
-3. In Portainer cambia `SBH_IMAGE_TAG=0.5.2` → **Update the stack** con *Re-pull image* attivo. Se usi `latest`:
+3. In Portainer cambia `SBH_IMAGE_TAG=0.5.3` → **Update the stack** con *Re-pull image* attivo. Se usi `latest`:
    *Update the stack* con **Pull latest image**.
-4. **Rollback**: rimetti il tag precedente (`SBH_IMAGE_TAG=0.5.0`) e aggiorna lo stack. Le migrazioni sono solo «in
+4. **Rollback**: rimetti il tag precedente (`SBH_IMAGE_TAG=0.5.1`) e aggiorna lo stack. Le migrazioni sono solo «in
    avanti»: se una migrazione va annullata ripristina lo snapshot PBS (o il dump) invece di fare `downgrade`.
 
+> **Aggiornamento alla 0.5.2: nessuna migrazione** (aggiunge la durata minima di 15 minuti agli allenamenti veri e il
+> pannello «Regole degli allenamenti» nella pagina Attività; i verdetti manuali già salvati restano validi).
+>
 > **Aggiornamento alla 0.5.1: nessuna migrazione** (la regola «allenamento vero» diventa «non camminata», la tabella
 > `exercise_override` e i verdetti già salvati restano validi). Se arrivi da una versione prima della 0.5.0 vale la nota
 > seguente.
@@ -244,7 +247,7 @@ come hash; password Argon2id; cookie `HttpOnly; Secure; SameSite=Lax` + header a
 nessun valore sanitario nei log o negli errori; DB solo su rete interna; container non-root con filesystem in sola
 lettura. Esposizione prevista: solo LAN + Tailscale, mai Internet pubblico. Dettagli in
 [`docs/adr/0003-auth-sessions-and-operations.md`](docs/adr/0003-auth-sessions-and-operations.md).
-Che cosa conta come **allenamento vero** (tutto tranne le camminate, verdetto manuale, FC diurna senza allenamenti) è in
+Che cosa conta come **allenamento vero** (tipo diverso da camminata e durata di almeno 15 minuti, verdetto manuale, FC diurna senza allenamenti) è in
 [`docs/adr/0006-real-workouts.md`](docs/adr/0006-real-workouts.md). La definizione di FC diurna/notturna è in [`docs/adr/0005-heart-rate-day-night.md`](docs/adr/0005-heart-rate-day-night.md).
 
 > **Repo pubblico:** nei file versionati non ci sono più IP, domini o segreti personali, ma restano nella

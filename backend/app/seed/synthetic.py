@@ -232,6 +232,20 @@ class _Builder:
         start = self.at(day, 18, rng.randint(0, 30))
         return start, rng.randint(*spec[3]), spec
 
+    def short_session(self, day: date, index: int) -> None:
+        """A 10-minute ride the user started: shorter than the minimum, so not a real workout."""
+        if index % 4 != 3:
+            return
+        start = self.at(day, 8, 5)
+        self.add(
+            "ExerciseSession",
+            WATCH,
+            start,
+            start + timedelta(minutes=10),
+            {"exercise_type": "BIKING", "exercise_type_id": 8, "title": "Short ride"},
+            method="active",
+        )
+
     def automatic_walk(self, day: date, index: int) -> None:
         """A short walk the watch detected by itself (recording_method automatic, sparse HR)."""
         if index % 3 != 1:
@@ -355,6 +369,7 @@ def generate(cfg: SeedConfig | None = None) -> SyntheticData:
         builder.weight(day, index)
         builder.workout(day, index)
         builder.automatic_walk(day, index)
+        builder.short_session(day, index)
         builder.blood_pressure(day, index)
     return SyntheticData(builder.records, builder.official_aggregates(days))
 

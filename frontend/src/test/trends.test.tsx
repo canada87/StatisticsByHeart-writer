@@ -47,6 +47,7 @@ beforeEach(() => {
     '/api/v1/sleep/nights': () => ({ body: fx2.nights }),
     '/api/v1/exercise/sessions': () => ({ body: fx2.exercise }),
     '/api/v1/heart/daypart': () => ({ body: fx2.daypart() }),
+    '/api/v1/exercise/rules': () => ({ body: fx2.exerciseRules }),
     '/api/v1/data/bounds': () => ({ body: { first: '2026-01-01', last: '2026-10-15' } }),
     '/api/v1/report/daily': () => ({
       body: {
@@ -371,13 +372,13 @@ describe('real workouts (activity page)', () => {
     expect(within(rows[0] as HTMLElement).getByTestId('signals')).toHaveTextContent('GPS sì')
     expect(within(rows[0] as HTMLElement).getByTestId('signals')).toHaveTextContent('Avvio: da te')
     expect(within(rows[0] as HTMLElement).getByTestId('verdict')).toHaveTextContent('Vero')
-    expect(within(rows[0] as HTMLElement).getByTestId('verdict-reason')).toHaveTextContent('non camminata → vero')
+    expect(within(rows[0] as HTMLElement).getByTestId('verdict-reason')).toHaveTextContent('nessuna regola di esclusione → vero')
     const second = rows[1] as HTMLElement
     expect(within(second).getByTestId('signals')).toHaveTextContent('FC no 10%')
     expect(within(second).getByTestId('signals')).toHaveTextContent('GPS no')
     expect(within(second).getByTestId('signals')).toHaveTextContent('Avvio: automatico')
     expect(within(second).getByTestId('verdict')).toHaveTextContent('manuale') // overridden by the user
-    expect(within(second).getByTestId('verdict-reason')).toHaveTextContent('la regola direbbe: non vero')
+    expect(within(second).getByTestId('verdict-reason')).toHaveTextContent('la regola direbbe: Camminata → non vero')
     expect(within(second).getByTestId('signals').querySelector('svg')).not.toBeNull()
   })
 
@@ -417,10 +418,67 @@ describe('real workouts (activity page)', () => {
   })
 })
 
+describe('workout rules panel', () => {
+  it('shows the rules from the backend in evaluation order, with their values', async () => {
+    renderApp('/activity')
+    const panel = await screen.findByTestId('workout-rules')
+    const items = await within(panel).findAllByRole('listitem')
+    expect(items.map((i) => i.getAttribute('data-rule'))).toEqual(['override', 'type', 'duration', 'default'])
+    expect(items[1]).toHaveTextContent('Se il tipo di attività è camminata → non vero')
+    expect(items[2]).toHaveTextContent('Se dura meno di 15 minuti → non vero')
+    expect(items[2]).toHaveTextContent('esattamente 15 minuti vale vero')
+    expect(within(panel).getByTestId('rules-daytime-hr')).toHaveTextContent('30 minuti successivi')
+    expect(within(panel).getByTestId('rules-gps-note')).toHaveTextContent('nessuna app scrive la traccia GPS')
+  })
+
+  it('follows the values the backend sends (no number or type hardcoded in the page)', async () => {
+    handlers['/api/v1/exercise/rules'] = () => ({
+      body: {
+        ...fx2.exerciseRules,
+        rules: [
+          { id: 'override', params: {} },
+          { id: 'type', params: { types: ['WALKING', 'YOGA'] } },
+          { id: 'duration', params: { min_minutes: 20 } },
+          { id: 'default', params: {} },
+        ],
+        daytime_hr: { excludes: 'real_workouts', recovery_minutes: 45 },
+      },
+    })
+    renderApp('/activity')
+    const panel = await screen.findByTestId('workout-rules')
+    expect(await within(panel).findByText(/meno di 20 minuti/)).toBeInTheDocument()
+    expect(within(panel).getByTestId('rules-daytime-hr')).toHaveTextContent('45 minuti successivi')
+    expect(panel).toHaveTextContent('camminata, ')
+  })
+
+  it('the text under the list links to the panel', async () => {
+    renderApp('/activity')
+    const link = await screen.findByTestId('rules-link')
+    expect(link).toHaveAttribute('href', '#workout-rules')
+  })
+
+  it('the reason next to the verdict names the rule that decided, with its values', async () => {
+    handlers['/api/v1/exercise/sessions'] = () => ({
+      body: {
+        ...fx2.exercise,
+        sessions: [
+          { ...fx2.exercise.sessions[0], id: 11, title: 'Short run', duration_s: 10 * 60 + 20, auto_real: false, auto_rule: 'duration', is_real: false },
+          { ...fx2.exercise.sessions[0], id: 12, title: 'Stroll', type: 'WALKING', duration_s: 5 * 60, auto_real: false, auto_rule: 'type', is_real: false },
+        ],
+      },
+    })
+    renderApp('/activity')
+    const rows = await screen.findAllByTestId('workout-row')
+    expect(within(rows[0] as HTMLElement).getByTestId('verdict-reason')).toHaveTextContent('dura 10 min (< 15) → non vero')
+    // a short walk: the first rule in the order (the type) is the one shown
+    expect(within(rows[1] as HTMLElement).getByTestId('verdict-reason')).toHaveTextContent('Camminata → non vero')
+  })
+})
+
 describe('report', () => {
   it('states that only real workouts count', async () => {
     renderApp('/report?p=month')
-    expect(await screen.findByTestId('report-workouts-note')).toHaveTextContent('non sia una camminata')
+    expect(await screen.findByTestId('report-workouts-note')).toHaveTextContent('regole della pagina Attività')
     expect(await screen.findByTestId('report-workouts-excluded')).toHaveTextContent('4 attività escluse')
   })
 })

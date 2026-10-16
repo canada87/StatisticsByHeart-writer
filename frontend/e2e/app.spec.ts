@@ -311,7 +311,7 @@ test.describe('trends (synthetic data)', () => {
     const row = rows.nth(index)
     await expect(row.getByTestId('verdict')).toContainText('Non vero')
     await expect(row.getByTestId('signals')).toContainText('GPS') // informative badges stay
-    await expect(row.getByTestId('verdict-reason')).toContainText('camminata → non vero')
+    await expect(row.getByTestId('verdict-reason')).toContainText('→ non vero')
 
     // the user says it was a real workout, then goes back to automatic
     await row.getByTestId('override-select').selectOption('yes')
@@ -346,11 +346,29 @@ test.describe('trends (synthetic data)', () => {
     await expect(page.getByTestId('kpi-heart-day')).toContainText('Con gli allenamenti')
   })
 
+  test('activity: the Rules panel lists the active rules and the text under the list links to it', async ({ page }) => {
+    await login(page)
+    await page.goto('/activity?r=30d')
+    await settled(page)
+    const panel = page.getByTestId('workout-rules')
+    await expect(panel).toBeVisible()
+    await expect(panel.locator('li[data-rule]')).toHaveCount(4)
+    await expect(panel).toContainText('meno di 15 minuti')
+    await expect(panel).toContainText('30 minuti successivi')
+    await page.getByTestId('rules-link').click()
+    await expect(panel).toBeFocused()
+    await expect(page).not.toHaveURL(/workout-rules/)
+    // a started non-walk under 15 minutes is listed under "Tutti" with its reason
+    await page.getByTestId('workouts-filter').getByRole('radio', { name: 'Tutti' }).click()
+    await expect(page.getByTestId('verdict-reason').filter({ hasText: /dura \d+ min \(< 15\)/ }).first()).toBeVisible()
+    await panel.screenshot({ path: join(SHOTS, 'activity-rules-panel.png') })
+  })
+
   test('report: only real workouts count, and it says so', async ({ page }) => {
     await login(page)
     await page.goto('/report?p=month')
     await settled(page)
-    await expect(page.getByTestId('report-workouts-note')).toContainText('non sia una camminata')
+    await expect(page.getByTestId('report-workouts-note')).toContainText('regole della pagina Attività')
   })
 
   test('hourly averages are offered up to 31 days', async ({ page }) => {

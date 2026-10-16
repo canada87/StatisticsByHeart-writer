@@ -314,7 +314,14 @@ class ExerciseRow(BaseModel):
     started_by_user: bool = Field(
         default=False, description="recording_method active/manual (on any copy)"
     )
-    auto_real: bool = Field(default=False, description="Verdict of the rule alone")
+    auto_real: bool = Field(default=False, description="Verdict of the rules alone")
+    auto_rule: Literal["type", "duration", "ok"] = Field(
+        default="ok",
+        description="Rule that decided the automatic verdict: excluded type, too short, or none",
+    )
+    min_duration_min: int = Field(
+        default=15, description="Minimum duration (minutes) below which a session is not real"
+    )
     override: bool | None = Field(default=None, description="Manual verdict; null = automatic")
     is_real: bool = Field(default=False, description="override if set, else auto_real")
 
@@ -493,3 +500,25 @@ class OverrideResult(BaseModel):
     id: int
     override: bool | None
     is_real: bool
+
+
+class RuleItem(BaseModel):
+    id: Literal["override", "type", "duration", "default"]
+    params: dict[str, Any] = Field(description="Values of the rule: types, min_minutes...")
+
+
+class DaytimeHrRule(BaseModel):
+    excludes: Literal["real_workouts"]
+    recovery_minutes: int
+
+
+class SignalsInfo(BaseModel):
+    hr_min_share: float
+    user_started_methods: list[str]
+    informative_only: bool
+
+
+class ExerciseRules(BaseModel):
+    rules: list[RuleItem] = Field(description="Classification rules in evaluation order")
+    daytime_hr: DaytimeHrRule
+    signals: SignalsInfo

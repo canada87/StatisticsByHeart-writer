@@ -285,6 +285,9 @@ export interface ExerciseRow {
   started_by_user: boolean
   /** Verdict of the rule alone / manual verdict (null = automatic) / what counts. */
   auto_real: boolean
+  /** Which rule decided the automatic verdict: excluded type, too short, or none. */
+  auto_rule: 'type' | 'duration' | 'ok'
+  min_duration_min: number
   override: boolean | null
   is_real: boolean
 }
@@ -420,4 +423,16 @@ export interface DaypartResponse {
   previous_from: string
   previous_to: string
   previous_summary: DaypartSummary
+}
+
+/** The active classification rules, in evaluation order, straight from the backend constants. */
+export interface ExerciseRules {
+  rules: (
+    | { id: 'override'; params: Record<string, never> }
+    | { id: 'type'; params: { types: string[] } }
+    | { id: 'duration'; params: { min_minutes: number } }
+    | { id: 'default'; params: Record<string, never> }
+  )[]
+  daytime_hr: { excludes: 'real_workouts'; recovery_minutes: number }
+  signals: { hr_min_share: number; user_started_methods: string[]; informative_only: boolean }
 }
