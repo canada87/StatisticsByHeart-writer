@@ -41,7 +41,7 @@ services:
     mem_limit: 384m
 
   sbh-api:
-    image: ghcr.io/canada87/statisticsbyheart-writer:${SBH_IMAGE_TAG:-0.5.3}
+    image: ghcr.io/canada87/statisticsbyheart-writer:${SBH_IMAGE_TAG:-0.6.0}
     restart: unless-stopped
     depends_on:
       sbh-db:
@@ -54,6 +54,9 @@ services:
       SBH_DB_PASSWORD: ${SBH_DB_PASSWORD}
       SBH_LOCAL_TIMEZONE: Europe/Rome
       SBH_SOURCE_PRIORITY: ${SBH_SOURCE_PRIORITY:-}
+      # Heart Points: personal values, set them in the private .env / Portainer variables only
+      SBH_BIRTH_YEAR: ${SBH_BIRTH_YEAR:-}
+      SBH_HR_MAX: ${SBH_HR_MAX:-}
       SBH_COOKIE_SECURE: "true" # the browser reaches us via https (Nginx Proxy Manager)
       SBH_RUN_MIGRATIONS: ${SBH_RUN_MIGRATIONS:-true}
       # Behind NPM the client address is in X-Forwarded-For (used for login rate limiting only).

@@ -51,3 +51,52 @@ async def purge_sessions(session: AsyncSession) -> int:
     )
     await session.commit()
     return int(result.rowcount or 0)  # type: ignore[attr-defined]
+
+
+HEART_POINTS_CHUNK_DAYS = 30
+
+
+async def recompute_heart_points(
+    session: AsyncSession,
+    settings: Settings,
+    first: date | None = None,
+    last: date | None = None,
+    *,
+    only_missing: bool = False,
+) -> int:
+    """Recompute the Heart Points of every day with heart-rate or step data (the whole history).
+
+    ``only_missing`` skips days already computed with the current HRmax settings: that is what runs
+    at startup. Without it, every day is redone (first deploy, or after changing the birth year /
+    HRmax). Works in chunks, one commit each, and logs only counts.
+    """
+    from app.services import heartpoints
+
+    if only_missing:
+        days = await heartpoints.days_to_compute(session, settings)
+    else:
+        days = sorted(
+            {
+                d
+                for (d,) in (
+                    await session.execute(
+                        select(HealthRecord.local_date)
+                        .where(
+                            HealthRecord.type.in_(("HeartRate", "Steps")),
+                            HealthRecord.deleted_at.is_(None),
+                        )
+                        .distinct()
+                    )
+                ).all()
+            }
+        )
+    days = [d for d in days if (first is None or d >= first) and (last is None or d <= last)]
+    written = 0
+    for i in range(0, len(days), HEART_POINTS_CHUNK_DAYS):
+        await session.execute(select(func.pg_advisory_xact_lock(INGEST_LOCK_KEY)))
+        written += await heartpoints.recompute(
+            session, settings, days[i : i + HEART_POINTS_CHUNK_DAYS]
+        )
+        await session.commit()
+    log.info("heart points: %d days computed (of %d candidates)", written, len(days))
+    return written

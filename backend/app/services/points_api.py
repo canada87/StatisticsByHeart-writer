@@ -1,0 +1,171 @@
+"""Read side of the Heart Points: series by week/month/year, the current week, the rules."""
+
+from __future__ import annotations
+
+from datetime import date, datetime, timedelta
+from typing import Any, Literal
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.config import Settings
+from app.errors import ApiError
+from app.models import DailyMetric
+from app.services import heartpoints as hp
+from app.services.queries import MAX_SERIES_DAYS, _span_days, bucket_start
+
+Bucket = Literal["week", "month", "year"]
+
+
+def _start(day: date, bucket: Bucket) -> date:
+    return date(day.year, 1, 1) if bucket == "year" else bucket_start(day, bucket)
+
+
+def _next(start: date, bucket: Bucket) -> date:
+    if bucket == "week":
+        return start + timedelta(days=7)
+    if bucket == "month":
+        return (start.replace(day=28) + timedelta(days=4)).replace(day=1)
+    return date(start.year + 1, 1, 1)
+
+
+async def _daily(session: AsyncSession, first: date, last: date) -> dict[date, float]:
+    rows = (
+        await session.execute(
+            select(DailyMetric.local_date, DailyMetric.sum_value).where(
+                DailyMetric.type == hp.HEART_POINTS_TYPE,
+                DailyMetric.source == "computed",
+                DailyMetric.local_date.between(first, last),
+            )
+        )
+    ).all()
+    return {d: float(v or 0) for d, v in rows}
+
+
+def _total(days: dict[date, float]) -> dict[str, Any]:
+    return {"total": sum(days.values()), "days": len(days)}
+
+
+async def points_series(
+    session: AsyncSession, settings: Settings, first: date, last: date, bucket: Bucket
+) -> dict[str, Any]:
+    if last < first:
+        raise ApiError(422, "invalid_range", "`to` must not precede `from`")
+    span = _span_days(first, last)
+    if span > MAX_SERIES_DAYS:
+        raise ApiError(422, "range_too_long", f"At most {MAX_SERIES_DAYS} days")
+    today = datetime.now(settings.tz).date()
+    daily = await _daily(session, first, last)
+    sums: dict[date, float] = {}
+    counts: dict[date, int] = {}
+    for d, v in daily.items():
+        key = _start(d, bucket)
+        sums[key] = sums.get(key, 0.0) + v
+        counts[key] = counts.get(key, 0) + 1
+    points: list[dict[str, Any]] = []
+    cursor = _start(first, bucket)
+    while cursor <= last:
+        end = _next(cursor, bucket) - timedelta(days=1)
+        points.append(
+            {
+                "t": cursor.isoformat(),
+                "v": sums.get(cursor, 0.0),
+                "days": counts.get(cursor, 0),
+                # a bucket counts for "goal reached or not" only when it is whole, inside the
+                # range and already over (the running week is still being earned)
+                "complete": cursor >= first and end <= last and end < today,
+            }
+        )
+        cursor = _next(cursor, bucket)
+    complete = [p for p in points if p["complete"]]
+    over = sum(1 for p in complete if p["v"] >= hp.WEEKLY_GOAL) if bucket == "week" else None
+    prev_last = first - timedelta(days=1)
+    prev_first = prev_last - timedelta(days=span - 1)
+    return {
+        "from": first,
+        "to": last,
+        "bucket": bucket,
+        "weekly_goal": hp.WEEKLY_GOAL,
+        "timezone": settings.local_timezone,
+        "hr_configured": hp.hr_max_for(settings, today)[0] is not None,
+        "points": points,
+        "summary": {
+            **_total(daily),
+            "buckets_complete": len(complete),
+            "weeks_over_goal": over,
+        },
+        "previous_from": prev_first,
+        "previous_to": prev_last,
+        "previous_summary": _total(await _daily(session, prev_first, prev_last)),
+    }
+
+
+async def points_week(session: AsyncSession, settings: Settings, day: date) -> dict[str, Any]:
+    monday = day - timedelta(days=day.weekday())
+    sunday = monday + timedelta(days=6)
+    today = datetime.now(settings.tz).date()
+    rows = (
+        await session.execute(
+            select(DailyMetric.local_date, DailyMetric.sum_value, DailyMetric.detail).where(
+                DailyMetric.type == hp.HEART_POINTS_TYPE,
+                DailyMetric.source == "computed",
+                DailyMetric.local_date.between(monday, sunday),
+            )
+        )
+    ).all()
+    by_day = {d: (float(v or 0), detail or {}) for d, v, detail in rows}
+    days = []
+    for i in range(7):
+        d = monday + timedelta(days=i)
+        total, detail = by_day.get(d, (None, {}))
+        days.append(
+            {
+                "date": d,
+                "points": total,
+                "hr_points": detail.get("hr_points") if total is not None else None,
+                "cadence_points": detail.get("cadence_points") if total is not None else None,
+            }
+        )
+    total = sum(v for v, _ in by_day.values())
+    is_current = monday <= today <= sunday
+    # days left to earn points, today included; a week in the past has none, a future one has 7
+    days_left = (sunday - today).days + 1 if is_current else (0 if sunday < today else 7)
+    return {
+        "week_start": monday,
+        "week_end": sunday,
+        "is_current": is_current,
+        "total": total,
+        "goal": hp.WEEKLY_GOAL,
+        "remaining": max(0.0, hp.WEEKLY_GOAL - total),
+        "reached": total >= hp.WEEKLY_GOAL,
+        "days_left": days_left,
+        "days": days,
+        "hr_configured": hp.hr_max_for(settings, today)[0] is not None,
+    }
+
+
+def describe_points_rules(settings: Settings) -> dict[str, Any]:
+    """The Heart Points rules, from the constants the calculation uses."""
+    today = datetime.now(settings.tz).date()
+    hr_max, source = hp.hr_max_for(settings, today)
+    return {
+        "heart_rate": {
+            "moderate_pct": hp.HR_MODERATE_PCT,
+            "vigorous_pct": hp.HR_VIGOROUS_PCT,
+            "hr_max": hr_max,
+            "hr_max_source": source,
+            "configured": hr_max is not None,
+            "carry_max_minutes": int(hp.HR_CARRY_MAX.total_seconds() // 60),
+        },
+        "cadence": {
+            "moderate_steps": hp.CADENCE_MODERATE,
+            "vigorous_steps": hp.CADENCE_VIGOROUS,
+            "max_record_minutes": int(hp.STEPS_MAX_SPAN.total_seconds() // 60),
+        },
+        "points": {"moderate": hp.MODERATE_POINTS, "vigorous": hp.VIGOROUS_POINTS},
+        "combine": "max",
+        "met_used": False,
+        "weekly_goal": hp.WEEKLY_GOAL,
+        "week_starts": "monday",
+        "timezone": settings.local_timezone,
+    }

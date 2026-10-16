@@ -37,6 +37,7 @@ services:
       SBH_COOKIE_SECURE: "false" # plain http on localhost
       SBH_DEV_BOOTSTRAP: "true"
       SBH_SEED_DAYS: "90"
+      SBH_BIRTH_YEAR: "1990" # FICTITIOUS, only so the synthetic data has a heart-rate maximum
       SBH_DEV_ADMIN_PASSWORD: dev-password-change-me
     ports:
       - "127.0.0.1:8000:8000"

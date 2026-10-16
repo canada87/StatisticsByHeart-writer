@@ -360,12 +360,21 @@ async def recompute_days(
     session: AsyncSession, keys: Iterable[tuple[str, date]], settings: Settings
 ) -> int:
     """Recompute the computed daily_metric rows for the given (type, local_date) pairs."""
+    from app.services import heartpoints  # lazy: heartpoints imports this module
+
     by_type: dict[str, set[date]] = defaultdict(set)
     for type_, d in keys:
         by_type[type_].add(d)
+    # Heart Points are made of heart-rate samples and step records: any day touched by one of
+    # them is recomputed too (they are a computed type, not a record type)
+    for source_type in ("HeartRate", "Steps"):
+        by_type[heartpoints.HEART_POINTS_TYPE] |= by_type.get(source_type, set())
     priority = settings.source_priority_list
     written = 0
     for type_, dates in by_type.items():
+        if type_ == heartpoints.HEART_POINTS_TYPE:
+            written += await heartpoints.recompute(session, settings, dates)
+            continue
         spec = SPECS.get(type_)
         if spec is None:
             continue

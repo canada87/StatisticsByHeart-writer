@@ -18,6 +18,9 @@ from app.dash_schemas import (
     InventoryResponse,
     OverrideBody,
     OverrideResult,
+    PointsRules,
+    PointsSeriesResponse,
+    PointsWeek,
     ReconciliationResponse,
     ReportDailyResponse,
     ReportResponse,
@@ -31,7 +34,7 @@ from app.dash_schemas import (
 from app.deps import AdminAuth, Db, SettingsDep
 from app.errors import ApiError
 from app.schemas import ErrorResponse
-from app.services import analytics, daypart, queries, storage, workouts
+from app.services import analytics, daypart, points_api, queries, storage, workouts
 
 router = APIRouter(prefix="/api/v1", tags=["dashboard"])
 _AUTH: dict[int | str, dict[str, Any]] = {401: {"model": ErrorResponse}}
@@ -186,6 +189,50 @@ async def heart_daypart(
 )
 async def storage_info(_: AdminAuth, session: Db, settings: SettingsDep) -> dict[str, Any]:
     return await storage.storage_report(session, settings)
+
+
+@router.get(
+    "/heart/points",
+    response_model=PointsSeriesResponse,
+    response_model_by_alias=True,
+    summary="Heart Points per week / month / year (sum of the daily points)",
+    responses={**_AUTH, 422: {"model": ErrorResponse}},
+)
+async def heart_points(
+    _: AdminAuth,
+    session: Db,
+    settings: SettingsDep,
+    from_: Annotated[date | None, Query(alias="from")] = None,
+    to: date | None = None,
+    bucket: Annotated[Literal["week", "month", "year"], Query()] = "week",
+) -> dict[str, Any]:
+    first, last = _window(settings, from_, to, 84)
+    return await points_api.points_series(session, settings, first, last, bucket)
+
+
+@router.get(
+    "/heart/points/week",
+    response_model=PointsWeek,
+    summary="The Monday-Sunday week that contains `date` (default today): points vs the goal",
+    responses=_AUTH,
+)
+async def heart_points_week(
+    _: AdminAuth,
+    session: Db,
+    settings: SettingsDep,
+    day: Annotated[date | None, Query(alias="date")] = None,
+) -> dict[str, Any]:
+    return await points_api.points_week(session, settings, day or queries.today_local(settings))
+
+
+@router.get(
+    "/heart/points/rules",
+    response_model=PointsRules,
+    summary="The Heart Points rules, from the constants the calculation uses",
+    responses=_AUTH,
+)
+async def heart_points_rules(_: AdminAuth, settings: SettingsDep) -> dict[str, Any]:
+    return points_api.describe_points_rules(settings)
 
 
 @router.get(

@@ -1740,6 +1740,424 @@
         "title": "PingToken",
         "type": "object"
       },
+      "PointsBucket": {
+        "properties": {
+          "complete": {
+            "description": "Whole bucket inside the range and already over",
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "days": {
+            "description": "Days of the bucket with a computed value",
+            "title": "Days",
+            "type": "integer"
+          },
+          "t": {
+            "description": "Bucket start: Monday of the week, first of the month or of the year",
+            "title": "T",
+            "type": "string"
+          },
+          "v": {
+            "description": "Heart Points earned in the bucket (days inside the range)",
+            "title": "V",
+            "type": "number"
+          }
+        },
+        "required": [
+          "t",
+          "v",
+          "days",
+          "complete"
+        ],
+        "title": "PointsBucket",
+        "type": "object"
+      },
+      "PointsCadenceRule": {
+        "properties": {
+          "max_record_minutes": {
+            "title": "Max Record Minutes",
+            "type": "integer"
+          },
+          "moderate_steps": {
+            "title": "Moderate Steps",
+            "type": "integer"
+          },
+          "vigorous_steps": {
+            "title": "Vigorous Steps",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "moderate_steps",
+          "vigorous_steps",
+          "max_record_minutes"
+        ],
+        "title": "PointsCadenceRule",
+        "type": "object"
+      },
+      "PointsDay": {
+        "properties": {
+          "cadence_points": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cadence Points"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "hr_points": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hr Points"
+          },
+          "points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points"
+          }
+        },
+        "required": [
+          "date",
+          "points",
+          "hr_points",
+          "cadence_points"
+        ],
+        "title": "PointsDay",
+        "type": "object"
+      },
+      "PointsHeartRateRule": {
+        "properties": {
+          "carry_max_minutes": {
+            "title": "Carry Max Minutes",
+            "type": "integer"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "hr_max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "HRmax used today (never the birth year itself)",
+            "title": "Hr Max"
+          },
+          "hr_max_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "override",
+                  "birth_year"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hr Max Source"
+          },
+          "moderate_pct": {
+            "title": "Moderate Pct",
+            "type": "integer"
+          },
+          "vigorous_pct": {
+            "title": "Vigorous Pct",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "moderate_pct",
+          "vigorous_pct",
+          "hr_max",
+          "hr_max_source",
+          "configured",
+          "carry_max_minutes"
+        ],
+        "title": "PointsHeartRateRule",
+        "type": "object"
+      },
+      "PointsRules": {
+        "properties": {
+          "cadence": {
+            "$ref": "#/components/schemas/PointsCadenceRule"
+          },
+          "combine": {
+            "const": "max",
+            "title": "Combine",
+            "type": "string"
+          },
+          "heart_rate": {
+            "$ref": "#/components/schemas/PointsHeartRateRule"
+          },
+          "met_used": {
+            "title": "Met Used",
+            "type": "boolean"
+          },
+          "points": {
+            "$ref": "#/components/schemas/PointsValues"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "week_starts": {
+            "const": "monday",
+            "title": "Week Starts",
+            "type": "string"
+          },
+          "weekly_goal": {
+            "title": "Weekly Goal",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "heart_rate",
+          "cadence",
+          "points",
+          "combine",
+          "met_used",
+          "weekly_goal",
+          "week_starts",
+          "timezone"
+        ],
+        "title": "PointsRules",
+        "type": "object"
+      },
+      "PointsSeriesResponse": {
+        "properties": {
+          "bucket": {
+            "enum": [
+              "week",
+              "month",
+              "year"
+            ],
+            "title": "Bucket",
+            "type": "string"
+          },
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "hr_configured": {
+            "description": "False: SBH_BIRTH_YEAR / SBH_HR_MAX not set (cadence only)",
+            "title": "Hr Configured",
+            "type": "boolean"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/PointsBucket"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "previous_from": {
+            "format": "date",
+            "title": "Previous From",
+            "type": "string"
+          },
+          "previous_summary": {
+            "$ref": "#/components/schemas/PointsTotal"
+          },
+          "previous_to": {
+            "format": "date",
+            "title": "Previous To",
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/PointsSummary"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "to": {
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          },
+          "weekly_goal": {
+            "title": "Weekly Goal",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "bucket",
+          "weekly_goal",
+          "timezone",
+          "hr_configured",
+          "points",
+          "summary",
+          "previous_from",
+          "previous_to",
+          "previous_summary"
+        ],
+        "title": "PointsSeriesResponse",
+        "type": "object"
+      },
+      "PointsSummary": {
+        "properties": {
+          "buckets_complete": {
+            "title": "Buckets Complete",
+            "type": "integer"
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "number"
+          },
+          "weeks_over_goal": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Complete weeks at or above the weekly goal (week bucket only)",
+            "title": "Weeks Over Goal"
+          }
+        },
+        "required": [
+          "total",
+          "days",
+          "buckets_complete"
+        ],
+        "title": "PointsSummary",
+        "type": "object"
+      },
+      "PointsTotal": {
+        "properties": {
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "number"
+          }
+        },
+        "required": [
+          "total",
+          "days"
+        ],
+        "title": "PointsTotal",
+        "type": "object"
+      },
+      "PointsValues": {
+        "properties": {
+          "moderate": {
+            "title": "Moderate",
+            "type": "integer"
+          },
+          "vigorous": {
+            "title": "Vigorous",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "moderate",
+          "vigorous"
+        ],
+        "title": "PointsValues",
+        "type": "object"
+      },
+      "PointsWeek": {
+        "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/PointsDay"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "days_left": {
+            "description": "Days left to earn points, today included (0 if past)",
+            "title": "Days Left",
+            "type": "integer"
+          },
+          "goal": {
+            "title": "Goal",
+            "type": "integer"
+          },
+          "hr_configured": {
+            "title": "Hr Configured",
+            "type": "boolean"
+          },
+          "is_current": {
+            "title": "Is Current",
+            "type": "boolean"
+          },
+          "reached": {
+            "title": "Reached",
+            "type": "boolean"
+          },
+          "remaining": {
+            "title": "Remaining",
+            "type": "number"
+          },
+          "total": {
+            "title": "Total",
+            "type": "number"
+          },
+          "week_end": {
+            "format": "date",
+            "title": "Week End",
+            "type": "string"
+          },
+          "week_start": {
+            "format": "date",
+            "title": "Week Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "week_start",
+          "week_end",
+          "is_current",
+          "total",
+          "goal",
+          "remaining",
+          "reached",
+          "days_left",
+          "days",
+          "hr_configured"
+        ],
+        "title": "PointsWeek",
+        "type": "object"
+      },
       "ReconciliationResponse": {
         "properties": {
           "from": {
@@ -4461,7 +4879,7 @@
   "info": {
     "description": "Ingest API (contract v1: docs/api-contract.md) and admin endpoints.",
     "title": "StatisticsByHeart Writer",
-    "version": "0.5.3"
+    "version": "0.6.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -5293,6 +5711,189 @@
           }
         },
         "summary": "Heart rate by day part: night = inside sleep sessions (fallback 23:00-07:00)",
+        "tags": [
+          "dashboard"
+        ]
+      }
+    },
+    "/api/v1/heart/points": {
+      "get": {
+        "operationId": "heart_points_api_v1_heart_points_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "bucket",
+            "required": false,
+            "schema": {
+              "default": "week",
+              "enum": [
+                "week",
+                "month",
+                "year"
+              ],
+              "title": "Bucket",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PointsSeriesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Heart Points per week / month / year (sum of the daily points)",
+        "tags": [
+          "dashboard"
+        ]
+      }
+    },
+    "/api/v1/heart/points/rules": {
+      "get": {
+        "operationId": "heart_points_rules_api_v1_heart_points_rules_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PointsRules"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          }
+        },
+        "summary": "The Heart Points rules, from the constants the calculation uses",
+        "tags": [
+          "dashboard"
+        ]
+      }
+    },
+    "/api/v1/heart/points/week": {
+      "get": {
+        "operationId": "heart_points_week_api_v1_heart_points_week_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PointsWeek"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "The Monday-Sunday week that contains `date` (default today): points vs the goal",
         "tags": [
           "dashboard"
         ]

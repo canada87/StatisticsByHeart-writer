@@ -35,6 +35,8 @@ class SeedConfig:
     # Nights (counted back from the last day, 0 = last night) with NO sleep session recorded:
     # they exercise the fixed 23:00-07:00 fallback of the day/night heart rate split.
     unrecorded_nights: tuple[int, ...] = ()
+    # Every 4th ISO week has no workouts: weekly Heart Points then fall below the 150 goal.
+    rest_weeks: bool = False
 
 
 @dataclass
@@ -103,8 +105,12 @@ class _Builder:
 
     # ----------------------------------------------------------------- per-day generators
 
-    def steps_and_energy(self, day: date) -> None:
+    # steps per minute while exercising, by exercise type (drives the cadence Heart Points)
+    CADENCE = {"WALKING": 112, "RUNNING": 170, "BIKING": 6, "STRENGTH_TRAINING": 15}
+
+    def steps_and_energy(self, day: date, index: int = 1) -> None:
         rng = self.rng
+        plan = self.workout_plan(day, index)
         weekend = day.weekday() >= 5
         for hour in range(7, 23):
             for quarter in range(4):
@@ -113,6 +119,11 @@ class _Builder:
                 busy = rng.random() < (0.45 if weekend else 0.6)
                 steps = int(rng.gauss(260, 120)) if busy else int(rng.uniform(0, 30))
                 steps = max(steps, 0)
+                if plan is not None:
+                    w_start, w_minutes, w_spec = plan
+                    w_end = w_start + timedelta(minutes=w_minutes)
+                    if start < w_end and end > w_start:  # a quarter-hour of the workout
+                        steps = int(self.CADENCE[w_spec[0]] * 15)
                 for source, factor, present in (
                     (PHONE, 1.0, True),
                     (WATCH, rng.uniform(0.9, 1.1), rng.random() < 0.9),
@@ -137,12 +148,14 @@ class _Builder:
         asleep = [(bedtime, wake), (next_bed, next_wake)]
         plan = self.workout_plan(day, index)
         dense: tuple[datetime, datetime] | None = None
+        dense_base = 138
         gap: tuple[datetime, datetime] | None = None
         if plan is not None:
             start, minutes, spec = plan
             window = (start, start + timedelta(minutes=minutes))
             if spec[5]:
                 dense = window  # the watch records the effort minute by minute
+                dense_base = 105 if spec[0] == "WALKING" else 150  # ~57% / ~81% of HRmax
             else:
                 gap = window  # watch left at home: no heart rate during the session
         for hour in range(24):
@@ -158,11 +171,11 @@ class _Builder:
                 if gap is not None and gap[0] <= when < gap[1]:
                     continue
                 sleeping = any(a <= when < b for a, b in asleep)
-                base = 54 if sleeping else (138 if in_dense else day_base)
+                base = 54 if sleeping else (dense_base if in_dense else day_base)
                 bpm = round(
                     base
                     + rng.gauss(0, 6 if in_dense else 4)
-                    + (35 if rng.random() < 0.02 and not sleeping and not in_dense else 0)
+                    + (15 if rng.random() < 0.02 and not sleeping and not in_dense else 0)
                 )
                 samples.append({"time": _iso(when), "value": max(40, min(bpm, 190))})
             if samples:
@@ -226,6 +239,8 @@ class _Builder:
     ) -> tuple[datetime, int, tuple[str, int, str, tuple[int, int], bool, bool]] | None:
         """Start, minutes and kind of the day's workout (own RNG: heart() needs it first)."""
         if index % 2:
+            return None
+        if self.cfg.rest_weeks and day.isocalendar().week % 4 == 3:
             return None
         spec = self.WORKOUTS[(index // 2) % len(self.WORKOUTS)]
         rng = random.Random(f"{self.cfg.seed}|workout|{day.isoformat()}")
@@ -363,7 +378,7 @@ def generate(cfg: SeedConfig | None = None) -> SyntheticData:
     days = [end - timedelta(days=n) for n in range(cfg.days - 1, -1, -1)]
     builder.unrecorded = {end - timedelta(days=n) for n in cfg.unrecorded_nights}
     for index, day in enumerate(days):
-        builder.steps_and_energy(day)
+        builder.steps_and_energy(day, index)
         builder.heart(day, index)
         builder.night(day)
         builder.weight(day, index)

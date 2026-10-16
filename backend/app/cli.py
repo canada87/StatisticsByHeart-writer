@@ -93,7 +93,9 @@ def cmd_seed(args: argparse.Namespace, settings: Settings) -> int:
             if args.if_empty and (await s.execute(select(func.count(HealthRecord.id)))).scalar():
                 print("Database already has records: skipping seed.")
                 return
-        data = generate(SeedConfig(days=args.days, seed=args.seed, unrecorded_nights=(2, 9)))
+        data = generate(
+            SeedConfig(days=args.days, seed=args.seed, unrecorded_nights=(2, 9), rest_weeks=True)
+        )
         totals = await load_synthetic(sm, settings, data)
         print(f"Seeded synthetic data: {totals}")
 
@@ -140,6 +142,19 @@ def cmd_recompute(args: argparse.Namespace, settings: Settings) -> int:
     return 0
 
 
+def cmd_recompute_heart_points(args: argparse.Namespace, settings: Settings) -> int:
+    first = date.fromisoformat(args.date_from) if args.date_from else None
+    last = date.fromisoformat(args.date_to) if args.date_to else None
+
+    async def go(sm: SessionMaker) -> None:
+        async with sm() as s:
+            n = await maintenance.recompute_heart_points(s, settings, first, last)
+            print(f"Heart Points recomputed for {n} days.")
+
+    _run(_with_db(settings, go))
+    return 0
+
+
 def cmd_export_openapi(args: argparse.Namespace, settings: Settings) -> int:
     from app.main import create_app
 
@@ -177,6 +192,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--from", dest="date_from")
     p.add_argument("--to", dest="date_to")
     p.set_defaults(fn=cmd_recompute)
+
+    p = sub.add_parser(
+        "recompute-heart-points",
+        help="Recompute the Heart Points of the whole history (first deploy; after changing "
+        "SBH_BIRTH_YEAR / SBH_HR_MAX)",
+    )
+    p.add_argument("--from", dest="date_from")
+    p.add_argument("--to", dest="date_to")
+    p.set_defaults(fn=cmd_recompute_heart_points)
 
     p = sub.add_parser("export-openapi", help="Write the OpenAPI schema to a file")
     p.add_argument("path")

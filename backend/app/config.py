@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from zoneinfo import ZoneInfo
 
-from pydantic import SecretStr, computed_field
+from pydantic import SecretStr, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import URL
 
@@ -27,6 +27,16 @@ class Settings(BaseSettings):
     # Comma-separated Android package names, most trusted first. Sources not listed rank
     # after the listed ones, ordered by how much data they hold for the day.
     source_priority: str = ""
+
+    # Heart Points: HRmax = hr_max if set, else 220 - age (age = day.year - birth_year).
+    # Personal values: set them ONLY in the private .env, never in the repository.
+    birth_year: int | None = None
+    hr_max: int | None = None
+
+    @field_validator("birth_year", "hr_max", mode="before")
+    @classmethod
+    def _empty_is_unset(cls, v: object) -> object:
+        return None if v is None or (isinstance(v, str) and not v.strip()) else v
 
     # Ingest limits.
     max_batch_records: int = 500

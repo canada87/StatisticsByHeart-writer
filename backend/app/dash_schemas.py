@@ -587,3 +587,93 @@ class StorageResponse(BaseModel):
     growth: GrowthEstimate
     disk: DiskInfo
     limits: LimitsInfo
+
+
+class PointsBucket(BaseModel):
+    t: str = Field(
+        description="Bucket start: Monday of the week, first of the month or of the year"
+    )
+    v: float = Field(description="Heart Points earned in the bucket (days inside the range)")
+    days: int = Field(description="Days of the bucket with a computed value")
+    complete: bool = Field(description="Whole bucket inside the range and already over")
+
+
+class PointsTotal(BaseModel):
+    total: float
+    days: int
+
+
+class PointsSummary(PointsTotal):
+    buckets_complete: int
+    weeks_over_goal: int | None = Field(
+        default=None, description="Complete weeks at or above the weekly goal (week bucket only)"
+    )
+
+
+class PointsSeriesResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_: Date = Field(alias="from")
+    to: Date
+    bucket: Literal["week", "month", "year"]
+    weekly_goal: int
+    timezone: str
+    hr_configured: bool = Field(
+        description="False: SBH_BIRTH_YEAR / SBH_HR_MAX not set (cadence only)"
+    )
+    points: list[PointsBucket]
+    summary: PointsSummary
+    previous_from: Date
+    previous_to: Date
+    previous_summary: PointsTotal
+
+
+class PointsDay(BaseModel):
+    date: Date
+    points: float | None
+    hr_points: int | None
+    cadence_points: int | None
+
+
+class PointsWeek(BaseModel):
+    week_start: Date
+    week_end: Date
+    is_current: bool
+    total: float
+    goal: int
+    remaining: float
+    reached: bool
+    days_left: int = Field(description="Days left to earn points, today included (0 if past)")
+    days: list[PointsDay]
+    hr_configured: bool
+
+
+class PointsHeartRateRule(BaseModel):
+    moderate_pct: int
+    vigorous_pct: int
+    hr_max: int | None = Field(description="HRmax used today (never the birth year itself)")
+    hr_max_source: Literal["override", "birth_year"] | None
+    configured: bool
+    carry_max_minutes: int
+
+
+class PointsCadenceRule(BaseModel):
+    moderate_steps: int
+    vigorous_steps: int
+    max_record_minutes: int
+
+
+class PointsValues(BaseModel):
+    moderate: int
+    vigorous: int
+
+
+class PointsRules(BaseModel):
+    heart_rate: PointsHeartRateRule
+    cadence: PointsCadenceRule
+    points: PointsValues
+    combine: Literal["max"]
+    met_used: bool
+    weekly_goal: int
+    week_starts: Literal["monday"]
+    timezone: str

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -17,9 +19,10 @@ from app.middleware import BodyGuardMiddleware
 from app.ratelimit import LoginLimiter
 from app.routers import admin, auth, dashboard, ingest, public
 from app.scheduler import build_scheduler
+from app.services import maintenance
 from app.spa import install_spa
 
-VERSION = "0.5.3"
+VERSION = "0.6.0"
 
 
 class SecurityHeadersMiddleware:
@@ -49,6 +52,17 @@ class SecurityHeadersMiddleware:
         await self.app(scope, receive, wrapped)
 
 
+async def _ensure_heart_points(app: FastAPI) -> None:
+    """Background: compute the Heart Points of the days that lack them (never blocks the start)."""
+    try:
+        async with app.state.sessionmaker() as session:
+            await maintenance.recompute_heart_points(session, app.state.settings, only_missing=True)
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        logging.getLogger("sbh.heartpoints").exception("startup heart points failed")
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     engine = make_engine(settings.sqlalchemy_url)
@@ -56,11 +70,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         scheduler = build_scheduler(app) if settings.enable_scheduler else None
+        startup: asyncio.Task[None] | None = None
         if scheduler:
             scheduler.start()
+            # first deploy / changed HRmax settings: compute the missing Heart Points in background
+            startup = asyncio.create_task(_ensure_heart_points(app))
         try:
             yield
         finally:
+            if startup is not None:
+                startup.cancel()
             if scheduler:
                 scheduler.shutdown(wait=False)
             await engine.dispose()
