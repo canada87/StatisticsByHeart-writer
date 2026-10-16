@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { addDays, daysBetween, fmtDuration, fmtNumber, timeAgo, todayLocal } from './format'
-import { parseRangeSearch, resolveRange, toSearch } from './range'
+import { parseRangeSearch, resolveRange, shiftRange, toSearch } from './range'
 
 const TODAY = '2026-10-15'
 
 describe('range (URL state)', () => {
   it('defaults to 7 days ending today', () => {
-    expect(resolveRange({}, TODAY)).toEqual({ preset: '7d', from: '2026-10-09', to: TODAY, days: 7 })
+    expect(resolveRange({}, TODAY)).toEqual({ preset: '7d', from: '2026-10-09', to: TODAY, days: 7, current: true })
   })
   it('resolves every preset', () => {
     expect(resolveRange({ r: '24h' }, TODAY)).toMatchObject({ from: TODAY, to: TODAY, days: 1 })
@@ -20,6 +20,7 @@ describe('range (URL state)', () => {
       from: '2026-09-01',
       to: '2026-09-30',
       days: 30,
+      current: false,
     })
     expect(resolveRange({ r: 'custom', from: '2026-09-30', to: '2026-09-01' }, TODAY).preset).toBe('7d')
     expect(resolveRange({ r: 'custom' }, TODAY).preset).toBe('7d')
@@ -32,6 +33,46 @@ describe('range (URL state)', () => {
     expect(toSearch({ preset: '7d' })).toEqual({})
     expect(toSearch({ preset: '30d' })).toEqual({ r: '30d' })
     expect(toSearch({ preset: 'custom', from: 'a', to: 'b' })).toEqual({ r: 'custom', from: 'a', to: 'b' })
+  })
+})
+
+describe('range shifting (arrows)', () => {
+  it('resolves a preset that ends in the past (?end=)', () => {
+    expect(resolveRange({ r: '7d', end: '2026-10-10' }, TODAY)).toEqual({
+      preset: '7d',
+      from: '2026-10-04',
+      to: '2026-10-10',
+      days: 7,
+      current: false,
+    })
+    expect(resolveRange({ r: '24h', end: '2026-10-01' }, TODAY)).toMatchObject({ from: '2026-10-01', to: '2026-10-01' })
+  })
+  it('ignores an end in the future or today', () => {
+    expect(resolveRange({ r: '7d', end: '2027-01-01' }, TODAY).to).toBe(TODAY)
+    expect(resolveRange({ r: '7d', end: TODAY }, TODAY).current).toBe(true)
+  })
+  it('moves a preset by its own length and never past today', () => {
+    const now = resolveRange({ r: '7d' }, TODAY)
+    expect(shiftRange(now, 1, TODAY)).toBeNull()
+    expect(shiftRange(now, -1, TODAY)).toEqual({ preset: '7d', end: '2026-10-08' })
+    const back = resolveRange({ r: '7d', end: '2026-10-08' }, TODAY)
+    expect(shiftRange(back, 1, TODAY)).toEqual({ preset: '7d', end: undefined }) // lands on today
+    const far = resolveRange({ r: '30d', end: '2026-10-01' }, TODAY)
+    expect(shiftRange(far, 1, TODAY)).toEqual({ preset: '30d', end: undefined }) // clamped to today
+    expect(shiftRange(resolveRange({ r: '24h' }, TODAY), -1, TODAY)).toEqual({ preset: '24h', end: '2026-10-14' })
+  })
+  it('moves a custom range by its duration', () => {
+    const c = resolveRange({ r: 'custom', from: '2026-09-01', to: '2026-09-30' }, TODAY)
+    expect(shiftRange(c, -1, TODAY)).toEqual({ preset: 'custom', from: '2026-08-02', to: '2026-08-31' })
+    expect(shiftRange(c, 1, TODAY)).toEqual({ preset: 'custom', from: '2026-09-16', to: TODAY }) // clamped at today, same length
+  })
+  it('has no arrows for "all"', () => {
+    expect(shiftRange(resolveRange({ r: 'all' }, TODAY, '2025-01-01'), -1, TODAY)).toBeNull()
+  })
+  it('writes end only when needed', () => {
+    expect(toSearch({ preset: '7d', end: '2026-10-08' })).toEqual({ end: '2026-10-08' })
+    expect(toSearch({ preset: '30d', end: '2026-10-08' })).toEqual({ r: '30d', end: '2026-10-08' })
+    expect(parseRangeSearch({ end: '2026-10-08' })).toEqual({ end: '2026-10-08' })
   })
 })
 

@@ -1,12 +1,13 @@
+import { CaretLeft, CaretRight } from '@phosphor-icons/react'
 import * as ToggleGroup from '@radix-ui/react-toggle-group'
 import { useId } from 'react'
 import { t } from '../i18n'
-import { addDays, todayLocal } from '../lib/format'
-import { MAX_CUSTOM_DAYS, PRESETS, type RangePreset, type ResolvedRange } from '../lib/range'
+import { addDays, fmtDayLong, todayLocal } from '../lib/format'
+import { MAX_CUSTOM_DAYS, PRESETS, type RangeInput, type RangePreset, type ResolvedRange, shiftRange } from '../lib/range'
 
 interface Props {
   range: ResolvedRange
-  onChange: (next: { preset: RangePreset; from?: string; to?: string }) => void
+  onChange: (next: RangeInput) => void
 }
 
 const LABEL: Record<
@@ -27,6 +28,11 @@ export function RangeSelector({ range, onChange }: Props) {
   const fromId = useId()
   const toId = useId()
   const today = todayLocal()
+  const prev = shiftRange(range, -1, today)
+  const next = shiftRange(range, 1, today)
+  const showWindow = range.preset !== 'custom' && range.preset !== 'all' && !range.current
+  const arrow =
+    'inline-flex min-h-11 min-w-11 items-center justify-center border border-border-control hover:bg-accent-glow/10 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent'
   return (
     <div className="flex flex-wrap items-center gap-3" data-testid="range-selector">
       <ToggleGroup.Root
@@ -54,6 +60,37 @@ export function RangeSelector({ range, onChange }: Props) {
           </ToggleGroup.Item>
         ))}
       </ToggleGroup.Root>
+      {range.preset !== 'all' && (
+        <div className="flex items-center gap-1" role="group" aria-label={t('range.label')}>
+          <button
+            type="button"
+            className={arrow}
+            aria-label={t('range.prev')}
+            data-testid="range-prev"
+            disabled={!prev}
+            onClick={() => prev && onChange(prev)}
+          >
+            <CaretLeft size={20} aria-hidden />
+          </button>
+          <button
+            type="button"
+            className={arrow}
+            aria-label={t('range.next')}
+            data-testid="range-next"
+            disabled={!next}
+            onClick={() => next && onChange(next)}
+          >
+            <CaretRight size={20} aria-hidden />
+          </button>
+          {showWindow && (
+            <span className="px-1 text-sm" data-testid="range-window">
+              {range.days <= 1
+                ? fmtDayLong(range.to)
+                : t('range.window', { from: fmtDayLong(range.from), to: fmtDayLong(range.to) })}
+            </span>
+          )}
+        </div>
+      )}
       {range.preset === 'custom' && (
         <div className="flex flex-wrap items-center gap-2">
           <label htmlFor={fromId} className="hud-label">

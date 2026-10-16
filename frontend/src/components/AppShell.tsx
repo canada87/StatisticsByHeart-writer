@@ -36,7 +36,7 @@ const BOTTOM_MAIN = NAV.slice(0, 4)
 const BOTTOM_MORE = NAV.slice(4)
 
 const HOUR = 3_600_000
-const keepRange = ((prev: Record<string, unknown>) => ({ r: prev.r, from: prev.from, to: prev.to })) as never
+const keepRange = ((prev: Record<string, unknown>) => ({ r: prev.r, from: prev.from, to: prev.to, end: prev.end })) as never
 
 function isActive(path: string, to: string): boolean {
   return to === '/' ? path === '/' : path.startsWith(to)

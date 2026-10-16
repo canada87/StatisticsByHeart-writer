@@ -2,10 +2,10 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useMemo } from 'react'
 import { boundsQuery } from '../api/queries'
-import { type RangePreset, type RangeSearch, type ResolvedRange, parseRangeSearch, resolveRange, toSearch } from './range'
+import { type RangeInput, type RangeSearch, type ResolvedRange, parseRangeSearch, resolveRange, toSearch } from './range'
 
-/** The global time range, read from and written to the URL (?r=30d | ?r=custom&from=..&to=..). */
-export function useRange(): [ResolvedRange, (next: { preset: RangePreset; from?: string; to?: string }) => void] {
+/** The global time range, read from and written to the URL (?r=30d[&end=..] | ?r=custom&from=..&to=..). */
+export function useRange(): [ResolvedRange, (next: RangeInput) => void] {
   const raw = useSearch({ strict: false }) as Record<string, unknown>
   const navigate = useNavigate()
   const parsed: RangeSearch = parseRangeSearch(raw)
@@ -13,9 +13,9 @@ export function useRange(): [ResolvedRange, (next: { preset: RangePreset; from?:
   const firstDay = bounds.data?.first
   const range = useMemo(
     () => resolveRange(parsed, undefined, firstDay),
-    [parsed.r, parsed.from, parsed.to, firstDay], // eslint-disable-line react-hooks/exhaustive-deps
+    [parsed.r, parsed.from, parsed.to, parsed.end, firstDay], // eslint-disable-line react-hooks/exhaustive-deps
   )
-  const setRange = (next: { preset: RangePreset; from?: string; to?: string }) => {
+  const setRange = (next: RangeInput) => {
     void navigate({
       to: '.',
       search: ((prev: Record<string, unknown>) => ({
@@ -23,6 +23,7 @@ export function useRange(): [ResolvedRange, (next: { preset: RangePreset; from?:
         r: undefined,
         from: undefined,
         to: undefined,
+        end: undefined,
         ...toSearch(next),
       })) as never,
     })
