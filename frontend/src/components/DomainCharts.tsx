@@ -441,12 +441,12 @@ export function WorkoutsSection({ range }: { range: ResolvedRange }) {
   const q = useQuery(exerciseQuery({ from: range.from, to: range.to }, scope))
   return (
     <div className="grid gap-3 xl:grid-cols-2">
-      <Panel title={t('workouts.weekly.title')} icon={PersonSimpleRun} accent="activity" testId="chart-workouts-weekly">
+      <Panel title={t('workouts.weekly.title')} icon={PersonSimpleRun} accent="activity" testId="chart-workouts-weekly" className="xl:col-span-2">
         <Async query={q} skeleton={skeleton}>
           {(d) => <WeeklyVolumeChart data={d} />}
         </Async>
       </Panel>
-      <Panel title={t('workouts.list')} icon={PersonSimpleRun} accent="activity" testId="panel-workouts">
+      <Panel title={t('workouts.list')} icon={PersonSimpleRun} accent="activity" testId="panel-workouts" className="xl:col-span-2">
         <div className="flex flex-col gap-3">
           {q.data && <ScopeFilter scope={scope} onChange={setScope} real={q.data.real_count} total={q.data.total_count} />}
           <Async query={q} skeleton={skeleton}>

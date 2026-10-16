@@ -1,7 +1,7 @@
 import { useNavigate, useSearch } from '@tanstack/react-router'
 
 /** Page filters that live in the URL, so a view can be bookmarked and shared. */
-function useSearchValue<V extends string>(key: string): [V | undefined, (next: V | undefined) => void] {
+function useSearchValue<V extends string | number>(key: string): [V | undefined, (next: V | undefined) => void] {
   const raw = useSearch({ strict: false }) as Record<string, unknown>
   const navigate = useNavigate()
   const set = (next: V | undefined) =>
@@ -20,6 +20,6 @@ export function useWorkoutScope(): ['real' | 'all', (scope: 'real' | 'all') => v
 
 /** ?incl=1 keeps real workouts in the daytime heart rate; the default leaves them out. */
 export function useIncludeWorkouts(): [boolean, (include: boolean) => void] {
-  const [value, set] = useSearchValue<'1'>('incl')
-  return [value === '1', (include) => set(include ? '1' : undefined)]
+  const [value, set] = useSearchValue<1>('incl')
+  return [value === 1 || String(value) === '1', (include) => set(include ? 1 : undefined)]
 }

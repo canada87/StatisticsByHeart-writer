@@ -438,7 +438,7 @@ describe('heart rate without workouts', () => {
     expect(toggle).toHaveAttribute('aria-pressed', 'false')
     expect(urls.some((u) => u.pathname === '/api/v1/heart/daypart' && u.searchParams.has('include_workouts'))).toBe(false)
     await user.click(toggle)
-    await waitFor(() => expect(router.state.location.search).toMatchObject({ incl: '1' }))
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ incl: 1 }))
     await waitFor(() =>
       expect(urls.some((u) => u.pathname === '/api/v1/heart/daypart' && u.searchParams.get('include_workouts') === 'true')).toBe(true),
     )

@@ -151,7 +151,7 @@ export function SleepPage() {
 export function ActivityPage() {
   const [range] = useRange()
   const report = useQuery(reportQuery({ from: range.from, to: range.to }))
-  const workouts = useQuery(exerciseQuery({ from: range.from, to: range.to }))
+  const workouts = useQuery(exerciseQuery({ from: range.from, to: range.to }, 'real'))
   const M = METRICS
   const w = workouts.data
   const extra: KpiSpec[] = [

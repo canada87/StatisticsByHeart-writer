@@ -30,7 +30,8 @@ const rootRoute = createRootRouteWithContext<RouterContext>()({
     tab: typeof search.tab === 'string' ? search.tab : undefined,
     // page filters: workouts=all shows every session; incl=1 keeps workouts in the daytime heart rate
     workouts: search.workouts === 'all' ? ('all' as const) : undefined,
-    incl: search.incl === '1' || search.incl === 1 ? ('1' as const) : undefined,
+    // the router JSON-parses search values: ?incl=1 arrives as the number 1
+    incl: search.incl === 1 || search.incl === '1' ? (1 as const) : undefined,
     redirect: typeof search.redirect === 'string' ? search.redirect : undefined,
   }),
 })
