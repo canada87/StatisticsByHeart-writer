@@ -107,7 +107,14 @@ async def test_series_intraday_heart_rate(seeded: None, web: httpx.AsyncClient) 
 
 
 async def test_series_validation(seeded: None, web: httpx.AsyncClient) -> None:
-    first = (TODAY - timedelta(days=30)).isoformat()
+    # hourly averages go up to 31 days (INTRADAY_MAX_DAYS); 15-minute blocks only up to 3
+    in_limit = (TODAY - timedelta(days=30)).isoformat()
+    r = await web.get(f"/api/v1/metrics/HeartRate/series?from={in_limit}&to={TODAY}&bucket=hour")
+    assert r.status_code == 200 and r.json()["bucket"] == "hour"
+    assert len(r.json()["points"]) <= 31 * 24
+    r = await web.get(f"/api/v1/metrics/HeartRate/series?from={in_limit}&to={TODAY}&bucket=15min")
+    assert r.status_code == 422 and r.json()["error"]["code"] == "bucket_too_fine"
+    first = (TODAY - timedelta(days=31)).isoformat()
     r = await web.get(f"/api/v1/metrics/Steps/series?from={first}&to={TODAY}&bucket=hour")
     assert r.status_code == 422 and r.json()["error"]["code"] == "bucket_too_fine"
     r = await web.get("/api/v1/metrics/Nope/series")

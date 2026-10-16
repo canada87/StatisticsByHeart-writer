@@ -41,15 +41,24 @@ interface Props {
   height?: number
 }
 
-const BUCKETS: Exclude<Bucket, '15min' | 'hour'>[] = ['auto', 'day', 'week', 'month']
+type PickableBucket = Exclude<Bucket, '15min'>
 const BUCKET_LABEL = {
   auto: 'bucket.opt.auto',
+  hour: 'bucket.opt.hour',
   day: 'bucket.opt.day',
   week: 'bucket.opt.week',
   month: 'bucket.opt.month',
 } as const
 
 const MA_UNIT: Record<string, string> = { day: 'g', week: ' sett.', month: ' mesi' }
+
+/** Longest range for which the server serves hourly averages (INTRADAY_MAX_DAYS). */
+export const HOURLY_MAX_DAYS = 31
+
+/** Hourly averages are offered for dense metrics on ranges of 2..31 days. */
+export function hourlyAllowed(def: Pick<MetricDef, 'hourly'>, days: number): boolean {
+  return !!def.hourly && days > 1 && days <= HOURLY_MAX_DAYS
+}
 
 /** Client default: server-automatic only for 24h (intraday) and very long ranges, else per day. */
 export function defaultBucket(days: number): Bucket {
@@ -86,7 +95,10 @@ export function TrendChart({
   const [showPrev, setShowPrev] = useState(false)
   const [cursor, setCursor] = useState<number | null>(null)
   const bucketId = useId()
-  const effective: Bucket = bucket === 'auto' ? defaultBucket(range.days) : bucket
+  const hourOk = hourlyAllowed(def, range.days)
+  const choice: Bucket = bucket === 'hour' && !hourOk ? 'auto' : bucket
+  const buckets: PickableBucket[] = hourOk ? ['auto', 'hour', 'day', 'week', 'month'] : ['auto', 'day', 'week', 'month']
+  const effective: Bucket = choice === 'auto' ? defaultBucket(range.days) : choice
 
   const query = useQuery(
     seriesQuery({
@@ -135,7 +147,7 @@ export function TrendChart({
     const unit = def.unit
 
     const option = baseOption(
-      pts.map((x) => bucketLabel(x.t, d.bucket)),
+      pts.map((x) => bucketLabel(x.t, d.bucket, range.days > 1)),
       [
         { name: label, color: p[def.color], kind: def.kind, data: main, short: pair ? t('bp.short.sys') : undefined },
         ...(pair && pairData
@@ -261,7 +273,7 @@ export function TrendChart({
         .join(' · ')
     }
     return { option, table, csv, summary: parts.filter(Boolean).join(' '), readout, d, hasPrev, hasMa: !!ma }
-  }, [query.data, query2.data, def, pair, showMa, showPrev, reduced, reference])
+  }, [query.data, query2.data, def, pair, showMa, showPrev, reduced, reference, range.days])
 
   const controls = built && (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 no-print" data-testid="trend-controls">
@@ -277,13 +289,13 @@ export function TrendChart({
           <select
             id={bucketId}
             className="input w-auto"
-            value={bucket}
+            value={choice}
             onChange={(e) => {
               setBucket(e.target.value as Bucket)
               setCursor(null)
             }}
           >
-            {BUCKETS.map((b) => (
+            {buckets.map((b) => (
               <option key={b} value={b}>
                 {t(BUCKET_LABEL[b])}
               </option>

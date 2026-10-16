@@ -140,11 +140,21 @@ describe('heart page', () => {
   it('values are reachable from the keyboard: the cursor drives the readout and the tooltip', async () => {
     renderApp('/heart')
     const chart = await screen.findByTestId('trend-restingHr')
-    const slider = await within(chart).findByRole('slider', { name: /Esplora i punti/ })
-    slider.focus()
-    fireEvent.change(slider, { target: { value: '2' } }) // what the arrow keys do to a range input
+    expect(within(chart).queryByRole('slider')).toBeNull() // no range bar under the chart
+    const focusable = await within(chart).findByTestId('chart-focus')
+    focusable.focus()
+    expect(focusable).toHaveFocus()
+    fireEvent.keyDown(focusable, { key: 'ArrowRight' })
+    fireEvent.keyDown(focusable, { key: 'ArrowRight' })
     expect(within(chart).getByTestId('chart-readout')).toHaveTextContent('bpm')
-    expect(within(chart).getByTestId('echart-stub')).toHaveAttribute('data-active', '2')
+    expect(within(chart).getByTestId('echart-stub')).toHaveAttribute('data-active', '1')
+    fireEvent.keyDown(focusable, { key: 'End' })
+    expect(within(chart).getByTestId('echart-stub')).toHaveAttribute('data-active', '6')
+    fireEvent.keyDown(focusable, { key: 'Home' })
+    expect(within(chart).getByTestId('echart-stub')).toHaveAttribute('data-active', '0')
+    fireEvent.keyDown(focusable, { key: 'Escape' })
+    expect(within(chart).getByTestId('echart-stub')).toHaveAttribute('data-active', '')
+    expect(within(chart).getByTestId('chart-readout')).toBeEmptyDOMElement()
   })
 
   it('offers the table alternative and a CSV export of the chart', async () => {
@@ -161,6 +171,53 @@ describe('heart page', () => {
     expect(csv.charCodeAt(0)).toBe(0xfeff) // BOM for Excel
     expect(csv.split('\r\n')[0]).toContain('Data')
     expect(csv.split('\r\n').length).toBeGreaterThan(7)
+  })
+})
+
+describe('hourly granularity', () => {
+  it('is offered for dense metrics up to 31 days and requests bucket=hour', async () => {
+    renderApp('/heart?r=30d')
+    const user = userEvent.setup()
+    const chart = await screen.findByTestId('trend-heartRate')
+    const select = await within(chart).findByLabelText('Granularità')
+    expect(within(select).getByRole('option', { name: 'Ora' })).toBeInTheDocument()
+    await user.selectOptions(select, 'hour')
+    await waitFor(() =>
+      expect(urls.some((u) => u.pathname.endsWith('/HeartRate/series') && u.searchParams.get('bucket') === 'hour')).toBe(true),
+    )
+  })
+  it('is not offered beyond 31 days nor for instant measurements', async () => {
+    renderApp('/heart?r=90d')
+    const long = await screen.findByTestId('trend-heartRate')
+    expect(within(await within(long).findByLabelText('Granularità')).queryByRole('option', { name: 'Ora' })).toBeNull()
+  })
+  it('is not offered for resting heart rate', async () => {
+    renderApp('/heart?r=30d')
+    const rest = await screen.findByTestId('trend-restingHr')
+    expect(within(await within(rest).findByLabelText('Granularità')).queryByRole('option', { name: 'Ora' })).toBeNull()
+  })
+})
+
+describe('range arrows', () => {
+  it('step back by the window length, put it in the URL and disable "next" at today', async () => {
+    const { router } = renderApp('/heart?r=30d')
+    const user = userEvent.setup()
+    const next = await screen.findByRole('button', { name: 'Intervallo successivo' })
+    expect(next).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Intervallo precedente' }))
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ r: '30d' }))
+    expect((router.state.location.search as { end?: string }).end).toBeTruthy()
+    expect(await screen.findByTestId('range-window')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Intervallo successivo' })).toBeEnabled()
+    await waitFor(() => expect(urls.some((u) => u.pathname === '/api/v1/report' && u.searchParams.get('to') !== null)).toBe(true))
+    await user.click(screen.getByRole('button', { name: 'Intervallo successivo' }))
+    await waitFor(() => expect((router.state.location.search as { end?: string }).end).toBeUndefined())
+    expect(screen.queryByTestId('range-window')).toBeNull()
+  })
+  it('are hidden for "Tutto"', async () => {
+    renderApp('/heart?r=all')
+    await screen.findByTestId('range-selector')
+    expect(screen.queryByRole('button', { name: 'Intervallo precedente' })).toBeNull()
   })
 })
 

@@ -10,7 +10,7 @@ anche su anni di storico e i numeri mostrati devono coincidere con quelli uffici
 ## Decisioni
 
 1. **Sorgente dei trend = `daily_metric`** (ufficiale se presente, altrimenti calcolato). Le serie sub‑giornaliere (15 min / ora)
-   esistono solo per ≤ 3 / ≤ 14 giorni e leggono i campioni grezzi.
+   esistono solo per ≤ 3 / ≤ 31 giorni (ora: alzato da 14 a 31 in 0.4.0-dev, ~744 punti, sotto MAX_POINTS) e leggono i campioni grezzi.
 2. **Aggregazione lato server.** Granularità `giorno | settimana (lunedì) | mese`. Il tetto è ~1000 punti: se la richiesta lo
    supera il bucket viene reso più grosso (`coarsened: true`, il bucket effettivo è nella risposta). Il client sceglie
    «automatica» = giorno fino a 120 giorni, poi settimana/mese.

@@ -35,6 +35,9 @@ export const it = {
   'range.custom': 'Pers.',
   'range.from': 'Dal',
   'range.to': 'Al',
+  'range.prev': 'Intervallo precedente',
+  'range.next': 'Intervallo successivo',
+  'range.window': '{from} – {to}',
 
   'state.loading': 'Caricamento…',
   'state.empty': 'Nessun dato',
@@ -192,7 +195,7 @@ export const it = {
   'nav.more': 'Altro',
   'nav.more.aria': 'Altro: altre sezioni',
 
-  'chart.cursor': 'Esplora i punti con le frecce ← →',
+  'chart.keys': 'Grafico: frecce ← → per spostarsi tra i punti, Home e Fine per gli estremi, Esc per azzerare.',
   'chart.exportCsv': 'Esporta CSV',
   'chart.col.date': 'Data',
   'chart.col.min': 'Min',
@@ -210,6 +213,7 @@ export const it = {
   'chart.summary.prev': 'Periodo precedente: media {value}.',
   'chart.summary.pair': '{label}: media {value}.',
   'bucket.opt.auto': 'Automatica',
+  'bucket.opt.hour': 'Ora',
   'bucket.opt.day': 'Giorno',
   'bucket.opt.week': 'Settimana',
   'bucket.opt.month': 'Mese',

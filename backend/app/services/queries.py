@@ -41,7 +41,7 @@ from app.models import DailyMetric, Device, HealthRecord, HealthSample, SyncRun
 from app.services.daily import Coverage, Row, counted_values, rank_sources
 
 MAX_SERIES_DAYS = 3660
-INTRADAY_MAX_DAYS = {"15min": 3, "hour": 14}
+INTRADAY_MAX_DAYS = {"15min": 3, "hour": 31}
 LATEST_LOOKBACK_DAYS = 14
 RECONCILE_MAX_DAYS = 120
 RECONCILE_DEFAULT_TYPES = [

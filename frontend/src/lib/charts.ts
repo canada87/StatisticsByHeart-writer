@@ -23,9 +23,9 @@ export const palette = () => ({
 })
 
 /** x-axis label for a bucket start (a day or a local datetime). */
-export function bucketLabel(t_: string, bucket: SeriesResponse['bucket']): string {
+export function bucketLabel(t_: string, bucket: SeriesResponse['bucket'], withDate = false): string {
   if (bucket === 'day' || bucket === 'week' || bucket === 'month') return fmtDayShort(t_)
-  return fmtTime(t_)
+  return withDate ? `${fmtDayShort(t_.slice(0, 10))} ${fmtTime(t_)}` : fmtTime(t_)
 }
 
 export function bucketLabelLong(t_: string, bucket: SeriesResponse['bucket']): string {

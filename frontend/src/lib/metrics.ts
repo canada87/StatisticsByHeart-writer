@@ -24,18 +24,20 @@ export interface MetricDef {
   color: PaletteKey
   /** Draw the min-max band (heart rate). */
   band?: boolean
+  /** Dense enough for hourly averages (instant measurements like weight are not). */
+  hourly?: boolean
 }
 
 export const METRICS = {
-  steps: { id: 'steps', reportKey: 'steps', type: 'Steps', label: 'm.steps', unit: '', scale: 1, digits: 0, agg: 'sum', kind: 'bar', color: 'glow' },
-  heartRate: { id: 'heartRate', reportKey: 'heart_rate', type: 'HeartRate', label: 'm.heartRate', unit: 'bpm', scale: 1, digits: 0, agg: 'avg', kind: 'line', color: 'heart', band: true },
+  steps: { id: 'steps', reportKey: 'steps', type: 'Steps', label: 'm.steps', unit: '', scale: 1, digits: 0, agg: 'sum', kind: 'bar', color: 'glow', hourly: true },
+  heartRate: { id: 'heartRate', reportKey: 'heart_rate', type: 'HeartRate', label: 'm.heartRate', unit: 'bpm', scale: 1, digits: 0, agg: 'avg', kind: 'line', color: 'heart', band: true, hourly: true },
   restingHr: { id: 'restingHr', reportKey: 'resting_hr', type: 'RestingHeartRate', label: 'm.restingHr', unit: 'bpm', scale: 1, digits: 0, agg: 'avg', kind: 'line', color: 'heart' },
   hrv: { id: 'hrv', reportKey: 'hrv', type: 'HeartRateVariabilityRmssd', label: 'm.hrv', unit: 'ms', scale: 1, digits: 0, agg: 'avg', kind: 'line', color: 'vitals' },
   spo2: { id: 'spo2', reportKey: 'spo2', type: 'OxygenSaturation', label: 'm.spo2', unit: '%', scale: 1, digits: 1, agg: 'avg', kind: 'line', color: 'vitals' },
   sleep: { id: 'sleep', reportKey: 'sleep', type: 'SleepSession', label: 'm.sleep', unit: 'h', scale: 1 / 3600, digits: 1, agg: 'sum', kind: 'bar', color: 'sleep' },
-  distance: { id: 'distance', reportKey: 'distance', type: 'Distance', label: 'm.distance', unit: 'km', scale: 1 / 1000, digits: 1, agg: 'sum', kind: 'bar', color: 'glow' },
-  activeKcal: { id: 'activeKcal', reportKey: 'active_kcal', type: 'ActiveCaloriesBurned', label: 'm.activeKcal', unit: 'kcal', scale: 1, digits: 0, agg: 'sum', kind: 'bar', color: 'energy' },
-  totalKcal: { id: 'totalKcal', reportKey: 'total_kcal', type: 'TotalCaloriesBurned', label: 'm.totalKcal', unit: 'kcal', scale: 1, digits: 0, agg: 'sum', kind: 'bar', color: 'energy' },
+  distance: { id: 'distance', reportKey: 'distance', type: 'Distance', label: 'm.distance', unit: 'km', scale: 1 / 1000, digits: 1, agg: 'sum', kind: 'bar', color: 'glow', hourly: true },
+  activeKcal: { id: 'activeKcal', reportKey: 'active_kcal', type: 'ActiveCaloriesBurned', label: 'm.activeKcal', unit: 'kcal', scale: 1, digits: 0, agg: 'sum', kind: 'bar', color: 'energy', hourly: true },
+  totalKcal: { id: 'totalKcal', reportKey: 'total_kcal', type: 'TotalCaloriesBurned', label: 'm.totalKcal', unit: 'kcal', scale: 1, digits: 0, agg: 'sum', kind: 'bar', color: 'energy', hourly: true },
   weight: { id: 'weight', reportKey: 'weight', type: 'Weight', label: 'm.weight', unit: 'kg', scale: 1, digits: 1, agg: 'avg', kind: 'line', color: 'accent' },
   systolic: { id: 'systolic', reportKey: 'blood_pressure', type: 'BloodPressure', field: 'systolic', label: 'm.systolic', unit: 'mmHg', scale: 1, digits: 0, agg: 'avg', kind: 'line', color: 'heart' },
   diastolic: { id: 'diastolic', reportKey: 'blood_pressure', type: 'BloodPressure', field: 'diastolic', label: 'm.diastolic', unit: 'mmHg', scale: 1, digits: 0, agg: 'avg', kind: 'line', color: 'heart' },
