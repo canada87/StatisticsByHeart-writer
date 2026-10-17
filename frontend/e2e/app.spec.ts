@@ -14,6 +14,15 @@ const VIEWPORTS = [
   { name: '1440', width: 1440, height: 900 },
 ] as const
 
+/** Local date n days ago, as the dashboard would write it in a URL (seed: 130 days of data). */
+function daysAgo(n: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() - n)
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome' }).format(d)
+}
+/** A period over several months: a partial first month, whole ones, and the running month. */
+const LONG_REPORT = `/report?p=custom&from=${daysAgo(112)}&to=${daysAgo(0)}`
+
 // Pages with their heading; trend pages use 30 days so the charts have enough points.
 const PAGES = [
   { id: 'overview', path: '/', h1: 'Panoramica' },
@@ -21,7 +30,7 @@ const PAGES = [
   { id: 'sleep', path: '/sleep?r=30d', h1: 'Sonno' },
   { id: 'activity', path: '/activity?r=30d', h1: 'Attività' },
   { id: 'body', path: '/body?r=90d', h1: 'Corpo' },
-  { id: 'report', path: '/report?p=month', h1: 'Report' },
+  { id: 'report', path: LONG_REPORT, h1: 'Report' },
 ] as const
 
 test.beforeAll(() => mkdirSync(SHOTS, { recursive: true }))
@@ -480,11 +489,11 @@ test.describe('trends (synthetic data)', () => {
     await page.getByRole('radio', { name: 'Tutto' }).click()
     await expect(page).toHaveURL(/r=all/)
     await settled(page)
-    // seed: 90 days of data -> the weekly/day chart covers all of it
+    // seed: 130 days of data -> a weekly chart that covers all of it
     await expect(page.getByTestId('trend-steps').getByTestId('chart-summary')).toContainText(/\d+ valori/)
     const text = await page.getByTestId('trend-steps').getByTestId('chart-summary').innerText()
     const n = Number(/(\d+) valori/.exec(text)?.[1])
-    expect(n).toBeGreaterThanOrEqual(80)
+    expect(n).toBeGreaterThanOrEqual(15) // 130 seeded days, over 120: the automatic granularity is the week
   })
 
   test('sleep page: schedule and stages charts, regularity KPI', async ({ page }) => {
@@ -520,6 +529,65 @@ test.describe('trends (synthetic data)', () => {
 })
 
 test.describe('report (synthetic data)', () => {
+  test('extended report: day/night heart rate, Heart Points, month by month, real workouts, CSVs', async ({ page }) => {
+    await login(page)
+    await page.goto(LONG_REPORT)
+    await settled(page)
+    // all the existing statistics are still there, plus the new rows
+    for (const key of ['steps', 'distance', 'active_kcal', 'total_kcal', 'heart_rate', 'resting_hr', 'hrv', 'spo2', 'sleep', 'workouts', 'weight', 'blood_pressure', 'hr_day', 'hr_night', 'heart_points']) {
+      await expect(page.getByTestId(`report-row-${key}`)).toBeVisible()
+    }
+    await expect(page.getByTestId('report-row-hr_night')).toContainText('bpm')
+    await expect(page.getByTestId('report-row-hr_day').getByTestId('delta')).toBeVisible()
+    // Heart Points block
+    const points = page.getByTestId('report-points')
+    await expect(points.getByTestId('report-points-total')).toContainText('punti')
+    await expect(points.getByTestId('report-points-goal')).toContainText(/\d+ settimane su \d+ sopra l.obiettivo/)
+    // real workouts only, with the detail per type and a pointer to the rules
+    await expect(page.getByTestId('report-workout-types').getByTestId('workout-type-row').first()).toBeVisible()
+    await expect(page.getByTestId('report-workouts-rules')).toContainText('Contano solo gli allenamenti veri')
+    // month by month: partial first and last month, whole months in between
+    const avg = page.getByTestId('monthly-avg')
+    const rows = avg.getByTestId('month-row')
+    expect(await rows.count()).toBeGreaterThanOrEqual(4)
+    await expect(rows.first()).toHaveAttribute('data-partial', 'true')
+    await expect(rows.last()).toHaveAttribute('data-partial', 'true')
+    await expect(rows.nth(1)).toHaveAttribute('data-partial', 'false')
+    await expect(avg.getByRole('columnheader', { name: /FC notturna/ })).toBeVisible()
+    await expect(page.getByTestId('monthly-sum').getByRole('columnheader', { name: /Punti cardio/ })).toBeVisible()
+    // big charts, monthly because the period spans months
+    const charts = page.locator('.report-chart')
+    expect(await charts.count()).toBeGreaterThanOrEqual(7)
+    await expect(page.getByTestId('report-charts')).toContainText('i grafici sono per mese')
+    await expect(page.getByTestId('trend-steps').getByTestId('granularity-actual')).toContainText('mese')
+    // CSVs
+    const [monthly] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-monthly').click()])
+    const mcsv = readFileSync(await monthly.path(), 'utf8').split('\r\n')
+    expect(mcsv[0]).toMatch(/^﻿mese,giorni_nel_periodo,parziale,heart_rate,hr_day,hr_night,/)
+    expect(mcsv[0]).toContain('heart_points')
+    expect(mcsv.filter(Boolean).length).toBeGreaterThanOrEqual(5)
+    expect(mcsv[1]).toContain(',si,')
+    const [daily] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Esporta CSV giornaliero' }).click()])
+    const dcsv = readFileSync(await daily.path(), 'utf8').split('\r\n')
+    expect(dcsv[0]).toContain('hr_day')
+    expect(dcsv[0]).toContain('hr_night')
+    expect(dcsv[0]).toContain('heart_points')
+    expect(dcsv.length).toBeGreaterThan(60)
+  })
+
+  test('a single month: one row in the month table, not partial', async ({ page }) => {
+    await login(page)
+    const first = new Date()
+    first.setDate(0) // last day of the previous month
+    const y = first.getFullYear()
+    const m = String(first.getMonth() + 1).padStart(2, '0')
+    await page.goto(`/report?p=month&d=${y}-${m}-10`)
+    await settled(page)
+    const rows = page.getByTestId('monthly-avg').getByTestId('month-row')
+    await expect(rows).toHaveCount(1)
+    await expect(rows.first()).toHaveAttribute('data-partial', 'false')
+  })
+
   test('period lives in the URL; summary has the 12 metrics; CSV export works', async ({ page }) => {
     await login(page)
     await page.goto('/report?p=month')
@@ -546,7 +614,7 @@ test.describe('report (synthetic data)', () => {
   test('print preview: light theme, no HUD chrome, report content intact', async ({ page }) => {
     await page.setViewportSize({ width: 794, height: 1123 }) // A4 at 96 dpi
     await login(page)
-    await page.goto('/report?p=month')
+    await page.goto(LONG_REPORT)
     await settled(page)
     await page.emulateMedia({ media: 'print', reducedMotion: 'reduce' })
     await expect(page.locator('aside')).toBeHidden()
@@ -555,6 +623,19 @@ test.describe('report (synthetic data)', () => {
     const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor)
     expect(bg).toBe('rgb(255, 255, 255)')
     await expect(page.getByTestId('report-summary')).toBeVisible()
+    // charts: one per row, full width, tall, never cut between pages
+    const charts = page.locator('.report-chart')
+    expect(await charts.count()).toBeGreaterThanOrEqual(7)
+    const content = await page.locator('main').boundingBox()
+    for (let i = 0; i < (await charts.count()); i++) {
+      const box = await charts.nth(i).boundingBox()
+      expect(box?.width ?? 0).toBeGreaterThan((content?.width ?? 0) * 0.95)
+      expect(box?.height ?? 0).toBeGreaterThan(330)
+      expect(await charts.nth(i).evaluate((el) => getComputedStyle(el).breakInside)).toBe('avoid')
+    }
+    // the canvas is inverted for paper: a dark HUD palette would vanish on white
+    expect(await charts.first().locator('canvas').first().evaluate((el) => getComputedStyle(el).filter)).toContain('invert')
+    await expect(page.getByTestId('report-monthly')).toBeVisible()
     await page.screenshot({ path: join(SHOTS, 'report-print.png'), fullPage: true })
     await page.pdf({ path: join(SHOTS, 'report-print.pdf'), format: 'A4', printBackground: false })
   })

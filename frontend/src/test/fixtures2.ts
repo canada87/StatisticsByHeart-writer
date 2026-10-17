@@ -1,5 +1,6 @@
 import type {
   PointsRules,
+  ReportMonthly,
   PointsSeriesResponse,
   PointsWeek,
   StorageResponse,
@@ -87,8 +88,56 @@ export function report(opts: { noBloodPressure?: boolean } = {}): ReportResponse
       bedtime_sd_min: 22,
       wake_sd_min: 18,
     },
-    workouts: { count: 3, duration_s: 8100, avg_duration_s: 2700, per_week: 3, by_type: { WALKING: 2, RUNNING: 1 }, scope: 'real', excluded: 4 },
+    extra_metrics: [
+      metric('hr_day', 'HeartRateDay', 'bpm', 'avg', { higher_is_better: null, current: stats(76), previous: stats(74) }),
+      metric('hr_night', 'HeartRateNight', 'bpm', 'avg', { higher_is_better: null, current: stats(54), previous: stats(56) }),
+      metric('heart_points', 'HeartPoints', 'points', 'sum', { current: stats(20, { total: 140, min: 0, max: 60 }), previous: stats(18, { total: 126 }) }),
+    ],
+    points: { total: 140, previous_total: 126, weekly_avg: 140, weeks_complete: 1, weeks_over_goal: 0, goal: 150, hr_configured: true },
+    monthly: monthlyFixture('2026-10-09', '2026-10-15'),
+    workouts: {
+      count: 3,
+      duration_s: 8100,
+      avg_duration_s: 2700,
+      per_week: 3,
+      by_type: { RUNNING: 2, BIKING: 1 },
+      by_type_detail: [
+        { type: 'RUNNING', count: 2, duration_s: 4500 },
+        { type: 'BIKING', count: 1, duration_s: 3600 },
+      ],
+      scope: 'real',
+      excluded: 4,
+    },
   }
+}
+
+/** Month-by-month fixture: one month, or the months a window crosses (the ends are partial). */
+export function monthlyFixture(from: string, to: string): ReportMonthly {
+  const first = new Date(`${from}T00:00:00Z`)
+  const last = new Date(`${to}T00:00:00Z`)
+  const months: ReportMonthly['months'] = []
+  for (let c = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), 1)); c <= last; c = new Date(Date.UTC(c.getUTCFullYear(), c.getUTCMonth() + 1, 1))) {
+    const end = new Date(Date.UTC(c.getUTCFullYear(), c.getUTCMonth() + 1, 0))
+    const lo = c < first ? first : c
+    const hi = end > last ? last : end
+    const i = months.length
+    months.push({
+      month: c.toISOString().slice(0, 10),
+      days: Math.round((hi.getTime() - lo.getTime()) / 86_400_000) + 1,
+      partial: c < first || end > last,
+      values: {
+        heart_rate: 70 + i, hr_day: 76 + i, hr_night: 54 + i, resting_hr: 57 - i, hrv: 48 + i, spo2: 96.5, sleep: 25000 + i * 600,
+        weight: 78.4 - i * 0.2, systolic: 118, diastolic: 77,
+        steps: 280000 + i * 1000, distance: 210000, active_kcal: 8400, total_kcal: 58000, heart_points: 300 + i * 40,
+        workouts: 11 - i, workouts_s: 30000 + i * 900,
+      },
+    })
+  }
+  const kinds: Record<string, 'avg' | 'sum'> = {
+    heart_rate: 'avg', hr_day: 'avg', hr_night: 'avg', resting_hr: 'avg', hrv: 'avg', spo2: 'avg', sleep: 'avg', weight: 'avg', systolic: 'avg', diastolic: 'avg',
+    steps: 'sum', distance: 'sum', active_kcal: 'sum', total_kcal: 'sum', heart_points: 'sum', workouts: 'sum', workouts_s: 'sum',
+  }
+  return { columns: Object.entries(kinds).map(([key, kind]) => ({ key, kind, unit: null })), months }
 }
 
 export function trendSeries(type: string, values: (number | null)[], over: Partial<SeriesResponse> = {}): SeriesResponse {

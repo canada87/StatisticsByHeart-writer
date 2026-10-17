@@ -346,6 +346,29 @@
     color: inherit !important;
     text-decoration: none !important;
   }
+  /* Report charts: one per row, full A4 width, tall, never cut between pages. The canvas is
+     drawn with the dark HUD palette, so in print it is inverted (light text becomes dark; the hue
+     is turned back). Line styles (solid / dashed) and the labelled goal lines carry the meaning
+     in black and white. */
+  .report-chart {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 6mm;
+    width: 100%;
+  }
+  .report-chart canvas {
+    filter: invert(1) hue-rotate(180deg);
+  }
+  .report-chart [data-testid='echart'] {
+    min-height: 90mm;
+  }
+  .report-monthly table {
+    font-size: 8.5pt;
+  }
+  .report-monthly th,
+  .report-monthly td {
+    padding: 2px 4px !important;
+  }
 }
 .print-only {
   display: none;

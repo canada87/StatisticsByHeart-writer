@@ -824,6 +824,133 @@ describe('byte formatting', () => {
   })
 })
 
+describe('extended report', () => {
+  it('adds day / night heart rate and Heart Points rows, keeping all the other statistics', async () => {
+    renderApp('/report?p=month&d=2026-09-10')
+    await screen.findByTestId('report-row-steps')
+    for (const key of ['steps', 'distance', 'active_kcal', 'total_kcal', 'heart_rate', 'resting_hr', 'hrv', 'spo2', 'sleep', 'workouts', 'weight', 'blood_pressure']) {
+      expect(screen.getByTestId(`report-row-${key}`)).toBeInTheDocument()
+    }
+    const day = screen.getByTestId('report-row-hr_day')
+    expect(day).toHaveTextContent('FC diurna')
+    expect(day).toHaveTextContent('76 bpm')
+    expect(within(day).getByTestId('delta')).toBeInTheDocument() // with the previous period
+    const night = screen.getByTestId('report-row-hr_night')
+    expect(night).toHaveTextContent('54 bpm')
+    expect(within(night).getByTestId('delta')).toHaveAttribute('data-direction', 'down')
+    const points = screen.getByTestId('report-row-heart_points')
+    expect(points).toHaveTextContent('140 punti')
+    const rows = screen.getAllByTestId(/^report-row-/).map((r) => r.getAttribute('data-testid'))
+    expect(rows.indexOf('report-row-hr_day')).toBe(rows.indexOf('report-row-heart_rate') + 1)
+  })
+
+  it('Heart Points block: total, weekly mean, weeks above the goal, previous period', async () => {
+    renderApp('/report?p=month&d=2026-09-10')
+    const block = await screen.findByTestId('report-points')
+    expect(within(block).getByTestId('report-points-total')).toHaveTextContent('140 punti')
+    expect(within(block).getByTestId('report-points-weekly')).toHaveTextContent('140 punti')
+    expect(within(block).getByTestId('report-points-goal')).toHaveTextContent('0 settimane su 1 sopra l’obiettivo')
+    expect(block).toHaveTextContent('126 punti')
+    expect(within(block).queryByTestId('points-hr-warning')).toBeNull()
+  })
+
+  it('workouts: only real ones, per type with number and time, and a pointer to the rules', async () => {
+    renderApp('/report?p=month&d=2026-09-10')
+    const types = await screen.findByTestId('report-workout-types')
+    const rows = within(types).getAllByTestId('workout-type-row')
+    expect(rows[0]).toHaveTextContent('Corsa')
+    expect(rows[0]).toHaveTextContent('2')
+    expect(rows[0]).toHaveTextContent('1 h 15 min')
+    expect(rows[1]).toHaveTextContent('Ciclismo')
+    expect(within(types).getByRole('columnheader', { name: 'Allenamenti veri' })).toBeInTheDocument()
+    const note = screen.getByTestId('report-workouts-rules')
+    expect(note).toHaveTextContent('Contano solo gli allenamenti veri')
+    expect(within(note).getByRole('link', { name: 'Vedi le regole' })).toHaveAttribute('href', expect.stringContaining('/activity'))
+  })
+
+  it('month by month: a row per month with the partial ones flagged, daily means and totals', async () => {
+    handlers['/api/v1/report'] = () => ({ body: { ...fx2.report(), monthly: fx2.monthlyFixture('2026-07-20', '2026-10-15') } })
+    renderApp('/report?p=custom&from=2026-07-20&to=2026-10-15')
+    const monthly = await screen.findByTestId('report-monthly')
+    const avg = within(monthly).getByTestId('monthly-avg')
+    const rows = within(avg).getAllByTestId('month-row')
+    expect(rows).toHaveLength(4) // jul, aug, sep, oct
+    expect(rows.map((r) => r.getAttribute('data-partial'))).toEqual(['true', 'false', 'false', 'true'])
+    expect(within(rows[0] as HTMLElement).getByTestId('month-partial')).toHaveTextContent('parziale, 12 gg')
+    expect(within(rows[1] as HTMLElement).queryByTestId('month-partial')).toBeNull()
+    expect(rows[1]).toHaveTextContent('ago 2026')
+    // headers with scope, caption, and the day / night columns next to the heart rate
+    expect(within(avg).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(
+      expect.arrayContaining(['Mese', expect.stringContaining('FC diurna'), expect.stringContaining('FC notturna')]),
+    )
+    expect(within(avg).getAllByRole('rowheader')).toHaveLength(4)
+    expect(rows[1]).toHaveTextContent('77') // hr_day of the 2nd month: 76 + 1
+    const sum = within(monthly).getByTestId('monthly-sum')
+    expect(within(sum).getAllByTestId('month-row')[1]).toHaveTextContent('340') // heart points of the 2nd month: 300 + 40
+    expect(within(monthly).getByText(/Parziale = il periodo non copre tutto il mese/)).toBeInTheDocument()
+  })
+
+  it('one whole week inside one month does not repeat the summary in a month table', async () => {
+    renderApp('/report')
+    await screen.findByTestId('report-row-steps')
+    expect(screen.queryByTestId('report-monthly')).toBeNull()
+  })
+
+  it('a single whole month still shows its one row, not partial', async () => {
+    handlers['/api/v1/report'] = () => ({ body: { ...fx2.report(), monthly: fx2.monthlyFixture('2026-09-01', '2026-09-30') } })
+    renderApp('/report?p=month&d=2026-09-10')
+    const monthly = await screen.findByTestId('report-monthly')
+    const rows = within(monthly).getAllByTestId('month-row')
+    expect(rows.length).toBe(2) // avg table and totals table, one row each
+    expect(rows.every((r) => r.getAttribute('data-partial') === 'false')).toBe(true)
+  })
+
+  it('big charts: one per metric with data, monthly granularity when the period spans months', async () => {
+    handlers['/api/v1/report'] = () => ({ body: { ...fx2.report(), monthly: fx2.monthlyFixture('2026-07-20', '2026-10-15') } })
+    renderApp('/report?p=custom&from=2026-07-20&to=2026-10-15')
+    const charts = await screen.findByTestId('report-charts')
+    await waitFor(() => expect(within(charts).getAllByTestId('echart-stub').length).toBeGreaterThanOrEqual(8))
+    expect(within(charts).getByText(/i grafici sono per mese/)).toBeInTheDocument()
+    await waitFor(() =>
+      expect(urls.some((u) => u.pathname === '/api/v1/metrics/Steps/series' && u.searchParams.get('bucket') === 'month')).toBe(true),
+    )
+    expect(charts.querySelectorAll('.report-chart').length).toBeGreaterThanOrEqual(8)
+    // the heart-rate chart is the day / night one, and Heart Points are there too
+    expect(within(charts).getByTestId('trend-heartRate')).toBeInTheDocument()
+    expect(within(charts).getByTestId('chart-heartpoints')).toBeInTheDocument()
+  })
+
+  it('a period within a month keeps the daily default for the big charts', async () => {
+    renderApp('/report?p=month&d=2026-09-10')
+    await screen.findByTestId('report-charts')
+    await waitFor(() =>
+      expect(urls.some((u) => u.pathname === '/api/v1/metrics/Steps/series' && u.searchParams.get('bucket') === 'day')).toBe(true),
+    )
+  })
+
+  it('charts of metrics without data are not drawn', async () => {
+    handlers['/api/v1/report'] = () => ({ body: fx2.report({ noBloodPressure: true }) })
+    renderApp('/report?p=month&d=2026-09-10')
+    await screen.findByTestId('report-charts')
+    expect(screen.queryByTestId('trend-systolic')).toBeNull()
+  })
+
+  it('exports the monthly table as CSV, and the daily CSV keeps coming from the daily endpoint', async () => {
+    handlers['/api/v1/report'] = () => ({ body: { ...fx2.report(), monthly: fx2.monthlyFixture('2026-07-20', '2026-10-15') } })
+    renderApp('/report?p=custom&from=2026-07-20&to=2026-10-15')
+    const user = userEvent.setup()
+    await user.click(await screen.findByTestId('export-monthly'))
+    await waitFor(() => expect(csvDownloads.length).toBe(1))
+    const lines = (csvDownloads[0]?.text ?? '').split('\r\n')
+    expect(lines[0]).toContain('mese')
+    expect(lines[0]).toContain('hr_day')
+    expect(lines[0]).toContain('heart_points')
+    expect(lines[1]).toContain('2026-07')
+    expect(lines[1]).toContain('si') // the first month is partial
+    expect(lines.filter(Boolean).length).toBe(5) // header + 4 months
+  })
+})
+
 describe('report', () => {
   it('states that only real workouts count', async () => {
     renderApp('/report?p=month')
@@ -971,7 +1098,7 @@ describe('report page', () => {
     expect(screen.getByTestId('report-row-sleep')).toHaveTextContent('6 h 57 min')
     expect(screen.getByTestId('report-row-blood_pressure')).toHaveTextContent('70/78 mmHg')
     expect(screen.getByTestId('report-sleep')).toHaveTextContent('±22 min')
-    expect(screen.getByTestId('report-workouts')).toHaveTextContent('Camminata 2')
+    expect(screen.getByTestId('report-workouts')).toHaveTextContent('Corsa 2')
   })
 
   it('period comes from the URL and the request uses it (clipped to today)', async () => {

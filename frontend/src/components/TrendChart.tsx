@@ -35,6 +35,8 @@ interface Props {
   /** Indicative reference areas (display units). Always labelled as indicative, never a diagnosis. */
   reference?: ReferenceBand[]
   referenceNote?: string
+  /** Granularity used while the selector says "Automatica" (the report picks months for long periods). */
+  defaultBucket?: Bucket
   /** Heart rate: split day/night (two series per day/week/month, shaded nights when intraday). */
   daypart?: boolean
   /** Shown instead of the generic empty state (e.g. "turn this metric on in the app"). */
@@ -83,6 +85,7 @@ export function TrendChart({
   def,
   pair,
   daypart,
+  defaultBucket: defaultBucketProp,
   range,
   icon,
   accent,
@@ -103,7 +106,7 @@ export function TrendChart({
   const hourOk = hourlyAllowed(def, range.days)
   const choice: Bucket = bucket === 'hour' && !hourOk ? 'auto' : bucket
   const buckets: PickableBucket[] = hourOk ? ['auto', 'hour', 'day', 'week', 'month'] : ['auto', 'day', 'week', 'month']
-  const effective: Bucket = choice === 'auto' ? defaultBucket(range.days) : choice
+  const effective: Bucket = choice === 'auto' ? (defaultBucketProp ?? defaultBucket(range.days)) : choice
 
   const query = useQuery(
     seriesQuery({

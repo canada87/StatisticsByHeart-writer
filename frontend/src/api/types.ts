@@ -341,6 +341,21 @@ export interface ReportMetric {
   sessions: number | null
 }
 
+export interface ReportPoints {
+  total: number
+  previous_total: number
+  weekly_avg: number | null
+  weeks_complete: number
+  weeks_over_goal: number
+  goal: number
+  hr_configured: boolean
+}
+
+export interface ReportMonthly {
+  columns: { key: string; kind: 'avg' | 'sum'; unit: string | null }[]
+  months: { month: string; days: number; partial: boolean; values: Record<string, number | null> }[]
+}
+
 export interface ReportResponse {
   from: string
   to: string
@@ -350,13 +365,18 @@ export interface ReportResponse {
   generated_at: string
   timezone: string
   metrics: ReportMetric[]
+  /** Day / night heart rate and Heart Points, same shape as `metrics`. */
+  extra_metrics: ReportMetric[]
   sleep_regularity: SleepStats | null
+  points: ReportPoints
+  monthly: ReportMonthly
   workouts: {
     count: number
     duration_s: number
     avg_duration_s: number | null
     per_week: number | null
     by_type: Record<string, number>
+    by_type_detail: { type: string; count: number; duration_s: number }[]
     scope: 'real'
     excluded: number
   }

@@ -43,6 +43,13 @@ export const METRICS = {
   diastolic: { id: 'diastolic', reportKey: 'blood_pressure', type: 'BloodPressure', field: 'diastolic', label: 'm.diastolic', unit: 'mmHg', scale: 1, digits: 0, agg: 'avg', kind: 'line', color: 'heart' },
 } as const satisfies Record<string, MetricDef>
 
+/** Report-only rows (day / night heart rate, Heart Points): formatted like the twelve metrics. */
+export const REPORT_EXTRA_METRICS = {
+  hrDay: { id: 'hrDay', reportKey: 'hr_day', type: 'HeartRate', label: 'm.hrDay', unit: 'bpm', scale: 1, digits: 0, agg: 'avg', kind: 'line', color: 'heart' },
+  hrNight: { id: 'hrNight', reportKey: 'hr_night', type: 'HeartRate', label: 'm.hrNight', unit: 'bpm', scale: 1, digits: 0, agg: 'avg', kind: 'line', color: 'sleep' },
+  heartPoints: { id: 'heartPoints', reportKey: 'heart_points', type: 'HeartPoints', label: 'm.heartPoints', unit: 'punti', scale: 1, digits: 0, agg: 'sum', kind: 'bar', color: 'heart' },
+} as const satisfies Record<string, MetricDef>
+
 export function scaled(def: Pick<MetricDef, 'scale'>, v: number | null | undefined): number | null {
   return v === null || v === undefined ? null : v * def.scale
 }

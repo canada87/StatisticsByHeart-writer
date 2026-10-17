@@ -13,7 +13,7 @@ import { type MessageKey, t } from '../i18n'
 import { csvName, downloadCsv, toCsv } from '../lib/csv'
 import { describeDelta } from '../lib/delta'
 import { fmtDay, fmtDayLong, fmtDateTime, fmtDuration, fmtNumber, todayLocal } from '../lib/format'
-import { type MetricDef, METRICS, fmtMetric } from '../lib/metrics'
+import { type MetricDef, METRICS, REPORT_EXTRA_METRICS, fmtMetric } from '../lib/metrics'
 import {
   PERIOD_KINDS,
   type Period,
@@ -24,14 +24,19 @@ import {
   shiftAnchor,
 } from '../lib/period'
 import { activityLabel } from '../components/DomainCharts'
+import { MonthlyTables, PointsBlock, ReportCharts, WorkoutTypes, WorkoutsRulesNote } from '../components/ReportExtras'
 
-const BY_KEY: Record<string, MetricDef> = Object.fromEntries(Object.values(METRICS).map((m) => [m.reportKey, m]))
+const BY_KEY: Record<string, MetricDef> = Object.fromEntries(
+  [...Object.values(METRICS), ...Object.values(REPORT_EXTRA_METRICS)].map((m) => [m.reportKey, m]),
+)
 const ROW_ORDER = [
   'steps',
   'distance',
   'active_kcal',
   'total_kcal',
   'heart_rate',
+  'hr_day',
+  'hr_night',
   'resting_hr',
   'hrv',
   'spo2',
@@ -39,6 +44,7 @@ const ROW_ORDER = [
   'workouts',
   'weight',
   'blood_pressure',
+  'heart_points',
 ] as const
 const LABEL: Record<string, MessageKey> = {
   steps: 'm.steps',
@@ -46,6 +52,9 @@ const LABEL: Record<string, MessageKey> = {
   active_kcal: 'm.activeKcal',
   total_kcal: 'm.totalKcal',
   heart_rate: 'm.heartRate',
+  hr_day: 'm.hrDay',
+  hr_night: 'm.hrNight',
+  heart_points: 'm.heartPoints',
   resting_hr: 'm.restingHr',
   hrv: 'm.hrv',
   spo2: 'm.spo2',
@@ -226,7 +235,7 @@ function MetricRow({ m, report }: { m: ReportMetric; report: ReportResponse }) {
 }
 
 function ReportBody({ report, period }: { report: ReportResponse; period: Period }) {
-  const byKey = new Map(report.metrics.map((m) => [m.key, m]))
+  const byKey = new Map([...report.metrics, ...report.extra_metrics].map((m) => [m.key, m]))
   const sleep = report.sleep_regularity
   const w = report.workouts
   const allEmpty = report.metrics.every((m) => m.days_with_data === 0)
@@ -262,6 +271,8 @@ function ReportBody({ report, period }: { report: ReportResponse; period: Period
         </div>
       </Panel>
 
+      <MonthlyTables report={report} period={period} />
+
       <div className="grid gap-3 md:grid-cols-2 print-avoid-break">
         <Panel title={t('report.sleepBlock')} accent="sleep" testId="report-sleep">
           {sleep && sleep.nights > 0 ? (
@@ -277,6 +288,7 @@ function ReportBody({ report, period }: { report: ReportResponse; period: Period
             <EmptyState title={t('sleep.stages.empty')} />
           )}
         </Panel>
+        <PointsBlock report={report} />
         <Panel title={t('report.workoutsBlock')} accent="activity" testId="report-workouts">
           {w.count > 0 ? (
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
@@ -290,6 +302,8 @@ function ReportBody({ report, period }: { report: ReportResponse; period: Period
           ) : (
             <EmptyState title={t('workouts.none')} />
           )}
+          <WorkoutTypes report={report} />
+          <WorkoutsRulesNote />
           {w.excluded > 0 && (
             <p className="mt-2 text-xs text-fg-muted" data-testid="report-workouts-excluded">
               {t('report.workoutsReal', { n: w.excluded })}
@@ -297,6 +311,7 @@ function ReportBody({ report, period }: { report: ReportResponse; period: Period
           )}
         </Panel>
       </div>
+      <ReportCharts report={report} period={period} />
       <p className="text-xs text-fg-muted print-avoid-break">
         {t('report.footer', { generated: fmtDateTime(report.generated_at), days: period.days })}
       </p>
@@ -320,6 +335,24 @@ export function ReportPage() {
   const queryClient = useQueryClient()
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<unknown>(null)
+
+  const exportMonthlyCsv = () => {
+    const monthly = q.data?.monthly
+    if (!monthly) return
+    const keys = monthly.columns.map((c) => c.key)
+    downloadCsv(
+      csvName('report_mensile', period.start, period.last),
+      toCsv(
+        ['mese', 'giorni_nel_periodo', 'parziale', ...keys],
+        monthly.months.map((m) => [
+          m.month.slice(0, 7),
+          m.days,
+          m.partial ? 'si' : 'no',
+          ...keys.map((k) => (m.values[k] === null || m.values[k] === undefined ? null : Math.round((m.values[k] as number) * 100) / 100)),
+        ]),
+      ),
+    )
+  }
 
   const exportCsv = async () => {
     setExporting(true)
@@ -355,6 +388,10 @@ export function ReportPage() {
           <button type="button" className="btn" onClick={() => void exportCsv()} disabled={exporting}>
             <DownloadSimple size={20} aria-hidden />
             {exporting ? t('report.exporting') : t('report.exportCsv')}
+          </button>
+          <button type="button" className="btn" onClick={exportMonthlyCsv} disabled={!q.data} data-testid="export-monthly">
+            <DownloadSimple size={20} aria-hidden />
+            {t('report.exportMonthly')}
           </button>
         </div>
         {exportError !== null && <ErrorState error={exportError} onRetry={() => void exportCsv()} />}

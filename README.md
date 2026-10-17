@@ -27,7 +27,7 @@ design-system/   MASTER.md + override per pagina
 | **Sonno** | Durata per notte, stadi (barre impilate), orari di addormentamento/risveglio e regolarità |
 | **Attività** | Passi, distanza, calorie attive e totali, elenco allenamenti (kcal, FC media, segnali FC/GPS/avvio e verdetto) con filtro **Solo veri / Tutti** e correzione manuale, volume settimanale |
 | **Corpo** | Peso e pressione arteriosa (sistolica continua, diastolica tratteggiata; fasce solo indicative) |
-| **Report** | Riepilogo per settimana/mese/anno/personalizzato, con variazione vs periodo precedente, giorni migliori/peggiori, stampa/PDF ed export CSV |
+| **Report** | Riepilogo per settimana/mese/anno/personalizzato su tutto il periodo: medie e totali di ogni metrica con variazione vs periodo precedente e giorni migliori/peggiori, **FC diurna e notturna**, **Punti cardio** (totale, media a settimana, settimane sopra 150), solo **allenamenti veri** (numero e tempo, per tipo e mese per mese), tabelle **mese su mese** (medie giornaliere e totali del mese, mesi parziali segnalati), **grafici grandi** (uno per riga a tutta larghezza, mensili se il periodo copre più mesi), stampa/PDF e CSV giornaliero e mensile |
 | **Sync / Dati** | Verifica: ultime sync (rifiutati/errori), inventario per tipo e sorgente, ufficiale Health Connect vs somma dei record, e la scheda **Spazio e limiti** (sola lettura): dimensione del database e di ogni tabella (dati, indici, righe esatte o stimate), record cancellati, primo/ultimo dato, crescita degli ultimi 30 giorni con proiezione a un anno (stima), disco libero della VM (stima, dal filesystem che vede l'app) e l'elenco di retention e limiti generato dalle costanti vere |
 
 Ogni pagina di trend ha KPI del periodo con variazione (freccia **e** testo), grafici con granularità ora (fino a 31 giorni)/giorno/settimana/mese
@@ -106,8 +106,8 @@ L'immagine **non si builda sulla VM**: la costruisce GitHub Actions e Portainer 
 Per rilasciare (dal tuo PC):
 
 ```bash
-git tag v0.6.1
-git push origin main v0.6.1
+git tag v0.7.0
+git push origin main v0.7.0
 ```
 
 ### Una tantum: rendere pubblico il pacchetto
@@ -151,7 +151,7 @@ variables* (vedi `docker/.env.example`; puoi usare «Load variables from .env fi
 | Variabile | Valore |
 |---|---|
 | `SBH_DB_PASSWORD` | **obbligatoria**, es. output di `openssl rand -hex 24` |
-| `SBH_IMAGE_TAG` | `0.6.1` (la versione da usare) oppure `latest` |
+| `SBH_IMAGE_TAG` | `0.7.0` (la versione da usare) oppure `latest` |
 | `SBH_HTTP_PORT` | `8742` (o quella libera che hai scelto) |
 | `SBH_DATA_DIR` | cartella locale della VM che contiene `db/` (default nel compose) |
 | `SBH_BIRTH_YEAR` | opzionale ma consigliata: il tuo anno di nascita, per la FCmax dei Punti cardio (`220 − età`). **Valore personale: solo qui, mai nel repository** |
@@ -203,13 +203,16 @@ Verifica da un dispositivo sulla tailnet: `curl https://<il-tuo-dominio>/api/v1/
 
 ### Aggiornare e tornare indietro
 
-1. Rilascia un nuovo tag (`git tag v0.6.2 && git push origin v0.6.2`) e attendi che il workflow *Release* finisca.
+1. Rilascia un nuovo tag (`git tag v0.7.1 && git push origin v0.7.1`) e attendi che il workflow *Release* finisca.
 2. Prima di un upgrade con migrazioni: snapshot PBS (e dump, vedi sotto).
-3. In Portainer cambia `SBH_IMAGE_TAG=0.6.2` → **Update the stack** con *Re-pull image* attivo. Se usi `latest`:
+3. In Portainer cambia `SBH_IMAGE_TAG=0.7.1` → **Update the stack** con *Re-pull image* attivo. Se usi `latest`:
    *Update the stack* con **Pull latest image**.
-4. **Rollback**: rimetti il tag precedente (`SBH_IMAGE_TAG=0.6.0`) e aggiorna lo stack. Le migrazioni sono solo «in
+4. **Rollback**: rimetti il tag precedente (`SBH_IMAGE_TAG=0.6.1`) e aggiorna lo stack. Le migrazioni sono solo «in
    avanti»: se una migrazione va annullata ripristina lo snapshot PBS (o il dump) invece di fare `downgrade`.
 
+> **Aggiornamento alla 0.7.0: nessuna migrazione** (Report esteso: nessun ricalcolo né variabile nuova; per le righe di FC
+> diurna/notturna e Punti cardio valgono le impostazioni già descritte sotto).
+>
 > **Aggiornamento alla 0.6.1: nessuna migrazione** (solo la granularità «Giorno» dei Punti cardio, con la linea di riferimento
 > 150/7 ≈ 21 punti al giorno, indicativa e non un obiettivo; nessun ricalcolo necessario).
 >

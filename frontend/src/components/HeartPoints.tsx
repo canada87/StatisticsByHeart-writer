@@ -173,9 +173,17 @@ function buildChart(d: PointsSeriesResponse, reduced: boolean) {
   }
 }
 
-export function HeartPointsChart({ range }: { range: ResolvedRange }) {
+export function HeartPointsChart({
+  range,
+  height = 260,
+  initialBucket,
+}: {
+  range: ResolvedRange
+  height?: number
+  initialBucket?: PointsBucket
+}) {
   const reduced = useReducedMotion() ?? false
-  const [chosen, setChosen] = useState<PointsBucket | null>(null)
+  const [chosen, setChosen] = useState<PointsBucket | null>(initialBucket ?? null)
   const bucket = chosen ?? defaultPointsBucket(range.days)
   const [cursor, setCursor] = useState<number | null>(null)
   const id = useId()
@@ -197,7 +205,7 @@ export function HeartPointsChart({ range }: { range: ResolvedRange }) {
               option={built.option}
               table={built.table}
               csv={built.csv}
-              height={260}
+              height={height}
               controls={
                 <div className="flex flex-wrap items-center gap-3 no-print" data-testid="points-controls">
                   <label htmlFor={id} className="hud-label">
