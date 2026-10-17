@@ -44,6 +44,28 @@ periodo, e che gli allenamenti contino solo se veri. Tutto sul periodo scelto ne
    prima più una per la FC diurna/notturna (una sola scansione con ricerca binaria) e una per i Punti cardio; un test
    misura la risposta su 3660 giorni (< 30 s, in pratica pochi secondi) e verifica ~120 righe mensili.
 
+## Correzioni prima del rilascio (0.7.0)
+
+1. **Stampa: le tabelle lunghe si spezzano tra le righe.** Un `break-inside: avoid` sul pannello «Riepilogo del periodo»
+   (più alto di una pagina) lo spingeva alla pagina 2 e lasciava la 1 quasi vuota. Ora i pannelli del riepilogo e del
+   mese su mese hanno `break-inside: auto`, le intestazioni si ripetono a ogni pagina (`thead { display:
+   table-header-group }`), le righe restano intere (`tr { break-inside: avoid }`); `avoid` resta solo sui singoli
+   grafici e sui blocchi piccoli. Il titolo «Andamento nel periodo» non forza più un'interruzione di pagina. La
+   verifica è fatta sul PDF reale, pagina per pagina (riempimento di ogni pagina).
+2. **Grafici mensili = media al giorno, non totale.** Con granularità mensile la somma dei passi, della distanza, delle
+   calorie o delle ore di sonno di un mese rende i mesi parziali dei «crolli» e il sonno un numero senza senso (792 h).
+   `GET /metrics/{type}/series` accetta `per_day=true` (additivo): per i bucket **settimana e mese** il valore è la
+   **media semplice dei valori giornalieri** dei giorni con dati (non pesata per numero di record), e ogni punto riporta
+   `days` (i giorni con dato; per il sonno sono le notti). Il Report lo chiede per tutti i suoi grafici; l'asse dice
+   «media al giorno», «kcal/giorno (media)», «h/notte (media)»; il riepilogo non scrive più «Totale»; la tabella e il CSV del
+   grafico hanno la colonna «Giorni/Notti con dati». Le pagine del cruscotto non cambiano (restano totali).
+3. **Tabella mese su mese:** il sonno è la **media a notte** (era una somma per errore) e c'è la colonna «Notti con
+   dati»; gli altri totali (passi, distanza, calorie, Punti cardio, allenamenti) restano **totali del mese**, dichiarati
+   come tali nell'intestazione e con i mesi parziali segnalati.
+4. **Punti cardio per mese/anno:** sono somme per definizione; i periodi incompleti (primo mese parziale, mese in corso)
+   si disegnano **tratteggiati e con asterisco** con una nota, così non sembrano un calo. (Per i punti la settimana resta
+   somma: l'obiettivo è settimanale.)
+
 ## Limiti noti
 
 - Le medie mensili sono medie di medie giornaliere: un giorno con pochi campioni pesa come uno con molti.

@@ -90,6 +90,9 @@ class SeriesPoint(BaseModel):
     prev: float | None = Field(
         default=None, description="Value at the same position of the previous period (compare=true)"
     )
+    days: int | None = Field(
+        default=None, description="Days with a value inside a week/month bucket (day-level series)"
+    )
 
 
 class SeriesSummary(BaseModel):
@@ -112,6 +115,10 @@ class SeriesResponse(BaseModel):
     from_: Date = Field(alias="from")
     to: Date
     timezone: str
+    per_day: bool = Field(
+        default=False,
+        description="Week/month values are the mean per day (per_day=true), not the bucket total",
+    )
     source: SeriesSource
     source_counts: dict[str, int] = Field(
         description="Days served by hc_official / computed (day-level buckets only)"

@@ -35,6 +35,8 @@ interface Props {
   /** Indicative reference areas (display units). Always labelled as indicative, never a diagnosis. */
   reference?: ReferenceBand[]
   referenceNote?: string
+  /** Week/month buckets show the mean per day (per night for sleep), not the total (the report). */
+  perDay?: boolean
   /** Granularity used while the selector says "Automatica" (the report picks months for long periods). */
   defaultBucket?: Bucket
   /** Heart rate: split day/night (two series per day/week/month, shaded nights when intraday). */
@@ -85,6 +87,7 @@ export function TrendChart({
   def,
   pair,
   daypart,
+  perDay,
   defaultBucket: defaultBucketProp,
   range,
   icon,
@@ -119,6 +122,7 @@ export function TrendChart({
       band: def.band,
       compare: true,
       ma: true,
+      perDay: !!perDay && (effective === 'week' || effective === 'month'),
     }),
   )
 
@@ -130,6 +134,7 @@ export function TrendChart({
       to: range.to,
       bucket: effective,
       agg: (pair ?? def).agg,
+      perDay: !!perDay && (effective === 'week' || effective === 'month'),
     }),
     enabled: !!pair,
   })
@@ -180,7 +185,16 @@ export function TrendChart({
     const maName = t('chart.ma', { n: maN })
     const prevName = t('chart.prev')
     const bandName = t('chart.band')
-    const unit = def.unit
+    // per-day mode: the bars are the mean per day / night, and the axis says so
+    const perDayMode = !!d.per_day && def.agg === 'sum'
+    const night = def.id === 'sleep'
+    const axisUnit = perDayMode
+      ? night
+        ? t('chart.perDay.night')
+        : def.unit
+          ? t('chart.perDay.unit', { unit: def.unit })
+          : t('chart.perDay.plain')
+      : def.unit
 
     const option = baseOption(
       pts.map((x) => bucketLabel(x.t, d.bucket, range.days > 1)),
@@ -221,7 +235,7 @@ export function TrendChart({
           ? [{ name: prevName, color: p.muted, kind: 'line' as const, dotted: true, data: prev, short: t('chart.prev.short') }]
           : []),
       ],
-      { unit, showLegend: true, reducedMotion: reduced, endLabels: true },
+      { unit: axisUnit, showLegend: true, reducedMotion: reduced, endLabels: true },
     ) as Record<string, unknown> & { series: Record<string, unknown>[]; legend: Record<string, unknown> }
 
     if (hasBand) {
@@ -311,6 +325,7 @@ export function TrendChart({
           aligned
             ? `<div>${dayName}: <b>${withUnit(def, fmtNumber(aligned.day[i] ?? null, def.digits))}</b></div><div>${nightName}: <b>${withUnit(def, fmtNumber(aligned.night[i] ?? null, def.digits))}</b></div>`
             : line(label, x.v),
+          perDayMode && x.days ? `<div>${t(night ? 'chart.perDay.nights' : 'chart.perDay.days', { n: x.days })}</div>` : '',
           flags?.[i] ? `<div>${t('daypart.band')}</div>` : '',
           wflags?.[i] ? `<div>${t('daypart.workoutBand')}</div>` : '',
           pair && d2 ? line(label2, d2.points[i]?.v, pair.digits) : '',
@@ -326,18 +341,24 @@ export function TrendChart({
     const unitCol = (name: string) => withUnit(def, name).replace(/^(.*) (\S+)$/, '$1 ($2)') || name
     const columns = [
       t('chart.col.when'),
-      aligned ? unitCol(dayName) : withUnit(def, label).replace(/^(.*) (\S+)$/, '$1 ($2)') || label,
+      aligned
+        ? unitCol(dayName)
+        : perDayMode
+          ? `${label} (${axisUnit})`
+          : withUnit(def, label).replace(/^(.*) (\S+)$/, '$1 ($2)') || label,
       ...(aligned ? [unitCol(nightName), t('daypart.col.dayN'), t('daypart.col.nightN')] : []),
       ...(pair ? [withUnit(pair, label2).replace(/^(.*) (\S+)$/, '$1 ($2)')] : []),
       ...(hasBand ? [t('chart.col.min'), t('chart.col.max')] : []),
       ...(ma ? [maName] : []),
       ...(hasPrev ? [prevName] : []),
+      ...(perDayMode ? [t(night ? 'chart.col.nightsWithData' : 'chart.col.daysWithData')] : []),
     ]
     const toRow = (x: SeriesResponse['points'][number], i: number) => [
       x.t,
       ...[aligned ? aligned.day[i] : x.v, ...(aligned ? [aligned.night[i] ?? null, aligned.dayN[i] ?? 0, aligned.nightN[i] ?? 0] : []), ...(pair ? [d2?.points[i]?.v ?? null] : []), ...(hasBand ? [x.lo ?? null, x.hi ?? null] : []), ...(ma ? [x.ma ?? null] : []), ...(hasPrev ? [x.prev ?? null] : [])].map(
         (v) => (v == null ? null : Math.round(v * def.scale * 1000) / 1000),
       ),
+      ...(perDayMode ? [x.days ?? null] : []),
     ]
     const table: TableSpec = {
       caption: t('chart.tableCaption', { label, bucket: t(`bucket.${d.bucket}` as const) }),
@@ -356,9 +377,10 @@ export function TrendChart({
     }
 
     const s = d.summary
-    const total = d.agg === 'sum'
+    const total = d.agg === 'sum' && !perDayMode // a total of days would be misleading per day
     const parts = [
       t('chart.summary.head', { label, count: s.points, bucket: t(`bucket.${d.bucket}` as const) }),
+      perDayMode ? t(night ? 'chart.perDay.summaryNight' : 'chart.perDay.summary') : '',
       total && s.total !== null ? t('chart.summary.total', { value: withUnit(def, fmtMetric(def, s.total)) }) : '',
       s.avg !== null ? t('chart.summary.avg', { value: withUnit(def, fmtMetric(def, s.avg)) }) : '',
       s.min !== null && s.max !== null

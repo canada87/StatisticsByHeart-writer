@@ -51,6 +51,8 @@ export interface SeriesParams {
   band?: boolean
   compare?: boolean
   ma?: boolean
+  /** week/month buckets hold the mean per day instead of the total */
+  perDay?: boolean
 }
 
 export const seriesQuery = (p: SeriesParams) =>
@@ -68,6 +70,7 @@ export const seriesQuery = (p: SeriesParams) =>
           band: p.band ? 'true' : undefined,
           compare: p.compare ? 'true' : undefined,
           ma: p.ma ? 'true' : undefined,
+          per_day: p.perDay ? 'true' : undefined,
         }),
       ),
   })

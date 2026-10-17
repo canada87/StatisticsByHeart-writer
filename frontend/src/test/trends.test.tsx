@@ -17,7 +17,16 @@ vi.mock('../components/EChart', () => ({
   }: {
     label: string
     activeIndex?: number | null
-    option?: { series?: { name: string; lineStyle?: { type?: string }; markArea?: { data: unknown[] }; markLine?: { data: { yAxis: number }[]; label?: { formatter?: string } } }[] }
+    option?: {
+      yAxis?: { name?: string }
+      series?: {
+        name: string
+        data?: unknown[]
+        lineStyle?: { type?: string }
+        markArea?: { data: unknown[] }
+        markLine?: { data: { yAxis: number }[]; label?: { formatter?: string } }
+      }[]
+    }
   }) => (
     <div
       data-testid="echart-stub"
@@ -26,6 +35,8 @@ vi.mock('../components/EChart', () => ({
       data-bands={option?.series?.find((s) => s.markArea)?.markArea?.data.length ?? 0}
       data-goal={option?.series?.find((s) => s.markLine)?.markLine?.data[0]?.yAxis ?? ''}
       data-goal-label={option?.series?.find((s) => s.markLine)?.markLine?.label?.formatter ?? ''}
+      data-yname={option?.yAxis?.name ?? ''}
+      data-partial-bars={(option?.series?.[0]?.data ?? []).filter((x) => typeof x === 'object' && x !== null).length}
     >
       {label}
     </div>
@@ -948,6 +959,99 @@ describe('extended report', () => {
     expect(lines[1]).toContain('2026-07')
     expect(lines[1]).toContain('si') // the first month is partial
     expect(lines.filter(Boolean).length).toBe(5) // header + 4 months
+  })
+})
+
+describe('report charts: mean per day, not totals', () => {
+  const monthly = (type: string, over: Record<string, unknown> = {}) => {
+    const base = fx2.trendSeries(type, [210, 240, 232, 220])
+    return {
+      body: {
+        ...base,
+        bucket: 'month',
+        per_day: true,
+        agg: type === 'SleepSession' ? 'sum' : base.agg,
+        points: base.points.map((p, i) => ({ ...p, t: ['2026-07-01', '2026-08-01', '2026-09-01', '2026-10-01'][i], days: [12, 31, 30, 15][i] })),
+        ...over,
+      },
+    }
+  }
+  const longReport = () => ({ body: { ...fx2.report(), monthly: fx2.monthlyFixture('2026-07-20', '2026-10-15') } })
+
+  it('asks the server for the mean per day on month buckets, and writes no total', async () => {
+    handlers['/api/v1/metrics/SleepSession/series'] = () => monthly('SleepSession')
+    handlers['/api/v1/metrics/Steps/series'] = () => monthly('Steps', { agg: 'sum' })
+    handlers['/api/v1/report'] = longReport
+    renderApp('/report?p=custom&from=2026-07-20&to=2026-10-15')
+    const sleep = await screen.findByTestId('trend-sleep')
+    await waitFor(() =>
+      expect(
+        urls.some(
+          (u) =>
+            u.pathname === '/api/v1/metrics/SleepSession/series' &&
+            u.searchParams.get('bucket') === 'month' &&
+            u.searchParams.get('per_day') === 'true',
+        ),
+      ).toBe(true),
+    )
+    const text = await within(sleep).findByTestId('chart-summary')
+    expect(text).toHaveTextContent('media a notte')
+    expect(text).not.toHaveTextContent('Totale')
+    await waitFor(() => expect(within(sleep).getByTestId('echart-stub')).toHaveAttribute('data-yname', 'h/notte (media)'))
+    const steps = await screen.findByTestId('trend-steps')
+    expect(await within(steps).findByTestId('chart-summary')).toHaveTextContent('media al giorno')
+    expect(within(steps).getByTestId('chart-summary')).not.toHaveTextContent('Totale')
+    await waitFor(() => expect(within(steps).getByTestId('echart-stub')).toHaveAttribute('data-yname', 'media al giorno'))
+  })
+
+  it('table of a per-night chart carries the number of nights with data', async () => {
+    handlers['/api/v1/metrics/SleepSession/series'] = () => monthly('SleepSession')
+    handlers['/api/v1/report'] = longReport
+    renderApp('/report?p=custom&from=2026-07-20&to=2026-10-15')
+    const user = userEvent.setup()
+    const sleep = await screen.findByTestId('trend-sleep')
+    await user.click(await within(sleep).findByRole('button', { name: 'Mostra tabella' }))
+    expect(within(sleep).getByRole('columnheader', { name: 'Notti con dati' })).toBeInTheDocument()
+    expect(within(sleep).getAllByRole('row')[1]).toHaveTextContent('12') // partial first month: 12 nights
+    expect(within(sleep).getByRole('columnheader', { name: /Sonno \(h\/notte \(media\)\)/ })).toBeInTheDocument()
+  })
+
+  it('the dashboard charts are untouched (totals): only the report asks for per_day', async () => {
+    renderApp('/activity?r=90d')
+    await screen.findByTestId('trend-steps')
+    expect(urls.some((u) => u.pathname.endsWith('/Steps/series') && u.searchParams.has('per_day'))).toBe(false)
+  })
+
+  it('the month table labels sleep as per night and lists the nights with data', async () => {
+    handlers['/api/v1/report'] = longReport
+    renderApp('/report?p=custom&from=2026-07-20&to=2026-10-15')
+    const avg = await screen.findByTestId('monthly-avg')
+    expect(within(avg).getByRole('columnheader', { name: /Sonno a notte/ })).toBeInTheDocument()
+    const sum = screen.getByTestId('monthly-sum')
+    expect(within(sum).getByRole('columnheader', { name: /Notti con dati/ })).toBeInTheDocument()
+    expect(within(sum).getAllByTestId('month-row')[0]).toHaveTextContent('28')
+  })
+
+  it('Heart Points: incomplete months are dashed and starred, not a collapse', async () => {
+    handlers['/api/v1/heart/points'] = (url) => ({
+      body: fx2.pointsSeries({
+        bucket: (url.searchParams.get('bucket') as 'month') ?? 'month',
+        points: [
+          { t: '2026-07-01', v: 90, days: 12, complete: false },
+          { t: '2026-08-01', v: 800, days: 31, complete: true },
+          { t: '2026-09-01', v: 760, days: 30, complete: true },
+          { t: '2026-10-01', v: 300, days: 15, complete: false },
+        ],
+        summary: { total: 1950, days: 88, buckets_complete: 2, weeks_over_goal: null, days_over_reference: null },
+      }),
+    })
+    renderApp('/heart?r=1y')
+    const chart = await screen.findByTestId('chart-heartpoints')
+    const user = userEvent.setup()
+    await user.selectOptions(await within(chart).findByLabelText('Granularità'), 'month')
+    await waitFor(() => expect(within(chart).getByTestId('echart-stub')).toHaveAttribute('data-partial-bars', '2'))
+    expect(within(chart).getByTestId('points-chart-note')).toHaveTextContent('Barra tratteggiata = periodo incompleto')
+    expect(within(chart).getByTestId('chart-summary')).toHaveTextContent('I periodi segnati con * sono incompleti')
   })
 })
 

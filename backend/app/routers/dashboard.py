@@ -76,6 +76,12 @@ async def metric_series(
     band: Annotated[bool, Query(description="Add min/max per bucket (lo/hi)")] = False,
     compare: Annotated[bool, Query(description="Add the previous period (prev)")] = False,
     ma: Annotated[bool, Query(description="Add a trailing moving average (ma)")] = False,
+    per_day: Annotated[
+        bool,
+        Query(
+            description="Week/month buckets hold the mean per day (days with data), not the total"
+        ),
+    ] = False,
 ) -> SeriesResponse:
     last = to or queries.today_local(settings)
     first = from_ or last - timedelta(days=6)
@@ -92,6 +98,7 @@ async def metric_series(
         band=band,
         compare=compare,
         ma=ma,
+        per_day=per_day,
     )
 
 

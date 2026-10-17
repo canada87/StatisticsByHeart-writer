@@ -332,10 +332,19 @@ def _next_bucket(start: date, bucket: str) -> date:
     return start + timedelta(days=1)
 
 
-def _combine(values: list[tuple[float, int | None]], agg: str) -> tuple[float | None, int | None]:
+def _combine(
+    values: list[tuple[float, int | None]], agg: str, plain: bool = False
+) -> tuple[float | None, int | None]:
+    """One value per bucket from the daily ones.
+
+    ``plain`` = the mean of the daily values (days with data), whatever the daily aggregation: the
+    "average per day" of a month, which a partial month does not distort the way a total does.
+    """
     if not values:
         return None, None
     n_total = sum(n for _, n in values if n) or None
+    if plain and agg in ("sum", "avg"):
+        return sum(v for v, _ in values) / len(values), n_total
     if agg in ("sum", "count"):
         return sum(v for v, _ in values), n_total
     if agg == "min":
@@ -372,6 +381,7 @@ async def _day_series(
     agg: str,
     source: str,
     field: str | None = None,
+    plain_mean: bool = False,
 ) -> tuple[list[SeriesPoint], dict[str, int]]:
     rows = (
         await session.execute(
@@ -412,12 +422,13 @@ async def _day_series(
     points: list[SeriesPoint] = []
     cursor = bucket_start(first, bucket)
     while cursor <= last:
-        v, n = _combine(by_bucket.get(cursor, []), agg)
+        v, n = _combine(by_bucket.get(cursor, []), agg, plain_mean)
         points.append(
             SeriesPoint(
                 t=cursor.isoformat(),
                 v=v,
                 n=n,
+                days=len(by_bucket.get(cursor, [])) or None,
                 lo=min(lows[cursor]) if lows.get(cursor) else None,
                 hi=max(highs[cursor]) if highs.get(cursor) else None,
             )
@@ -554,11 +565,12 @@ async def _build_points(
     agg: str,
     source: str,
     field: str | None,
+    per_day: bool = False,
 ) -> tuple[list[SeriesPoint], dict[str, int]]:
     if bucket in ("15min", "hour"):
         pts = await _intraday_series(session, settings, spec, first, last, bucket, agg, field)
         return pts, {}
-    return await _day_series(session, spec, first, last, bucket, agg, source, field)
+    return await _day_series(session, spec, first, last, bucket, agg, source, field, per_day)
 
 
 async def metric_series(
@@ -575,6 +587,7 @@ async def metric_series(
     band: bool = False,
     compare: bool = False,
     ma: bool = False,
+    per_day: bool = False,
 ) -> SeriesResponse:
     spec = SPECS.get(type_)
     if spec is None:
@@ -596,7 +609,7 @@ async def metric_series(
         coarsened = True
 
     points, served = await _build_points(
-        session, settings, spec, first, last, chosen_bucket, chosen_agg, source, field
+        session, settings, spec, first, last, chosen_bucket, chosen_agg, source, field, per_day
     )
     window: int | None = None
     if ma and chosen_bucket in MA_WINDOW:
@@ -612,7 +625,16 @@ async def metric_series(
         prev_last = first - timedelta(days=1)
         prev_first = prev_last - timedelta(days=span - 1)
         prev_points, _ = await _build_points(
-            session, settings, spec, prev_first, prev_last, chosen_bucket, chosen_agg, source, field
+            session,
+            settings,
+            spec,
+            prev_first,
+            prev_last,
+            chosen_bucket,
+            chosen_agg,
+            source,
+            field,
+            per_day,
         )
         prev_summary = summarize(prev_points)
         if chosen_bucket in ("15min", "hour"):
@@ -633,6 +655,7 @@ async def metric_series(
         from_=first,
         to=last,
         timezone=settings.local_timezone,
+        per_day=per_day and chosen_bucket in ("week", "month"),
         source=source,
         source_counts=served,
         field=field,

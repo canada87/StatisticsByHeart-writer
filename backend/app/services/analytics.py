@@ -544,6 +544,7 @@ MONTHLY_COLUMNS: list[tuple[str, Literal["avg", "sum"], str | None]] = [
     ("heart_points", "sum", "points"),
     ("workouts", "sum", "count"),
     ("workouts_s", "sum", "s"),
+    ("sleep_nights", "sum", "count"),
 ]
 
 
@@ -592,8 +593,16 @@ async def report(
                 {date.fromisoformat(p.t): p.v for p in dia if p.v is not None}, "avg"
             )
         if m.key != "workouts":
-            how: Literal["sum", "avg"] = "sum" if m.kind == "sum" else "avg"
+            # sleep is summed per day but shown per month as the mean per NIGHT (a total of hours
+            # would make partial months look like collapses)
+            how: Literal["sum", "avg"] = "sum" if m.kind == "sum" and m.key != "sleep" else "avg"
             key = "systolic" if m.key == "blood_pressure" else m.key
+            if m.key == "sleep":  # nights with data per month: the weight of the per-night mean
+                night_counts: dict[date, float] = defaultdict(float)
+                for p in cur:
+                    if p.v is not None:
+                        night_counts[date.fromisoformat(p.t).replace(day=1)] += 1
+                monthly["sleep_nights"] = dict(night_counts)
             monthly[key] = _by_month(
                 {date.fromisoformat(p.t): p.v for p in cur if p.v is not None}, how
             )

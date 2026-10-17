@@ -110,6 +110,17 @@ function buildChart(d: PointsSeriesResponse, reduced: boolean) {
     { unit: t('points.unit'), showLegend: true, reducedMotion: reduced },
   ) as Record<string, unknown> & { series: Record<string, unknown>[] }
   const ref = Math.round(d.daily_reference)
+  // month / year totals of an incomplete period (partial first month, the running one) are drawn
+  // dashed and starred: they would look like a collapse next to whole periods
+  const incomplete = bucket === 'day' ? [] : pts.map((x) => !x.complete)
+  if (incomplete.some(Boolean)) {
+    ;(option.series[0] as Record<string, unknown>).data = pts.map((x, i) =>
+      incomplete[i]
+        ? { value: x.v, itemStyle: { opacity: 0.45, borderType: 'dashed', borderColor: p.heart, borderWidth: 1.5 } }
+        : x.v,
+    )
+    ;(option.xAxis as { data: string[] }).data = pts.map((x, i) => bucketText(x.t, bucket) + (incomplete[i] ? ' *' : ''))
+  }
   if (bucket === 'day') {
     // an indicative reference (goal / 7), dashed and labelled: never presented as a goal
     ;(option.series[0] as Record<string, unknown>).markLine = {
@@ -141,6 +152,7 @@ function buildChart(d: PointsSeriesResponse, reduced: boolean) {
       ? t('points.summary.dayRef', { over: fmtNumber(s.days_over_reference), total: fmtNumber(s.buckets_complete), ref: fmtNumber(ref) })
       : '',
     weekly && pts.some((x) => !x.complete) ? t('points.summary.partial') : '',
+    !weekly && bucket !== 'day' && incomplete.some(Boolean) ? t('points.summary.partialBuckets') : '',
     bucket === 'day' && pts.some((x) => !x.complete) ? t('points.summary.partialDay') : '',
     d.coarsened ? t('points.summary.coarsened') : '',
     t('points.summary.prev', { total: fmtNumber(d.previous_summary.total) }),
@@ -238,6 +250,7 @@ export function HeartPointsChart({
               note={
                 <p className="text-xs text-fg-muted" data-testid="points-chart-note">
                   {t('points.chart.note', { goal: fmtNumber(d.weekly_goal) })}
+                  {d.bucket !== 'day' && d.points.some((x) => !x.complete) ? ` ${t('points.partialBars')}` : ''}
                 </p>
               }
             />

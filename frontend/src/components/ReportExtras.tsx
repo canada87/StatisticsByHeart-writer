@@ -24,7 +24,8 @@ const COLUMN_LABEL: Record<string, MessageKey> = {
   resting_hr: 'm.restingHr',
   hrv: 'm.hrv',
   spo2: 'm.spo2',
-  sleep: 'm.sleep',
+  sleep: 'm.sleepPerNight',
+  sleep_nights: 'm.sleepNights',
   weight: 'm.weight',
   systolic: 'm.systolic',
   diastolic: 'm.diastolic',
@@ -46,6 +47,7 @@ const COLUMN_UNIT: Record<string, string> = {
   hrv: 'ms',
   spo2: '%',
   sleep: 'h min',
+  sleep_nights: 'n',
   weight: 'kg',
   systolic: 'mmHg',
   diastolic: 'mmHg',
@@ -209,10 +211,10 @@ export function ReportCharts({ report, period }: { report: ReportResponse; perio
   // a period over several months reads best per month
   const bucket: Bucket | undefined = months >= 3 ? 'month' : undefined
   const has = (key: string) => (report.metrics.find((m) => m.key === key)?.days_with_data ?? 0) > 0
-  const common = { range, height: 340, defaultBucket: bucket } as const
+  const common = { range, height: 340, defaultBucket: bucket, perDay: true } as const
   return (
     <section className="flex flex-col gap-3" aria-labelledby="report-charts-title" data-testid="report-charts">
-      <h2 id="report-charts-title" className="hud-label print-break-before">
+      <h2 id="report-charts-title" className="hud-label">
         {t('report.charts')}
       </h2>
       <p className="text-xs text-fg-muted">{t(months >= 3 ? 'report.charts.monthly' : 'report.charts.intro')}</p>

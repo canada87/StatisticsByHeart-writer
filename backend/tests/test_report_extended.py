@@ -155,6 +155,18 @@ async def check_month_by_month_table(web: httpx.AsyncClient) -> None:
         ]
         assert m["values"]["hr_night"] == pytest.approx(sum(night) / len(night))
     assert months[1]["values"]["hr_day"] > months[1]["values"]["hr_night"]
+    # nights with data per month: the weight of the per-night sleep mean
+    assert "sleep_nights" in cols and cols["sleep_nights"]["kind"] == "sum"
+    for m in months[1:-1]:
+        nights = [
+            r
+            for r in daily["rows"]
+            if r["date"].startswith(m["month"][:7]) and r["values"]["sleep_s"] is not None
+        ]
+        assert m["values"]["sleep_nights"] == len(nights) > 20
+        assert m["values"]["sleep"] == pytest.approx(
+            sum(r["values"]["sleep_s"] for r in nights) / len(nights)
+        )
 
 
 async def check_a_single_whole_month_has_one_row_and_is_not_partial(web: httpx.AsyncClient) -> None:

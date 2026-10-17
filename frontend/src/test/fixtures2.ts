@@ -129,13 +129,13 @@ export function monthlyFixture(from: string, to: string): ReportMonthly {
         heart_rate: 70 + i, hr_day: 76 + i, hr_night: 54 + i, resting_hr: 57 - i, hrv: 48 + i, spo2: 96.5, sleep: 25000 + i * 600,
         weight: 78.4 - i * 0.2, systolic: 118, diastolic: 77,
         steps: 280000 + i * 1000, distance: 210000, active_kcal: 8400, total_kcal: 58000, heart_points: 300 + i * 40,
-        workouts: 11 - i, workouts_s: 30000 + i * 900,
+        workouts: 11 - i, workouts_s: 30000 + i * 900, sleep_nights: 28 - i,
       },
     })
   }
   const kinds: Record<string, 'avg' | 'sum'> = {
     heart_rate: 'avg', hr_day: 'avg', hr_night: 'avg', resting_hr: 'avg', hrv: 'avg', spo2: 'avg', sleep: 'avg', weight: 'avg', systolic: 'avg', diastolic: 'avg',
-    steps: 'sum', distance: 'sum', active_kcal: 'sum', total_kcal: 'sum', heart_points: 'sum', workouts: 'sum', workouts_s: 'sum',
+    steps: 'sum', distance: 'sum', active_kcal: 'sum', total_kcal: 'sum', heart_points: 'sum', workouts: 'sum', workouts_s: 'sum', sleep_nights: 'sum',
   }
   return { columns: Object.entries(kinds).map(([key, kind]) => ({ key, kind, unit: null })), months }
 }

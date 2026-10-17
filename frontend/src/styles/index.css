@@ -356,6 +356,22 @@
     margin-bottom: 6mm;
     width: 100%;
   }
+  /* The big summary and month tables must be able to start on page 1 and split between rows
+     (a whole-panel "avoid" would push them to the next page and leave page 1 nearly empty). */
+  [data-testid='report-summary'],
+  [data-testid='report-monthly'] {
+    break-inside: auto !important;
+  }
+  thead {
+    display: table-header-group;
+  }
+  tfoot {
+    display: table-footer-group;
+  }
+  #report-charts-title,
+  #report-charts-title + p {
+    break-after: avoid;
+  }
   .report-chart canvas {
     filter: invert(1) hue-rotate(180deg);
   }

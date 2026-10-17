@@ -75,6 +75,8 @@ export interface SeriesPoint {
   hi?: number | null
   ma?: number | null
   prev?: number | null
+  /** Days with a value inside a week/month bucket. */
+  days?: number | null
 }
 
 export interface SeriesSummary {
@@ -91,6 +93,8 @@ export interface SeriesResponse {
   type: string
   unit: string | null
   bucket: Exclude<Bucket, 'auto'>
+  /** week/month values are the mean per day (days with data), not the total. */
+  per_day?: boolean
   agg: Agg
   from: string
   to: string

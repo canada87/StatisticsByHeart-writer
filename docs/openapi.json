@@ -3262,6 +3262,18 @@
       },
       "SeriesPoint": {
         "properties": {
+          "days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Days with a value inside a week/month bucket (day-level series)",
+            "title": "Days"
+          },
           "hi": {
             "anyOf": [
               {
@@ -3404,6 +3416,12 @@
             ],
             "description": "Buckets in the moving-average window",
             "title": "Ma Window"
+          },
+          "per_day": {
+            "default": false,
+            "description": "Week/month values are the mean per day (per_day=true), not the bucket total",
+            "title": "Per Day",
+            "type": "boolean"
           },
           "points": {
             "items": {
@@ -6533,6 +6551,18 @@
               "default": false,
               "description": "Add a trailing moving average (ma)",
               "title": "Ma",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Week/month buckets hold the mean per day (days with data), not the total",
+            "in": "query",
+            "name": "per_day",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Week/month buckets hold the mean per day (days with data), not the total",
+              "title": "Per Day",
               "type": "boolean"
             }
           }
