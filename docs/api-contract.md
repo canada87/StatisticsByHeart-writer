@@ -1,6 +1,6 @@
 # StatisticsByHeart — Contratto API Reader → Writer
 
-**Versione contratto: `1.1.0`** · API: `/api/v1` · Stato: **CONGELATO** (2026-10-14; 1.1.0 additiva, 2026-10-16)
+**Versione contratto: `1.2.0`** · API: `/api/v1` · Stato: **CONGELATO** (2026-10-14; 1.1.0 additiva 2026-10-16; 1.2.0 additiva 2026-10-18)
 
 Questa è la **fonte di verità** per il Reader (app Android). Il file OpenAPI generato dal codice
 (`docs/openapi.json`) descrive gli stessi payload in forma macchina; in caso di discrepanza fa fede
@@ -373,6 +373,10 @@ Il Reader usa **solo** `Authorization: Bearer`. I token si creano/revocano dall'
 (`POST/GET/DELETE /api/v1/admin/tokens`, sessione cookie). Il token in chiaro viene mostrato alla creazione
 e **mai più**; il writer conserva solo l'hash SHA‑256. Un token revocato risponde `401 token_revoked`.
 
+Dalla 1.2.0 ogni token ha uno **scope**: `ingest` (il Reader, tutto ciò che è in §2) oppure `ha` (Home Assistant, solo
+`GET /api/v1/ha/status`, vedi §7). I due non sono intercambiabili: un token `ha` su un endpoint di ingest o su `/ping` risponde
+`403` con `error.code = wrong_token_scope`. Il Reader usa token `ingest` (il default) e non cambia nulla.
+
 ---
 
 ## 7. Fuori contratto (non stabile)
@@ -387,7 +391,9 @@ generate dalle costanti del writer), `GET /api/v1/storage` (spazio, limiti e ret
 `hr_day`, `hr_night`, `heart_points` di `/report/daily`,
 `GET /api/v1/heart/points`, `/heart/points/week` e `/heart/points/rules` (Punti cardio, ADR 0008; il tipo `HeartPoints` è
 una metrica **calcolata** del writer, non un tipo di record: il Reader non lo invia), `?scope=real` su
-`/exercise/sessions` e `?include_workouts` su `/heart/daypart` (ADR 0006).
+`/exercise/sessions` e `?include_workouts` su `/heart/daypart` (ADR 0006). Dalla 0.8.0 anche `GET/PUT/DELETE /api/v1/preferences/{key}`
+(scelte della dashboard salvate sul server, sessione admin + header CSRF) e `GET /api/v1/ha/status` (stato dell'allarme «sync ferma» per
+Home Assistant: token con scope `ha`, nessun valore sanitario; ADR 0010).
 
 ---
 
@@ -395,5 +401,6 @@ una metrica **calcolata** del writer, non un tipo di record: il Reader non lo in
 
 | Versione | Data | Modifica |
 |---|---|---|
+| **1.2.0** | 2026-10-18 | Additiva. I token hanno uno `scope` (`ingest` di default, oppure `ha`); un token `ha` sugli endpoint di ingest e su `/ping` risponde `403 wrong_token_scope` (il Reader non è toccato). Nuovo `GET /api/v1/ha/status` per Home Assistant (token `ha`; solo `status`, date e ore, nessun valore sanitario; limite 30 richieste/minuto per token). `GET/PUT/DELETE /api/v1/preferences/{key}` (dashboard, fuori contratto) e il blocco `alarm` di `/sync/status`. Vedi ADR 0010. |
 | **1.1.0** | 2026-10-16 | Additiva, nessun campo nuovo. Chiarito e implementato: un record con `last_modified` uguale ma `data` diverso viene **aggiornato** (rotta GPS aggiunta a sessioni passate) invece di essere `unchanged`; documentati i limiti di dimensione per le sessioni con `route` (≤50 000 punti, 32 MiB decompressi) e il significato di `recording_method` (`active`/`manual` = avviata dall'utente). Le API della dashboard aggiunte (`/heart/daypart`, override degli allenamenti) sono fuori contratto (§7). |
 | **1.0.0** | 2026-10-14 | Prima versione congelata. Differenze rispetto alla bozza di PROJECT_GUIDE §6: `device_id` e `sync_id` (UUID) obbligatori in **tutte** le richieste di ingest; `type` opzionale nelle deletions; risposta `records` con `inserted`/`updated` e `rejected[].index`; aggiunto `GET /health` pubblico; `ExerciseRoute` incorporato in `ExerciseSession.data.route`. |

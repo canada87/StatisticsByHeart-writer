@@ -27,8 +27,8 @@ design-system/   MASTER.md + override per pagina
 | **Sonno** | Durata per notte, stadi (barre impilate), orari di addormentamento/risveglio e regolarità |
 | **Attività** | Passi, distanza, calorie attive e totali, elenco allenamenti (kcal, FC media, segnali FC/GPS/avvio e verdetto) con filtro **Solo veri / Tutti** e correzione manuale, volume settimanale |
 | **Corpo** | Peso e pressione arteriosa (sistolica continua, diastolica tratteggiata; fasce solo indicative) |
-| **Report** | Riepilogo per settimana/mese/anno/personalizzato su tutto il periodo: medie e totali di ogni metrica con variazione vs periodo precedente e giorni migliori/peggiori, **FC diurna e notturna**, **Punti cardio** (totale, media a settimana, settimane sopra 150), solo **allenamenti veri** (numero e tempo, per tipo e mese per mese), tabelle **mese su mese** (medie giornaliere e totali del mese, mesi parziali segnalati), **grafici grandi** (uno per riga a tutta larghezza, mensili se il periodo copre più mesi), stampa/PDF e CSV giornaliero e mensile |
-| **Sync / Dati** | Verifica: ultime sync (rifiutati/errori), inventario per tipo e sorgente, ufficiale Health Connect vs somma dei record, e la scheda **Spazio e limiti** (sola lettura): dimensione del database e di ogni tabella (dati, indici, righe esatte o stimate), record cancellati, primo/ultimo dato, crescita degli ultimi 30 giorni con proiezione a un anno (stima), disco libero della VM (stima, dal filesystem che vede l'app) e l'elenco di retention e limiti generato dalle costanti vere |
+| **Report** | Riepilogo per settimana/mese/anno/personalizzato su tutto il periodo: medie e totali di ogni metrica con variazione vs periodo precedente e giorni migliori/peggiori, **FC diurna e notturna**, **Punti cardio** (totale, media a settimana, settimane sopra 150), solo **allenamenti veri** (numero e tempo, per tipo e mese per mese), tabelle **mese su mese** (medie giornaliere e totali del mese, mesi parziali segnalati), **grafici grandi** (uno per riga a tutta larghezza, mensili se il periodo copre più mesi), pannello **Contenuto del report** (spunti sezioni e misure; la scelta è salvata sul server e vale da ogni dispositivo, con «Ripristina predefiniti»), stampa/PDF **senza intestazione e piè di pagina del browser** (con un piè di pagina proprio: titolo, periodo, data) e CSV giornaliero e mensile (sempre completi) |
+| **Sync / Dati** | Verifica: **allarme «sync ferma»** (lo stesso stato che legge Home Assistant) e ultima sync riuscita di ogni dispositivo, ultime sync (rifiutati/errori), inventario per tipo e sorgente, ufficiale Health Connect vs somma dei record, e la scheda **Spazio e limiti** (sola lettura): dimensione del database e di ogni tabella (dati, indici, righe esatte o stimate), record cancellati, primo/ultimo dato, crescita degli ultimi 30 giorni con proiezione a un anno (stima), disco libero della VM (stima, dal filesystem che vede l'app) e l'elenco di retention e limiti generato dalle costanti vere |
 
 Ogni pagina di trend ha KPI del periodo con variazione (freccia **e** testo), grafici con granularità ora (fino a 31 giorni)/giorno/settimana/mese
 (automatica per intervallo), media mobile e confronto con il periodo precedente attivabili, valori raggiungibili da tastiera
@@ -36,7 +36,9 @@ Ogni pagina di trend ha KPI del periodo con variazione (freccia **e** testo), gr
 fino a **Tutto** (l'intero storico) e vive nell'URL; due frecce spostano la finestra indietro/avanti della sua lunghezza
 (`?r=7d&end=2026-09-30`, assente = fino a oggi) e **Oggi** ci torna; il periodo del Report pure (`?p=month&d=2026-09-01`), quindi un report si
 riapre o si condivide con il link. Il Report si salva in PDF con *Stampa / Salva PDF* del browser (foglio di stampa dedicato,
-sfondo chiaro, senza effetti HUD). Le metriche sono solo le 12 di interesse; la **pressione** è un tipo Tier 2: finché non è
+sfondo chiaro, senza effetti HUD). Il PDF esce **senza intestazione e piè di pagina del browser** (niente titolo, indirizzo o data in alto e in basso):
+il foglio ha `@page { margin: 0 }` e i margini sono del contenuto, con un piè di pagina proprio. In Chrome lascia pure
+«Altre impostazioni › Intestazioni e piè di pagina» com'è; se mai compaiono comunque (altri browser), disattiva quella casella. Le metriche sono solo le 12 di interesse; la **pressione** è un tipo Tier 2: finché non è
 attivata nell'app mostra un messaggio che spiega come farlo.
 
 ## Avvio in locale (sviluppo, dati SINTETICI)
@@ -106,8 +108,8 @@ L'immagine **non si builda sulla VM**: la costruisce GitHub Actions e Portainer 
 Per rilasciare (dal tuo PC):
 
 ```bash
-git tag v0.7.0
-git push origin main v0.7.0
+git tag v0.8.0
+git push origin main v0.8.0
 ```
 
 ### Una tantum: rendere pubblico il pacchetto
@@ -151,11 +153,12 @@ variables* (vedi `docker/.env.example`; puoi usare «Load variables from .env fi
 | Variabile | Valore |
 |---|---|
 | `SBH_DB_PASSWORD` | **obbligatoria**, es. output di `openssl rand -hex 24` |
-| `SBH_IMAGE_TAG` | `0.7.0` (la versione da usare) oppure `latest` |
+| `SBH_IMAGE_TAG` | `0.8.0` (la versione da usare) oppure `latest` |
 | `SBH_HTTP_PORT` | `8742` (o quella libera che hai scelto) |
 | `SBH_DATA_DIR` | cartella locale della VM che contiene `db/` (default nel compose) |
 | `SBH_BIRTH_YEAR` | opzionale ma consigliata: il tuo anno di nascita, per la FCmax dei Punti cardio (`220 − età`). **Valore personale: solo qui, mai nel repository** |
 | `SBH_HR_MAX` | opzionale: FCmax in bpm; se impostata vince su `SBH_BIRTH_YEAR` |
+| `SBH_STALE_HOURS` | opzionale (default `6`): dopo quante ore senza una sync riuscita l'allarme per Home Assistant passa a «ferma» (vedi *Allarme «sync ferma»*) |
 | `SBH_SOURCE_PRIORITY` | opzionale: pacchetti Android in ordine di fiducia (i nomi esatti li mostra la pagina *Sync / Dati → Inventario*) |
 
 *Deploy the stack*. Portainer scarica `ghcr.io/canada87/statisticsbyheart-writer:<tag>` e all'avvio il container applica
@@ -201,6 +204,95 @@ proxy_send_timeout 120s;
 Verifica da un dispositivo sulla tailnet: `curl https://<il-tuo-dominio>/api/v1/health`. Il Reader usa
 `https://<il-tuo-dominio>` (nessuna eccezione cleartext).
 
+### Allarme «sync ferma» in Home Assistant
+
+Se il telefono smette di sincronizzare (Health Connect revocato, app uccisa dal risparmio energetico, telefono spento…)
+Home Assistant ti avvisa. HA **interroga** il writer ogni pochi minuti: l'allarme scatta anche se il writer stesso è
+irraggiungibile. Dettagli e motivazioni in [`docs/adr/0010-preferences-and-ha-alarm.md`](docs/adr/0010-preferences-and-ha-alarm.md).
+
+**1. Crea un token dedicato (sola lettura, scope `ha`).** Non è il token del Reader: non può inviare dati e il token del
+Reader non può leggere questo stato.
+
+```bash
+docker exec -it <nome-container-sbh-api> python -m app.cli create-token --name "Home Assistant" --scope ha
+```
+
+Copialo (si vede **una sola volta**) in `secrets.yaml` di HA, **mai** in un file versionato:
+
+```yaml
+# secrets.yaml
+sbh_ha_token: "Bearer sbh_<il-token-stampato-dal-comando>"
+```
+
+**2. Raggiungibilità.** HA deve poter aprire l'indirizzo del writer: o il dominio di Nginx Proxy Manager
+(`https://<il-tuo-dominio>`), oppure IP e porta della LAN (`http://<ip-della-vm>:<porta>`). Prova da HA (o dalla sua
+macchina): `curl -H "Authorization: Bearer <token>" <base>/api/v1/ha/status`.
+
+**3. Configurazione.** In `configuration.yaml` (o nei file inclusi per `sensor:`, `template:`, `automation:`); riavvia o
+ricarica la configurazione:
+
+```yaml
+# configuration.yaml
+rest:
+  - resource: https://<il-tuo-dominio>/api/v1/ha/status   # oppure http://<ip-della-vm>:<porta>/api/v1/ha/status
+    scan_interval: 300            # ogni 5 minuti (il writer accetta fino a 30 richieste al minuto)
+    timeout: 15
+    headers:
+      Authorization: !secret sbh_ha_token
+    sensor:
+      - name: "SBH ore dall'ultima sync"
+        unique_id: sbh_hours_since_sync
+        value_template: "{{ value_json.hours_since_sync }}"
+        unit_of_measurement: "h"
+      - name: "SBH stato sync"
+        unique_id: sbh_sync_status
+        value_template: "{{ value_json.status }}"        # ok | stale | never
+        json_attributes:
+          - last_sync_at
+          - last_ingest_at
+          - threshold_hours
+          - version
+
+template:
+  - binary_sensor:
+      - name: "SBH sync ferma"
+        unique_id: sbh_sync_stale
+        device_class: problem
+        # ON se il writer dice stale/never, oppure se non risponde (sensore non disponibile)
+        state: >
+          {{ states('sensor.sbh_stato_sync') in ['stale', 'never', 'unavailable', 'unknown'] }}
+```
+
+**4. Automazione** (da `automations.yaml` o dall'interfaccia, in YAML). Il «per qualche minuto» evita falsi allarmi per
+un riavvio del writer o un'interruzione di rete momentanea:
+
+```yaml
+automation:
+  - alias: "SBH sync ferma"
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.sbh_sync_ferma
+        to: "on"
+        for: "00:10:00"
+    actions:
+      - action: notify.<il-tuo-servizio-notify>      # es. notify.mobile_app_<il-tuo-telefono>
+        data:
+          title: "StatisticsByHeart: sync ferma"
+          message: >
+            {% set h = states('sensor.sbh_ore_dall_ultima_sync') %}
+            {% if h in ['unavailable', 'unknown', 'None'] %}
+              Il writer non risponde o non ha mai ricevuto una sync.
+            {% else %}
+              Nessuna sync riuscita da {{ h }} ore.
+            {% endif %}
+```
+
+I nomi delle entità (`sensor.sbh_stato_sync`, …) derivano dai nomi dei sensori: controllali in HA → *Strumenti per
+sviluppatori → Stati*. La soglia è `SBH_STALE_HOURS` (default 6 ore) e si cambia nelle variabili dello stack, non in HA.
+La risposta non contiene alcun valore sanitario: solo date, ore e lo stato. Lo stesso stato è nella dashboard,
+*Sync / Dati → Sync* («Allarme: ok / sync ferma da N ore»).
+
 ### Aggiornare e tornare indietro
 
 1. Rilascia un nuovo tag (`git tag v0.7.1 && git push origin v0.7.1`) e attendi che il workflow *Release* finisca.
@@ -210,6 +302,13 @@ Verifica da un dispositivo sulla tailnet: `curl https://<il-tuo-dominio>/api/v1/
 4. **Rollback**: rimetti il tag precedente (`SBH_IMAGE_TAG=0.6.1`) e aggiorna lo stack. Le migrazioni sono solo «in
    avanti»: se una migrazione va annullata ripristina lo snapshot PBS (o il dump) invece di fare `downgrade`.
 
+> **Aggiornamento alla 0.8.0 (c'è una migrazione, `0004`):** crea la tabella `user_preference` (le scelte della dashboard,
+> ora salvate sul server) e aggiunge la colonna `ingest_token.scope` (`ingest` per i token esistenti, `ha` per Home
+> Assistant). Nessun dato esistente cambia e il token del Reader continua a funzionare. **Prima del deploy fai il
+> `pg_dump`** (sezione *Backup*) o lo snapshot PBS; l'app applica la migrazione da sola all'avvio. Annullarla = ripristino
+> del dump, non `downgrade`. Poi, se vuoi l'allarme: crea il token `--scope ha` e configura HA come in *Allarme «sync
+> ferma»*; la variabile `SBH_STALE_HOURS` è opzionale.
+>
 > **Aggiornamento alla 0.7.0: nessuna migrazione** (Report esteso: nessun ricalcolo né variabile nuova; per le righe di FC
 > diurna/notturna e Punti cardio valgono le impostazioni già descritte sotto).
 >
