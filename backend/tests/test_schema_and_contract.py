@@ -108,3 +108,43 @@ def test_migration_0003_upgrades_and_downgrades_cleanly(database_url: str) -> No
         with admin.connect() as conn:
             conn.execute(text("DROP DATABASE IF EXISTS migration_probe WITH (FORCE)"))
         admin.dispose()
+
+
+def test_migration_0004_upgrades_and_downgrades_cleanly(database_url: str) -> None:
+    """Preferences + token scope: existing tokens become ingest tokens, downgrade drops both."""
+    from sqlalchemy import inspect, text
+    from sqlalchemy.engine import make_url
+
+    from alembic import command
+    from tests.conftest import alembic_config
+
+    admin = create_engine(database_url, isolation_level="AUTOCOMMIT")
+    with admin.connect() as conn:
+        conn.execute(text("DROP DATABASE IF EXISTS migration_probe4"))
+        conn.execute(text("CREATE DATABASE migration_probe4"))
+    url = make_url(database_url).set(database="migration_probe4").render_as_string(False)
+    try:
+        cfg = alembic_config(url)
+        command.upgrade(cfg, "0003")
+        engine = create_engine(url)
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO ingest_token (id, name, token_hash, token_prefix) "
+                    "VALUES (gen_random_uuid(), 'old', 'h', 'p')"
+                )
+            )
+        command.upgrade(cfg, "0004")
+        assert "user_preference" in inspect(engine).get_table_names()
+        with engine.connect() as conn:
+            assert conn.execute(text("SELECT scope FROM ingest_token")).scalar() == "ingest"
+        command.downgrade(cfg, "0003")
+        assert "user_preference" not in inspect(engine).get_table_names()
+        assert "scope" not in {c["name"] for c in inspect(engine).get_columns("ingest_token")}
+        command.upgrade(cfg, "head")
+        assert "user_preference" in inspect(engine).get_table_names()
+        engine.dispose()
+    finally:
+        with admin.connect() as conn:
+            conn.execute(text("DROP DATABASE IF EXISTS migration_probe4 WITH (FORCE)"))
+        admin.dispose()

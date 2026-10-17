@@ -31,7 +31,8 @@ def get_settings_dep(request: Request) -> Settings:
 SettingsDep = Annotated[Settings, Depends(get_settings_dep)]
 
 
-async def require_ingest_token(request: Request, session: Db) -> IngestToken:
+async def _token_from_header(request: Request, session: Db) -> IngestToken:
+    """The bearer token of the request (any scope); 401 if missing, unknown or revoked."""
     header = request.headers.get("authorization", "")
     scheme, _, value = header.partition(" ")
     if scheme.lower() != "bearer" or not value.strip():
@@ -57,6 +58,31 @@ async def require_ingest_token(request: Request, session: Db) -> IngestToken:
             update(IngestToken).where(IngestToken.id == token.id).values(last_used_at=now)
         )
         await session.commit()
+    return token
+
+
+async def require_ingest_token(request: Request, session: Db) -> IngestToken:
+    """Reader tokens only: a Home Assistant token must not be able to write."""
+    token = await _token_from_header(request, session)
+    if token.scope != "ingest":
+        raise ApiError(403, "wrong_token_scope", "This token cannot be used for ingest")
+    return token
+
+
+async def require_ha_token(request: Request, session: Db) -> IngestToken:
+    """Home Assistant tokens only (read the sync status): an ingest token must not read it."""
+    token = await _token_from_header(request, session)
+    if token.scope != "ha":
+        raise ApiError(403, "wrong_token_scope", "This token is not a Home Assistant token")
+    limiter = request.app.state.ha_limiter
+    wait = limiter.hit(str(token.id))
+    if wait:
+        raise ApiError(
+            429,
+            "rate_limited",
+            "Too many requests",
+            headers={"Retry-After": str(wait)},
+        )
     return token
 
 
@@ -93,4 +119,5 @@ async def require_admin(request: Request, session: Db, settings: SettingsDep) ->
 
 
 IngestAuth = Annotated[IngestToken, Depends(require_ingest_token)]
+HaAuth = Annotated[IngestToken, Depends(require_ha_token)]
 AdminAuth = Annotated[AdminContext, Depends(require_admin)]

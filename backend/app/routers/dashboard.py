@@ -144,9 +144,12 @@ async def data_reconciliation(
     responses=_AUTH,
 )
 async def sync_status(
-    _: AdminAuth, session: Db, limit: Annotated[int, Query(ge=1, le=100)] = 20
+    _: AdminAuth,
+    session: Db,
+    settings: SettingsDep,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> SyncStatusResponse:
-    return await queries.sync_status(session, limit)
+    return await queries.sync_status(session, limit, settings)
 
 
 def _window(

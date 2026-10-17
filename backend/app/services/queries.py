@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import Settings
 from app.dash_schemas import (
     ActivityItem,
+    AlarmInfo,
     DeviceRow,
     HeartSummary,
     InventoryResponse,
@@ -898,7 +899,11 @@ async def reconciliation(
 # --------------------------------------------------------------------------- sync status
 
 
-async def sync_status(session: AsyncSession, limit: int) -> SyncStatusResponse:
+async def sync_status(session: AsyncSession, limit: int, settings: Settings) -> SyncStatusResponse:
+    from app.services import alarm
+
+    per_device = await alarm.last_success_per_device(session)
+    alarm_info = await alarm.alarm_state(session, settings)
     devices = (
         (await session.execute(select(Device).order_by(Device.last_seen_at.desc()))).scalars().all()
     )
@@ -939,6 +944,12 @@ async def sync_status(session: AsyncSession, limit: int) -> SyncStatusResponse:
         generated_at=datetime.now(UTC),
         last_success_at=last_success,
         last_activity_at=last_activity,
+        alarm=AlarmInfo(
+            status=alarm_info["status"],
+            last_sync_at=alarm_info["last_sync_at"],
+            hours_since_sync=alarm_info["hours_since_sync"],
+            threshold_hours=alarm_info["threshold_hours"],
+        ),
         devices=[
             DeviceRow(
                 id=str(d.id),
@@ -947,6 +958,7 @@ async def sync_status(session: AsyncSession, limit: int) -> SyncStatusResponse:
                 app_version=d.app_version,
                 first_seen_at=d.first_seen_at,
                 last_seen_at=d.last_seen_at,
+                last_success_at=per_device.get(d.id),
             )
             for d in devices
         ],

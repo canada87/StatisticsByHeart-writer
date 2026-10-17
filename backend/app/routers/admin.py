@@ -24,6 +24,7 @@ def _info(t: IngestToken) -> dict[str, object]:
     return {
         "id": t.id,
         "name": t.name,
+        "scope": t.scope,
         "prefix": t.token_prefix,
         "created_at": t.created_at,
         "last_used_at": t.last_used_at,
@@ -40,7 +41,13 @@ def _info(t: IngestToken) -> dict[str, object]:
 )
 async def create_token(body: TokenCreate, _: AdminAuth, session: Db) -> TokenCreated:
     plaintext, token_hash, prefix = new_ingest_token()
-    token = IngestToken(id=uuid.uuid4(), name=body.name, token_hash=token_hash, token_prefix=prefix)
+    token = IngestToken(
+        id=uuid.uuid4(),
+        name=body.name,
+        token_hash=token_hash,
+        token_prefix=prefix,
+        scope=body.scope,
+    )
     session.add(token)
     await session.commit()
     await session.refresh(token)

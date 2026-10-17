@@ -39,3 +39,23 @@ class LoginLimiter:
     def reset(self, *keys: str) -> None:
         for key in keys:
             self._failures.pop(key, None)
+
+
+class RequestLimiter:
+    """Light per-key request limiter (sliding window), in memory like the login limiter."""
+
+    def __init__(self, max_requests: int, window_seconds: int = 60) -> None:
+        self.max_requests = max_requests
+        self.window = window_seconds
+        self._hits: dict[str, deque[float]] = defaultdict(deque)
+
+    def hit(self, key: str) -> int:
+        """Register a request; returns the seconds to wait if the key is over the limit, else 0."""
+        now = time.monotonic()
+        q = self._hits[key]
+        while q and now - q[0] > self.window:
+            q.popleft()
+        if len(q) >= self.max_requests:
+            return int(self.window - (now - q[0])) + 1
+        q.append(now)
+        return 0

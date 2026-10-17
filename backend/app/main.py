@@ -16,13 +16,12 @@ from app.db import make_engine, make_sessionmaker
 from app.deps import require_admin
 from app.errors import install_error_handlers
 from app.middleware import BodyGuardMiddleware
-from app.ratelimit import LoginLimiter
-from app.routers import admin, auth, dashboard, ingest, public
+from app.ratelimit import LoginLimiter, RequestLimiter
+from app.routers import admin, auth, dashboard, ha, ingest, preferences, public
 from app.scheduler import build_scheduler
 from app.services import maintenance
 from app.spa import install_spa
-
-VERSION = "0.7.0"
+from app.version import VERSION
 
 
 class SecurityHeadersMiddleware:
@@ -99,6 +98,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.login_limiter = LoginLimiter(
         settings.login_max_failures, settings.login_window_seconds
     )
+    app.state.ha_limiter = RequestLimiter(settings.ha_rate_limit_per_minute)
 
     install_error_handlers(app)
     app.add_middleware(BodyGuardMiddleware, max_body_bytes=settings.max_body_bytes)
@@ -109,6 +109,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth.router)
     app.include_router(admin.router)
     app.include_router(dashboard.router)
+    app.include_router(preferences.router)
+    app.include_router(ha.router)
 
     if settings.enable_docs:
         _install_docs(app)

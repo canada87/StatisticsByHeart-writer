@@ -291,11 +291,13 @@ class SessionInfo(BaseModel):
 
 class TokenCreate(_Strict):
     name: Annotated[str, Field(min_length=1, max_length=100)]
+    scope: Literal["ingest", "ha"] = "ingest"
 
 
 class TokenInfo(BaseModel):
     id: UUID
     name: str
+    scope: Literal["ingest", "ha"] = "ingest"
     prefix: str
     created_at: datetime
     last_used_at: datetime | None

@@ -149,6 +149,7 @@ def describe_limits(settings: Settings) -> dict[str, Any]:
                 "id": "daily_recompute",
                 "params": {"hour": RECONCILE_HOUR, "minute": RECONCILE_MINUTE},
             },
+            {"id": "stale_alarm", "params": {"threshold_hours": settings.stale_hours}},
             {"id": "ingest_batch", "params": {"max_records": settings.max_batch_records}},
             {"id": "ingest_body", "params": {"max_bytes": settings.max_body_bytes}},
             {"id": "route_points", "params": {"max_points": MAX_ROUTE_POINTS}},

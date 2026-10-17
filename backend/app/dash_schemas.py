@@ -252,12 +252,23 @@ class DeviceRow(BaseModel):
     app_version: str | None
     first_seen_at: datetime
     last_seen_at: datetime
+    last_success_at: datetime | None = Field(
+        default=None, description="Last SUCCESSFUL sync of this device"
+    )
+
+
+class AlarmInfo(BaseModel):
+    status: Literal["ok", "stale", "never"]
+    last_sync_at: datetime | None
+    hours_since_sync: float | None
+    threshold_hours: float
 
 
 class SyncStatusResponse(BaseModel):
     generated_at: datetime
     last_success_at: datetime | None
     last_activity_at: datetime | None
+    alarm: AlarmInfo = Field(description="What Home Assistant sees (any device counts)")
     devices: list[DeviceRow]
     runs: list[SyncRunRow]
 
@@ -613,6 +624,7 @@ class LimitItem(BaseModel):
         "soft_delete",
         "session_purge",
         "daily_recompute",
+        "stale_alarm",
         "ingest_batch",
         "ingest_body",
         "route_points",

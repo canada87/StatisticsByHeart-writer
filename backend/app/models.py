@@ -57,6 +57,10 @@ class IngestToken(Base):
     created_at: Mapped[datetime] = mapped_column(TZ, server_default=NOW)
     last_used_at: Mapped[datetime | None] = mapped_column(TZ)
     revoked_at: Mapped[datetime | None] = mapped_column(TZ)
+    # What the token may do: "ingest" (Reader, write) or "ha" (Home Assistant, read the sync status)
+    scope: Mapped[str] = mapped_column(String(16), server_default="ingest")
+
+    __table_args__ = (CheckConstraint("scope IN ('ingest','ha')", name="ck_ingest_token_scope"),)
 
 
 class AdminUser(Base):
@@ -216,4 +220,14 @@ class ExerciseOverride(Base):
 
     hc_id: Mapped[str] = mapped_column(String(128), primary_key=True)
     is_real: Mapped[bool] = mapped_column()
+    updated_at: Mapped[datetime] = mapped_column(TZ, server_default=NOW)
+
+
+class UserPreference(Base):
+    """Small JSON preferences of the dashboard, kept on the server so they follow the user."""
+
+    __tablename__ = "user_preference"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[Any] = mapped_column(JSONB)
     updated_at: Mapped[datetime] = mapped_column(TZ, server_default=NOW)

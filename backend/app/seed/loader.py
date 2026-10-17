@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.config import Settings
 from app.schemas import DailyAggregatesBatch, RecordsBatch, SyncReport
-from app.seed.synthetic import SEED_DEVICE_ID, SyntheticData, chunked
+from app.seed.synthetic import NAMESPACE, SEED_DEVICE_ID, SyntheticData, chunked
 from app.services import ingest as svc
 
 
@@ -20,6 +20,7 @@ async def load_synthetic(
     *,
     token_id: uuid.UUID | None = None,
     batch_size: int = 500,
+    second_device: bool = False,
 ) -> dict[str, int]:
     started = datetime.now(UTC)
     sync_id = uuid.uuid4()
@@ -54,4 +55,28 @@ async def load_synthetic(
     async with sessionmaker() as session:
         await svc.ingest_sync_report(session, token_id, report)
         await session.commit()
+    if second_device:
+        await _second_device_sync(sessionmaker, token_id)
     return totals
+
+
+async def _second_device_sync(
+    sessionmaker: async_sessionmaker[AsyncSession], token_id: uuid.UUID | None
+) -> None:
+    """A second phone that synced two hours ago (a small delivery, no health data of its own)."""
+    finished = datetime.now(UTC) - timedelta(hours=2)
+    report = SyncReport.model_validate(
+        {
+            "device_id": str(uuid.uuid5(NAMESPACE, "device-2")),
+            "sync_id": str(uuid.uuid5(NAMESPACE, "device-2-sync")),
+            "device": {"name": "Synthetic seed (second phone)", "app_version": "seed"},
+            "mode": "incremental",
+            "status": "completed",
+            "started_at": (finished - timedelta(minutes=1)).isoformat(),
+            "finished_at": finished.isoformat(),
+            "counts": {"records": 0, "rejected": 0, "aggregates": 0},
+        }
+    )
+    async with sessionmaker() as session:
+        await svc.ingest_sync_report(session, token_id, report)
+        await session.commit()

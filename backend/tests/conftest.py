@@ -32,7 +32,7 @@ if sys.platform == "win32":  # psycopg async cannot run on the default Proactor 
 BACKEND = Path(__file__).resolve().parents[1]
 ALL_TABLES = (
     "health_sample, health_record, daily_metric, sync_run, device, "
-    "ingest_token, user_session, admin_user, exercise_override"
+    "ingest_token, user_session, admin_user, exercise_override, user_preference"
 )
 
 
@@ -109,6 +109,23 @@ async def token(app) -> str:  # type: ignore[no-untyped-def]
 @pytest.fixture
 def auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest_asyncio.fixture
+async def ha_token(app) -> str:  # type: ignore[no-untyped-def]
+    plaintext, token_hash, prefix = new_ingest_token()
+    async with app.state.sessionmaker() as s:
+        s.add(
+            IngestToken(
+                id=uuid.uuid4(),
+                name="Home Assistant",
+                token_hash=token_hash,
+                token_prefix=prefix,
+                scope="ha",
+            )
+        )
+        await s.commit()
+    return plaintext
 
 
 @pytest_asyncio.fixture

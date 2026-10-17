@@ -212,6 +212,7 @@ async def test_no_health_value_leaves_the_endpoint(
         "user_session",
         "admin_user",
         "exercise_override",
+        "user_preference",
         "alembic_version",
     }
 
@@ -234,6 +235,7 @@ async def test_limits_and_retention_come_from_the_real_constants(
         "soft_delete",
         "session_purge",
         "daily_recompute",
+        "stale_alarm",
         "ingest_batch",
         "ingest_body",
         "route_points",
@@ -246,6 +248,7 @@ async def test_limits_and_retention_come_from_the_real_constants(
     assert by["retention"] == {"forever": True}  # nothing deletes health data
     assert by["soft_delete"] == {"samples_removed": True}
     assert by["session_purge"] == {"minute": 17, "session_ttl_hours": settings.session_ttl_hours}
+    assert by["stale_alarm"] == {"threshold_hours": settings.stale_hours}
     assert by["ingest_batch"] == {"max_records": settings.max_batch_records}
     assert by["ingest_body"] == {"max_bytes": settings.max_body_bytes}
     assert by["route_points"] == {"max_points": MAX_ROUTE_POINTS}

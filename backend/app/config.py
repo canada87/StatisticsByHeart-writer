@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     def _empty_is_unset(cls, v: object) -> object:
         return None if v is None or (isinstance(v, str) and not v.strip()) else v
 
+    # Home Assistant alarm: no successful sync for more than this many hours -> "stale".
+    stale_hours: float = 6.0
+    ha_rate_limit_per_minute: int = 30
+
     # Ingest limits.
     max_batch_records: int = 500
     max_body_bytes: int = 32 * 1024 * 1024  # after gzip decompression

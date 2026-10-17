@@ -77,7 +77,11 @@ def cmd_create_token(args: argparse.Namespace, settings: Settings) -> int:
         async with sm() as s:
             s.add(
                 IngestToken(
-                    id=uuid.uuid4(), name=args.name, token_hash=token_hash, token_prefix=prefix
+                    id=uuid.uuid4(),
+                    name=args.name,
+                    token_hash=token_hash,
+                    token_prefix=prefix,
+                    scope=args.scope,
                 )
             )
             await s.commit()
@@ -96,7 +100,7 @@ def cmd_seed(args: argparse.Namespace, settings: Settings) -> int:
         data = generate(
             SeedConfig(days=args.days, seed=args.seed, unrecorded_nights=(2, 9), rest_weeks=True)
         )
-        totals = await load_synthetic(sm, settings, data)
+        totals = await load_synthetic(sm, settings, data, second_device=True)
         print(f"Seeded synthetic data: {totals}")
 
     _run(_with_db(settings, go))
@@ -174,8 +178,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--username", default="admin")
     p.set_defaults(fn=cmd_create_admin)
 
-    p = sub.add_parser("create-token", help="Create an ingest token and print it once")
+    p = sub.add_parser("create-token", help="Create a token and print it once")
     p.add_argument("--name", required=True)
+    p.add_argument(
+        "--scope",
+        choices=["ingest", "ha"],
+        default="ingest",
+        help="ingest = the Reader (writes); ha = Home Assistant (reads the sync status only)",
+    )
     p.set_defaults(fn=cmd_create_token)
 
     p = sub.add_parser("seed", help="Load synthetic data (never real data)")
