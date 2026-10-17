@@ -98,7 +98,13 @@ def cmd_seed(args: argparse.Namespace, settings: Settings) -> int:
                 print("Database already has records: skipping seed.")
                 return
         data = generate(
-            SeedConfig(days=args.days, seed=args.seed, unrecorded_nights=(2, 9), rest_weeks=True)
+            SeedConfig(
+                days=args.days,
+                seed=args.seed,
+                unrecorded_nights=(2, 9),
+                rest_weeks=True,
+                stress_days=True,
+            )
         )
         totals = await load_synthetic(sm, settings, data, second_device=True)
         print(f"Seeded synthetic data: {totals}")

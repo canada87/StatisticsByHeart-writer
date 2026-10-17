@@ -89,7 +89,7 @@ async def test_ok_and_response_shape(
         "version",
     }
     assert 0.9 < body["hours_since_sync"] < 1.1
-    assert body["version"] == "0.8.0"
+    assert body["version"] == "0.8.1"
 
 
 async def test_stale_when_over_threshold(

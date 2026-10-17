@@ -50,6 +50,39 @@ async def _daily(session: AsyncSession, first: date, last: date) -> dict[date, f
     return {d: float(v or 0) for d, v in rows}
 
 
+DETAIL_KEYS = (
+    "hr_points",
+    "hr_points_ungated",
+    "cadence_points",
+    "points_by_hr",
+    "points_by_cadence",
+    "minutes_active",
+    "minutes_by_session",
+    "minutes_by_steps",
+)
+"""Diagnostic counters stored per day in ``daily_metric.detail`` and summed per bucket."""
+
+
+def _detail_of(detail: dict[str, Any] | None) -> dict[str, int]:
+    d = detail or {}
+    return {k: int(d.get(k) or 0) for k in DETAIL_KEYS}
+
+
+async def _daily_detail(
+    session: AsyncSession, first: date, last: date
+) -> dict[date, dict[str, int]]:
+    rows = (
+        await session.execute(
+            select(DailyMetric.local_date, DailyMetric.detail).where(
+                DailyMetric.type == hp.HEART_POINTS_TYPE,
+                DailyMetric.source == "computed",
+                DailyMetric.local_date.between(first, last),
+            )
+        )
+    ).all()
+    return {d: _detail_of(detail) for d, detail in rows}
+
+
 def _total(days: dict[date, float]) -> dict[str, Any]:
     return {"total": sum(days.values()), "days": len(days)}
 
@@ -68,12 +101,17 @@ async def points_series(
         bucket = "week"
     today = datetime.now(settings.tz).date()
     daily = await _daily(session, first, last)
+    details = await _daily_detail(session, first, last)
     sums: dict[date, float] = {}
     counts: dict[date, int] = {}
+    detail_sums: dict[date, dict[str, int]] = {}
     for d, v in daily.items():
         key = _start(d, bucket)
         sums[key] = sums.get(key, 0.0) + v
         counts[key] = counts.get(key, 0) + 1
+        acc = detail_sums.setdefault(key, dict.fromkeys(DETAIL_KEYS, 0))
+        for k, n in details.get(d, {}).items():
+            acc[k] += n
     points: list[dict[str, Any]] = []
     cursor = _start(first, bucket)
     while cursor <= last:
@@ -83,6 +121,7 @@ async def points_series(
                 "t": cursor.isoformat(),
                 "v": sums.get(cursor, 0.0),
                 "days": counts.get(cursor, 0),
+                "detail": detail_sums.get(cursor, dict.fromkeys(DETAIL_KEYS, 0)),
                 # a bucket counts for "goal reached or not" only when it is whole, inside the
                 # range and already over (the running week is still being earned)
                 "complete": cursor >= first and end <= last and end < today,
@@ -140,6 +179,7 @@ async def points_week(session: AsyncSession, settings: Settings, day: date) -> d
                 "points": total,
                 "hr_points": detail.get("hr_points") if total is not None else None,
                 "cadence_points": detail.get("cadence_points") if total is not None else None,
+                "detail": _detail_of(detail) if total is not None else None,
             }
         )
     total = sum(v for v, _ in by_day.values())
@@ -172,7 +212,14 @@ def describe_points_rules(settings: Settings) -> dict[str, Any]:
             "hr_max_source": source,
             "configured": hr_max is not None,
             "carry_max_minutes": int(hp.HR_CARRY_MAX.total_seconds() // 60),
+            "formula": {"intercept": hp.HR_MAX_INTERCEPT, "slope": hp.HR_MAX_SLOPE},
+            "needs_active_minute": True,
         },
+        "active_minute": {
+            "min_steps": hp.ACTIVE_CADENCE_MIN,
+            "exercise_session": True,
+        },
+        "rules_version": hp.RULES_VERSION,
         "cadence": {
             "moderate_steps": hp.CADENCE_MODERATE,
             "vigorous_steps": hp.CADENCE_VIGOROUS,

@@ -550,10 +550,21 @@ describe('Heart Points', () => {
     expect(body[1]).toContain('sì')
     expect(body[2]).toContain('no')
     expect(body[4]).toContain('in corso')
+    // where the points come from: from the heart rate in active minutes, cadence only, the FC without the
+    // active-minute rule, and how many minutes were active (by session / by steps)
+    const heads = within(table).getAllByRole('columnheader').map((h) => h.textContent)
+    expect(heads).toEqual(
+      expect.arrayContaining(['Da FC, minuti attivi', 'Solo da cadenza', 'FC senza regola attiva', 'Minuti attivi', 'di cui per allenamento', 'di cui per passi']),
+    )
+    expect(body[1]).toContain('300') // hr_points_ungated of the first week
+    expect(body[1]).toContain('140') // minutes_active
     await user.click(within(chart).getByRole('button', { name: 'Mostra grafico' }))
     await user.click(within(chart).getByRole('button', { name: 'Esporta CSV' }))
     await waitFor(() => expect(csvDownloads.length).toBe(1))
-    expect(csvDownloads[0]?.text.split('\r\n')[0]).toContain('Obiettivo raggiunto')
+    const csvLines = csvDownloads[0]?.text.split('\r\n') ?? []
+    expect(csvLines[0]).toContain('Obiettivo raggiunto')
+    expect(csvLines[0]).toContain('FC senza regola attiva')
+    expect(csvLines[1]).toContain('300')
   })
 
   it('7 and 30 day windows default to the daily view, with the 150/7 reference line, labelled', async () => {
@@ -621,9 +632,12 @@ describe('Heart Points', () => {
     expect(list).toHaveTextContent('da 50% della FCmax → 1 punto, da 70% → 2 punti')
     expect(list).toHaveTextContent('da 100 passi al minuto → 1 punto, da 130 → 2 punti')
     expect(list).toHaveTextContent('non 3')
-    expect(list).toHaveTextContent('FCmax usata oggi: 184 bpm (220 − età')
-    expect(list).toHaveTextContent('da 92 bpm 1 punto, da 129 bpm 2 punti')
-    expect(list).toHaveTextContent('al massimo 5 minuti prima')
+    expect(list).toHaveTextContent('Minuto attivo: almeno 60 passi nel minuto')
+    expect(list).toHaveTextContent('palestra, bici, cyclette senza passi')
+    expect(list).toHaveTextContent('Versione delle regole: 2')
+    expect(list).toHaveTextContent('FCmax usata oggi: 181 bpm (205,8 − 0,685 × età')
+    expect(list).toHaveTextContent('da 91 bpm 1 punto, da 127 bpm 2 punti')
+    expect(list).toHaveTextContent('al massimo 2 minuti prima')
     expect(list).toHaveTextContent('MET di Google Fit non si usa')
     expect(list).toHaveTextContent('nessuna esclusione degli allenamenti')
     expect(list).toHaveTextContent('Obiettivo settimanale: 150 punti')

@@ -521,11 +521,25 @@ export interface StorageResponse {
   limits: { items: LimitItem[] }
 }
 
+/** Where the points come from (diagnostic, to compare with Google Fit). */
+export interface PointsDetail {
+  hr_points: number
+  /** What the heart rate would have given without the active-minute rule. */
+  hr_points_ungated: number
+  cadence_points: number
+  points_by_hr: number
+  points_by_cadence: number
+  minutes_active: number
+  minutes_by_session: number
+  minutes_by_steps: number
+}
+
 export interface PointsBucket {
   t: string
   v: number
   days: number
   complete: boolean
+  detail?: PointsDetail
 }
 
 export interface PointsSeriesResponse {
@@ -561,7 +575,13 @@ export interface PointsWeek {
   remaining: number
   reached: boolean
   days_left: number
-  days: { date: string; points: number | null; hr_points: number | null; cadence_points: number | null }[]
+  days: {
+    date: string
+    points: number | null
+    hr_points: number | null
+    cadence_points: number | null
+    detail?: PointsDetail | null
+  }[]
   hr_configured: boolean
 }
 
@@ -573,7 +593,11 @@ export interface PointsRules {
     hr_max_source: 'override' | 'birth_year' | null
     configured: boolean
     carry_max_minutes: number
+    formula: { intercept: number; slope: number }
+    needs_active_minute: boolean
   }
+  active_minute: { min_steps: number; exercise_session: boolean }
+  rules_version: number
   cadence: { moderate_steps: number; vigorous_steps: number; max_record_minutes: number }
   points: { moderate: number; vigorous: number }
   combine: 'max'

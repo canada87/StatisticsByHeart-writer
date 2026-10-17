@@ -108,8 +108,8 @@ L'immagine **non si builda sulla VM**: la costruisce GitHub Actions e Portainer 
 Per rilasciare (dal tuo PC):
 
 ```bash
-git tag v0.8.0
-git push origin main v0.8.0
+git tag v0.8.1
+git push origin main v0.8.1
 ```
 
 ### Una tantum: rendere pubblico il pacchetto
@@ -153,10 +153,10 @@ variables* (vedi `docker/.env.example`; puoi usare «Load variables from .env fi
 | Variabile | Valore |
 |---|---|
 | `SBH_DB_PASSWORD` | **obbligatoria**, es. output di `openssl rand -hex 24` |
-| `SBH_IMAGE_TAG` | `0.8.0` (la versione da usare) oppure `latest` |
+| `SBH_IMAGE_TAG` | `0.8.1` (la versione da usare) oppure `latest` |
 | `SBH_HTTP_PORT` | `8742` (o quella libera che hai scelto) |
 | `SBH_DATA_DIR` | cartella locale della VM che contiene `db/` (default nel compose) |
-| `SBH_BIRTH_YEAR` | opzionale ma consigliata: il tuo anno di nascita, per la FCmax dei Punti cardio (`220 − età`). **Valore personale: solo qui, mai nel repository** |
+| `SBH_BIRTH_YEAR` | opzionale ma consigliata: il tuo anno di nascita, per la FCmax dei Punti cardio (`205,8 − 0,685 × età`, come Google Fit). **Valore personale: solo qui, mai nel repository** |
 | `SBH_HR_MAX` | opzionale: FCmax in bpm; se impostata vince su `SBH_BIRTH_YEAR` |
 | `SBH_STALE_HOURS` | opzionale (default `6`): dopo quante ore senza una sync riuscita l'allarme per Home Assistant passa a «ferma» (vedi *Allarme «sync ferma»*) |
 | `SBH_SOURCE_PRIORITY` | opzionale: pacchetti Android in ordine di fiducia (i nomi esatti li mostra la pagina *Sync / Dati → Inventario*) |
@@ -302,6 +302,12 @@ La risposta non contiene alcun valore sanitario: solo date, ore e lo stato. Lo s
 4. **Rollback**: rimetti il tag precedente (`SBH_IMAGE_TAG=0.6.1`) e aggiorna lo stack. Le migrazioni sono solo «in
    avanti»: se una migrazione va annullata ripristina lo snapshot PBS (o il dump) invece di fare `downgrade`.
 
+> **Aggiornamento alla 0.8.1: nessuna migrazione.** Regole più severe per i Punti cardio (FCmax `205,8 − 0,685 × età`; la
+> frequenza cardiaca dà punti solo nei minuti attivi, cioè con almeno 60 passi o dentro un allenamento; carry-forward di
+> 2 minuti; dettaglio per giorno nella tabella e nel CSV del grafico). **Non serve lanciare nessun comando:** al primo avvio
+> il writer ricalcola da solo, in background e a blocchi, tutto lo storico (il numero della settimana cambia di
+> conseguenza). `recompute-heart-points` serve solo se cambi `SBH_BIRTH_YEAR` / `SBH_HR_MAX`.
+>
 > **Aggiornamento alla 0.8.0 (c'è una migrazione, `0004`):** crea la tabella `user_preference` (le scelte della dashboard,
 > ora salvate sul server) e aggiunge la colonna `ingest_token.scope` (`ingest` per i token esistenti, `ha` per Home
 > Assistant). Nessun dato esistente cambia e il token del Reader continua a funzionare. **Prima del deploy fai il

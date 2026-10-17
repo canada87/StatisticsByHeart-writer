@@ -162,16 +162,28 @@ function buildChart(d: PointsSeriesResponse, reduced: boolean) {
   const hasTarget = weekly || bucket === 'day'
   const goalCell = (x: PointsSeriesResponse['points'][number]) =>
     !hasTarget ? [] : [x.complete ? t(x.v >= target ? 'points.col.yes' : 'points.col.no') : t('points.col.running')]
-  const columns = [t('chart.col.when'), `${label} (${t('points.unit')})`, ...(weekly ? [t('points.col.goal', { goal: fmtNumber(d.weekly_goal) })] : bucket === 'day' ? [t('points.col.reference', { ref: fmtNumber(ref) })] : [])]
+  const detailCols = [
+    t('points.col.hr'),
+    t('points.col.cadenceOnly'),
+    t('points.col.hrUngated'),
+    t('points.col.activeMin'),
+    t('points.col.bySession'),
+    t('points.col.bySteps'),
+  ]
+  const detailCells = (x: PointsSeriesResponse['points'][number]) => {
+    const e = x.detail
+    return e ? [e.points_by_hr, e.points_by_cadence, e.hr_points_ungated, e.minutes_active, e.minutes_by_session, e.minutes_by_steps] : [null, null, null, null, null, null]
+  }
+  const columns = [t('chart.col.when'), `${label} (${t('points.unit')})`, ...(weekly ? [t('points.col.goal', { goal: fmtNumber(d.weekly_goal) })] : bucket === 'day' ? [t('points.col.reference', { ref: fmtNumber(ref) })] : []), ...detailCols]
   const table: TableSpec = {
     caption: t('chart.tableCaption', { label, bucket: t(`points.bucket.${bucket}` as const) }),
     columns,
-    rows: pts.map((x) => [bucketLong(x.t, bucket), fmtNumber(x.v), ...goalCell(x)]),
+    rows: pts.map((x) => [bucketLong(x.t, bucket), fmtNumber(x.v), ...goalCell(x), ...detailCells(x).map((v) => (v === null ? '—' : fmtNumber(v)))]),
   }
   const csv = {
     filename: csvName('punti_cardio', d.from, d.to, bucket),
-    columns: [t('chart.col.date'), `${label} (${t('points.unit')})`, t('points.col.days'), ...(weekly ? [t('points.col.goalReached')] : bucket === 'day' ? [t('points.col.refReached')] : [])],
-    rows: pts.map((x) => [x.t, x.v, x.days, ...(hasTarget ? [x.complete ? (x.v >= target ? 'si' : 'no') : 'in_corso'] : [])]),
+    columns: [t('chart.col.date'), `${label} (${t('points.unit')})`, t('points.col.days'), ...(weekly ? [t('points.col.goalReached')] : bucket === 'day' ? [t('points.col.refReached')] : []), ...detailCols],
+    rows: pts.map((x) => [x.t, x.v, x.days, ...(hasTarget ? [x.complete ? (x.v >= target ? 'si' : 'no') : 'in_corso'] : []), ...detailCells(x)]),
   }
   return {
     option,
@@ -180,7 +192,12 @@ function buildChart(d: PointsSeriesResponse, reduced: boolean) {
     summary: parts.filter(Boolean).join(' '),
     readout: (i: number) => {
       const x = pts[i]
-      return x ? `${bucketLong(x.t, bucket)} · ${fmtNumber(x.v)} ${t('points.unit')}` : ''
+      if (!x) return ''
+      const e = x.detail
+      const extra = e
+        ? ` · ${t('points.detail.readout', { hr: fmtNumber(e.points_by_hr), cad: fmtNumber(e.points_by_cadence), min: fmtNumber(e.minutes_active), session: fmtNumber(e.minutes_by_session), steps: fmtNumber(e.minutes_by_steps) })}`
+        : ''
+      return `${bucketLong(x.t, bucket)} · ${fmtNumber(x.v)} ${t('points.unit')}${extra}`
     },
   }
 }
@@ -250,7 +267,7 @@ export function HeartPointsChart({
               note={
                 <p className="text-xs text-fg-muted" data-testid="points-chart-note">
                   {t('points.chart.note', { goal: fmtNumber(d.weekly_goal) })}
-                  {d.bucket !== 'day' && d.points.some((x) => !x.complete) ? ` ${t('points.partialBars')}` : ''}
+                  {d.bucket !== 'day' && d.points.some((x) => !x.complete) ? ` ${t('points.partialBars')}` : ''} {t('points.detail.note')}
                 </p>
               }
             />
@@ -308,10 +325,13 @@ function RulesBody({ r }: { r: PointsRules }) {
           })}
         </li>
         <li data-rule="combine">{t('points.rules.max')}</li>
+        <li data-rule="active_minute">{t('points.rules.active', { steps: fmtNumber(r.active_minute.min_steps) })}</li>
         <li data-rule="hr_max" data-configured={hr.configured}>
           {hr.configured && hr.hr_max !== null
             ? t(hr.hr_max_source === 'override' ? 'points.rules.hrMax.override' : 'points.rules.hrMax.birth', {
                 value: fmtNumber(hr.hr_max),
+                intercept: fmtNumber(hr.formula.intercept, 1),
+                slope: fmtNumber(hr.formula.slope, 3),
                 moderate: fmtNumber(Math.ceil((hr.hr_max * hr.moderate_pct) / 100)),
                 vigorous: fmtNumber(Math.ceil((hr.hr_max * hr.vigorous_pct) / 100)),
               })
@@ -325,6 +345,7 @@ function RulesBody({ r }: { r: PointsRules }) {
         <li data-rule="daily_reference">
           {t('points.rules.dayRef', { goal: fmtNumber(r.weekly_goal), ref: fmtNumber(Math.round(r.daily_reference)) })}
         </li>
+        <li data-rule="version">{t('points.rules.version', { n: fmtNumber(r.rules_version) })}</li>
         <li data-rule="goal">
           {t('points.rules.goal', { goal: fmtNumber(r.weekly_goal), tz: r.timezone.split('/').pop() ?? r.timezone })}
         </li>

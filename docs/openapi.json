@@ -1948,6 +1948,26 @@
         "title": "PingToken",
         "type": "object"
       },
+      "PointsActiveMinuteRule": {
+        "properties": {
+          "exercise_session": {
+            "description": "A minute inside any exercise session is active",
+            "title": "Exercise Session",
+            "type": "boolean"
+          },
+          "min_steps": {
+            "description": "Steps in a minute from which the minute is active",
+            "title": "Min Steps",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "min_steps",
+          "exercise_session"
+        ],
+        "title": "PointsActiveMinuteRule",
+        "type": "object"
+      },
       "PointsBucket": {
         "properties": {
           "complete": {
@@ -1959,6 +1979,9 @@
             "description": "Days of the bucket with a computed value",
             "title": "Days",
             "type": "integer"
+          },
+          "detail": {
+            "$ref": "#/components/schemas/PointsDetail"
           },
           "t": {
             "description": "Bucket start: Monday of the week, first of the month or of the year",
@@ -1975,7 +1998,8 @@
           "t",
           "v",
           "days",
-          "complete"
+          "complete",
+          "detail"
         ],
         "title": "PointsBucket",
         "type": "object"
@@ -2021,6 +2045,16 @@
             "title": "Date",
             "type": "string"
           },
+          "detail": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PointsDetail"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "hr_points": {
             "anyOf": [
               {
@@ -2053,6 +2087,63 @@
         "title": "PointsDay",
         "type": "object"
       },
+      "PointsDetail": {
+        "description": "Where the points of a day / bucket come from (diagnostic, to compare with Google Fit).",
+        "properties": {
+          "cadence_points": {
+            "description": "Points from the step cadence",
+            "title": "Cadence Points",
+            "type": "integer"
+          },
+          "hr_points": {
+            "description": "Points from the heart rate, active minutes only",
+            "title": "Hr Points",
+            "type": "integer"
+          },
+          "hr_points_ungated": {
+            "description": "What the heart rate would have given without the active-minute rule",
+            "title": "Hr Points Ungated",
+            "type": "integer"
+          },
+          "minutes_active": {
+            "description": "Active minutes (enough steps or in a session)",
+            "title": "Minutes Active",
+            "type": "integer"
+          },
+          "minutes_by_session": {
+            "description": "Active minutes inside an exercise session",
+            "title": "Minutes By Session",
+            "type": "integer"
+          },
+          "minutes_by_steps": {
+            "description": "Active minutes with enough steps",
+            "title": "Minutes By Steps",
+            "type": "integer"
+          },
+          "points_by_cadence": {
+            "description": "Points of the minutes where only cadence scored",
+            "title": "Points By Cadence",
+            "type": "integer"
+          },
+          "points_by_hr": {
+            "description": "Points of the minutes where the heart rate decided",
+            "title": "Points By Hr",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hr_points",
+          "hr_points_ungated",
+          "cadence_points",
+          "points_by_hr",
+          "points_by_cadence",
+          "minutes_active",
+          "minutes_by_session",
+          "minutes_by_steps"
+        ],
+        "title": "PointsDetail",
+        "type": "object"
+      },
       "PointsHeartRateRule": {
         "properties": {
           "carry_max_minutes": {
@@ -2062,6 +2153,9 @@
           "configured": {
             "title": "Configured",
             "type": "boolean"
+          },
+          "formula": {
+            "$ref": "#/components/schemas/PointsHrMaxFormula"
           },
           "hr_max": {
             "anyOf": [
@@ -2094,6 +2188,10 @@
             "title": "Moderate Pct",
             "type": "integer"
           },
+          "needs_active_minute": {
+            "title": "Needs Active Minute",
+            "type": "boolean"
+          },
           "vigorous_pct": {
             "title": "Vigorous Pct",
             "type": "integer"
@@ -2105,13 +2203,37 @@
           "hr_max",
           "hr_max_source",
           "configured",
-          "carry_max_minutes"
+          "carry_max_minutes",
+          "formula",
+          "needs_active_minute"
         ],
         "title": "PointsHeartRateRule",
         "type": "object"
       },
+      "PointsHrMaxFormula": {
+        "properties": {
+          "intercept": {
+            "title": "Intercept",
+            "type": "number"
+          },
+          "slope": {
+            "description": "HRmax = intercept - slope x age",
+            "title": "Slope",
+            "type": "number"
+          }
+        },
+        "required": [
+          "intercept",
+          "slope"
+        ],
+        "title": "PointsHrMaxFormula",
+        "type": "object"
+      },
       "PointsRules": {
         "properties": {
+          "active_minute": {
+            "$ref": "#/components/schemas/PointsActiveMinuteRule"
+          },
           "cadence": {
             "$ref": "#/components/schemas/PointsCadenceRule"
           },
@@ -2135,6 +2257,10 @@
           "points": {
             "$ref": "#/components/schemas/PointsValues"
           },
+          "rules_version": {
+            "title": "Rules Version",
+            "type": "integer"
+          },
           "timezone": {
             "title": "Timezone",
             "type": "string"
@@ -2152,6 +2278,8 @@
         "required": [
           "heart_rate",
           "cadence",
+          "active_minute",
+          "rules_version",
           "points",
           "combine",
           "met_used",
@@ -5343,7 +5471,7 @@
   "info": {
     "description": "Ingest API (contract v1: docs/api-contract.md) and admin endpoints.",
     "title": "StatisticsByHeart Writer",
-    "version": "0.8.0"
+    "version": "0.8.1"
   },
   "openapi": "3.1.0",
   "paths": {

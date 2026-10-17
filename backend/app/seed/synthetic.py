@@ -37,6 +37,9 @@ class SeedConfig:
     unrecorded_nights: tuple[int, ...] = ()
     # Every 4th ISO week has no workouts: weekly Heart Points then fall below the 150 goal.
     rest_weeks: bool = False
+    # Wednesdays with 50 minutes of high heart rate AT REST (no steps, no session: stress, coffee):
+    # the active-minute rule gives them no Heart Points (ADR 0008).
+    stress_days: bool = False
 
 
 @dataclass
@@ -158,6 +161,9 @@ class _Builder:
                 dense_base = 105 if spec[0] == "WALKING" else 150  # ~57% / ~81% of HRmax
             else:
                 gap = window  # watch left at home: no heart rate during the session
+        stress: tuple[datetime, datetime] | None = None
+        if self.cfg.stress_days and day.weekday() == 2 and plan is None:
+            stress = (self.at(day, 14), self.at(day, 14, 50))
         for hour in range(24):
             start = self.at(day, hour)
             end = start + timedelta(hours=1)
@@ -166,12 +172,15 @@ class _Builder:
             for minute in range(0, 60):
                 when = start + timedelta(minutes=minute)
                 in_dense = dense is not None and dense[0] <= when < dense[1]
-                if not in_dense and minute % step:
+                in_stress = stress is not None and stress[0] <= when < stress[1]
+                if not in_dense and not in_stress and minute % step:
                     continue
                 if gap is not None and gap[0] <= when < gap[1]:
                     continue
                 sleeping = any(a <= when < b for a, b in asleep)
                 base = 54 if sleeping else (dense_base if in_dense else day_base)
+                if in_stress and stress is not None:  # 135 bpm (~75%) for 10 min, then ~110 (~61%)
+                    base = 135 if when < stress[0] + timedelta(minutes=10) else 110
                 bpm = round(
                     base
                     + rng.gauss(0, 6 if in_dense else 4)

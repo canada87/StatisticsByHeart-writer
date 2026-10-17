@@ -19,7 +19,7 @@ from bisect import bisect_right
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import delete, func, select
@@ -365,10 +365,14 @@ async def recompute_days(
     by_type: dict[str, set[date]] = defaultdict(set)
     for type_, d in keys:
         by_type[type_].add(d)
-    # Heart Points are made of heart-rate samples and step records: any day touched by one of
-    # them is recomputed too (they are a computed type, not a record type)
+    # Heart Points are made of heart-rate samples, step records and sessions: any day touched by
+    # one of them is recomputed too (they are a computed type, not a record type)
     for source_type in ("HeartRate", "Steps"):
         by_type[heartpoints.HEART_POINTS_TYPE] |= by_type.get(source_type, set())
+    # an exercise session makes its minutes "active" for the heart rate (ADR 0008): adding,
+    # changing or deleting one moves the points of its day (and the next, past midnight)
+    for d in by_type.get("ExerciseSession", set()):
+        by_type[heartpoints.HEART_POINTS_TYPE] |= {d, d + timedelta(days=1)}
     priority = settings.source_priority_list
     written = 0
     for type_, dates in by_type.items():

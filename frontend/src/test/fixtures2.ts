@@ -269,7 +269,18 @@ export const storage: StorageResponse = {
 }
 
 export const pointsRules: PointsRules = {
-  heart_rate: { moderate_pct: 50, vigorous_pct: 70, hr_max: 184, hr_max_source: 'birth_year', configured: true, carry_max_minutes: 5 },
+  heart_rate: {
+    moderate_pct: 50,
+    vigorous_pct: 70,
+    hr_max: 181,
+    hr_max_source: 'birth_year',
+    configured: true,
+    carry_max_minutes: 2,
+    formula: { intercept: 205.8, slope: 0.685 },
+    needs_active_minute: true,
+  },
+  active_minute: { min_steps: 60, exercise_session: true },
+  rules_version: 2,
   cadence: { moderate_steps: 100, vigorous_steps: 130, max_record_minutes: 60 },
   points: { moderate: 1, vigorous: 2 },
   combine: 'max',
@@ -307,7 +318,7 @@ export function pointsSeries(over: Partial<PointsSeriesResponse> = {}): PointsSe
     timezone: 'Europe/Rome',
     hr_configured: true,
     points: [
-      { t: '2026-09-21', v: 210, days: 7, complete: true },
+      { t: '2026-09-21', v: 210, days: 7, complete: true, detail: { hr_points: 120, hr_points_ungated: 300, cadence_points: 150, points_by_hr: 90, points_by_cadence: 120, minutes_active: 140, minutes_by_session: 60, minutes_by_steps: 100 } },
       { t: '2026-09-28', v: 70, days: 7, complete: true },
       { t: '2026-10-05', v: 175, days: 7, complete: true },
       { t: '2026-10-12', v: 96, days: 4, complete: false },

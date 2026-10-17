@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     # after the listed ones, ordered by how much data they hold for the day.
     source_priority: str = ""
 
-    # Heart Points: HRmax = hr_max if set, else 220 - age (age = day.year - birth_year).
+    # Heart Points: HRmax = hr_max if set, else 205.8 - 0.685 x age (age = day.year - birth_year).
     # Personal values: set them ONLY in the private .env, never in the repository.
     birth_year: int | None = None
     hr_max: int | None = None

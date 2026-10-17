@@ -64,10 +64,50 @@ grafico a barre nella pagina Cuore. Health Connect non fornisce i punti: vanno r
   indicativo, non un obiettivo)» e non dichiara mai un obiettivo raggiunto. I giorni «completi» escludono oggi (parziale).
   Nelle viste mese/anno nessuna linea. La riga corrispondente è nel pannello delle regole, generata dal backend.
 
+## Aggiornamento 0.8.1 — regole più severe (valori gonfiati sui dati reali)
+
+Sui dati reali di una settimana: ~140 punti con la sola cadenza, **669** con `SBH_BIRTH_YEAR` impostato (≈ 95 min al
+giorno sopra soglia), 290 per Google Fit. Causa: il criterio FC dava punti a **qualsiasi minuto del giorno** con FC ≥ 50%
+della FCmax (~90 bpm), cosa che nella vita quotidiana succede spesso anche senza attività (in piedi, stress, caffè); il
+carry-forward di 5 minuti lo amplificava con campioni radi. Google Fit usa le stesse soglie ma **durante l'attività** e
+con un'altra FCmax. Cambia così (sostituisce i punti 1, 3 e il carry-forward del punto 4 sopra):
+
+1. **FCmax = 205,8 − 0,685 × età** (la formula di Google Fit), arrotondata **al bpm più vicino** (`int(x + 0,5)`: 36 anni →
+   181,14 → 181; 40 → 178,4 → 178; 50 → 171,55 → 172). `HR_MAX_INTERCEPT` e `HR_MAX_SLOPE` in `services/heartpoints.py`.
+   `SBH_HR_MAX` resta l'override. Per la stessa età la FCmax scende di ~3 bpm rispetto a 220 − età, quindi le soglie
+   (50%/70%) scendono a 91/127 bpm a 36 anni.
+2. **La FC dà punti solo nei minuti attivi.** Un minuto è **attivo** se:
+   - ha almeno `ACTIVE_CADENCE_MIN` = **60** passi (dalla stessa ripartizione deduplicata della cadenza), **oppure**
+   - cade dentro una **qualsiasi** `ExerciseSession` non cancellata, di qualunque tipo e origine (vera o automatica,
+     manuale o avviata dall'app): copre palestra, bici, cyclette, nuoto, forza, che non producono passi.
+   Fuori da questi minuti la FC non dà punti. **Il criterio cadenza (≥ 100 → 1, ≥ 130 → 2) non cambia e non ha filtri**;
+   il minuto vale sempre il massimo dei due. Una sessione che attraversa la mezzanotte attiva anche i minuti del giorno
+   dopo.
+3. **Carry-forward** `HR_CARRY_MAX` da 5 a **2 minuti**.
+4. **Dettaglio diagnostico**, senza migrazione: nel `detail` jsonb già presente di `daily_metric` si salvano per giorno
+   `hr_points` (da FC, minuti attivi), `hr_points_ungated` (quanto avrebbe dato la FC **senza** la regola: serve per
+   tarare le soglie e confrontare con Fit), `cadence_points`, `points_by_hr` (minuti in cui ha deciso la FC, cioè
+   FC ≥ cadenza), `points_by_cadence` (minuti in cui ha punteggio solo la cadenza), `minutes_active`, `minutes_by_session`,
+   `minutes_by_steps` (un minuto con passi e sessione conta in entrambi e una volta sola in `minutes_active`) e `rules`.
+   `GET /heart/points` aggiunge `detail` a ogni punto (somma per giorno/settimana/mese/anno) e `/heart/points/week` ai
+   giorni; il grafico lo mostra nella **tabella**, nel **CSV** e nella lettura da tastiera. Sono campi additivi.
+5. **Ricalcolo automatico.** `RULES_VERSION` (ora 2) entra nella firma di configurazione (`sha1` di
+   `v<versione>|<anno>|<fcmax>`, nessun valore personale in chiaro). Dopo il deploy il task di avvio ricalcola da solo
+   **tutti** i giorni con firma diversa: in background (l'avvio non aspetta), a blocchi di 30 giorni con un commit per
+   blocco e il lock di ingest preso solo per il blocco, quindi non satura il DB né blocca la sync. **Non serve il CLI.**
+   Chi cambia le regole deve incrementare `RULES_VERSION`.
+6. **Trigger di ingest:** aggiungere, modificare o cancellare un `ExerciseSession` ricalcola i punti del suo giorno (e del
+   successivo): prima solo `HeartRate` e `Steps` li toccavano.
+7. Le costanti nuove stanno nello stesso modulo e `GET /heart/points/rules` le restituisce (formula, minuti attivi, carry,
+   versione): il pannello «Regole dei Punti cardio» si aggiorna da solo. Il seed ha mercoledì con 50 minuti di FC alta a
+   riposo («stress»): nessun punto da FC.
+
+Prima/dopo sul seed dev (FC alta a riposo il mercoledì): `hr_points_ungated` > `hr_points` nei giorni di stress.
+
 ## Limiti noti
 
 - Senza FCmax i punti sono solo da cadenza e sottostimano le attività senza passi (ciclismo, nuoto, forza).
-- L'età è per anno di nascita (±1 anno), la formula `220 − età` è approssimata: la FCmax reale può essere diversa
+- L'età è per anno di nascita (±1 anno), la formula `205,8 − 0,685 × età` è approssimata: la FCmax reale può essere diversa
   (usare `SBH_HR_MAX`).
 - La cadenza è una media sul record: una camminata registrata come un unico record di 40 minuti ha la stessa cadenza in
   ogni minuto; i record di 15 minuti sono il caso migliore.

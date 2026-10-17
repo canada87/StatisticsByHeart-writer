@@ -16,7 +16,7 @@ from tests.helpers import DEVICE, post, post_records, record, rows, scalar
 
 DAY = TODAY - timedelta(days=21)  # a past day, far from the running week
 D = DAY.isoformat()
-HR_MAX_1990 = 220 - (DAY.year - 1990)  # what a fictitious 1990 birth year gives for DAY
+HR_MAX_1990 = int(205.8 - 0.685 * (DAY.year - 1990) + 0.5)  # fictitious 1990 birth year, for DAY
 
 
 def _s(**kw: object) -> Settings:
@@ -58,7 +58,9 @@ def test_the_constants_are_the_documented_ones() -> None:
     assert (hp.HR_MODERATE_PCT, hp.HR_VIGOROUS_PCT) == (50, 70)
     assert (hp.CADENCE_MODERATE, hp.CADENCE_VIGOROUS) == (100, 130)
     assert (hp.MODERATE_POINTS, hp.VIGOROUS_POINTS) == (1, 2)
-    assert timedelta(minutes=5) == hp.HR_CARRY_MAX and timedelta(minutes=60) == hp.STEPS_MAX_SPAN
+    assert timedelta(minutes=2) == hp.HR_CARRY_MAX and timedelta(minutes=60) == hp.STEPS_MAX_SPAN
+    assert hp.ACTIVE_CADENCE_MIN == 60 and hp.RULES_VERSION == 2
+    assert (hp.HR_MAX_INTERCEPT, hp.HR_MAX_SLOPE) == (205.8, 0.685)
     assert hp.WEEKLY_GOAL == 150
 
 
@@ -67,8 +69,28 @@ def test_the_constants_are_the_documented_ones() -> None:
 
 def test_hr_max_comes_from_the_birth_year_at_the_date_of_the_day() -> None:
     s = _s(birth_year=1990)
-    assert hp.hr_max_for(s, date(2026, 5, 1)) == (184, "birth_year")  # age 36
-    assert hp.hr_max_for(s, date(2030, 5, 1)) == (180, "birth_year")  # the same person, 4 years on
+    assert hp.hr_max_for(s, date(2026, 5, 1)) == (
+        181,
+        "birth_year",
+    )  # age 36: 205.8 - 24.66 = 181.14
+    assert hp.hr_max_for(s, date(2030, 5, 1)) == (178, "birth_year")  # 4 years on: 178.4
+
+
+@pytest.mark.parametrize(
+    ("age", "expected"),
+    [(20, 192), (30, 185), (40, 178), (50, 172), (60, 165), (70, 158)],
+)
+def test_hr_max_formula_is_205_8_minus_0_685_age_rounded_to_the_nearest(
+    age: int, expected: int
+) -> None:
+    # 205.8 - 0.685 x age: 192.1, 185.25, 178.4, 171.55, 164.7, 157.85
+    assert hp.hr_max_for(_s(birth_year=2026 - age), date(2026, 5, 1)) == (expected, "birth_year")
+
+
+def test_hr_max_rounds_half_up_at_the_boundary() -> None:
+    # age 8: 205.8 - 5.48 = 200.32 -> 200; age 12: 205.8 - 8.22 = 197.58 -> 198
+    assert hp.hr_max_for(_s(birth_year=2018), date(2026, 5, 1))[0] == 200
+    assert hp.hr_max_for(_s(birth_year=2014), date(2026, 5, 1))[0] == 198
 
 
 def test_the_override_wins_over_the_birth_year() -> None:
@@ -92,14 +114,15 @@ def test_empty_environment_values_mean_unset() -> None:
 # --------------------------------------------------------------------------- carry-forward (pure)
 
 
-def test_a_minute_without_samples_repeats_the_last_value_for_at_most_5_minutes() -> None:
+def test_a_minute_without_samples_repeats_the_last_value_for_at_most_2_minutes() -> None:
     s = _s()
     day = date(2026, 6, 10)
     per = {_utc(10, 0, day): 100.0, _utc(10, 20, day): 90.0}
     out = hp.carry_forward(per, day, s)
-    assert [m.minute for m in sorted(out) if m.hour == 10 and m.minute < 20] == [0, 1, 2, 3, 4, 5]
-    assert out[_utc(10, 5, day)] == 100.0 and _utc(10, 6, day) not in out  # 6 minutes later: no
-    assert out[_utc(10, 20, day)] == 90.0 and out[_utc(10, 25, day)] == 90.0
+    assert [m.minute for m in sorted(out) if m.hour == 10 and m.minute < 20] == [0, 1, 2]
+    assert out[_utc(10, 2, day)] == 100.0 and _utc(10, 3, day) not in out  # 3 minutes later: no
+    assert out[_utc(10, 20, day)] == 90.0 and out[_utc(10, 22, day)] == 90.0
+    assert _utc(10, 23, day) not in out
 
 
 def test_the_carry_stops_at_the_next_sample() -> None:
@@ -108,6 +131,7 @@ def test_the_carry_stops_at_the_next_sample() -> None:
     out = hp.carry_forward({_utc(10, 0, day): 100.0, _utc(10, 2, day): 60.0}, day, s)
     assert out[_utc(10, 1, day)] == 100.0 and out[_utc(10, 2, day)] == 60.0
     assert out[_utc(10, 3, day)] == 60.0  # now the later sample is the one carried
+    assert out[_utc(10, 4, day)] == 60.0 and _utc(10, 5, day) not in out
 
 
 # --------------------------------------------------------------------------- cadence (pure)
@@ -158,6 +182,58 @@ def test_score_day_takes_the_maximum_per_minute() -> None:
     assert (r.total, r.hr_points, r.cadence_points, r.active_minutes) == (1 + 2 + 2, 3, 4, 3)
 
 
+def _only_hr(hr: float, hr_max: int = 200, **kw: object) -> hp.DayPoints:
+    m = _utc(9)
+    return hp.score_day({m: hr}, kw.get("cad", {}), hr_max, kw.get("sess", set()))  # type: ignore[arg-type]
+
+
+def test_a_high_heart_rate_without_steps_or_session_earns_nothing() -> None:
+    r = _only_hr(150.0)  # 75% of 200: vigorous, but standing still
+    assert (r.total, r.hr_points, r.minutes_active) == (0, 0, 0)
+    assert r.hr_points_ungated == 2  # what it WOULD have given: kept for the diagnostics
+
+
+def test_sixty_steps_make_the_minute_active_for_the_heart_rate() -> None:
+    m = _utc(9)
+    r = _only_hr(150.0, cad={m: 60.0})  # 60 steps: not a cadence point (needs 100), but active
+    assert (r.total, r.hr_points, r.cadence_points) == (2, 2, 0)
+    assert (r.minutes_by_steps, r.minutes_by_session, r.minutes_active) == (1, 0, 1)
+    assert (r.points_by_hr, r.points_by_cadence) == (2, 0)
+    below = _only_hr(150.0, cad={m: 59.9})
+    assert (below.total, below.minutes_active) == (0, 0)  # 59.9 steps: not active
+
+
+def test_a_minute_inside_a_session_is_active_even_with_zero_steps() -> None:
+    m = _utc(9)
+    r = _only_hr(150.0, sess={m})  # cycling, gym: no steps at all
+    assert (r.total, r.hr_points) == (2, 2)
+    assert (r.minutes_by_session, r.minutes_by_steps, r.minutes_active) == (1, 0, 1)
+    outside = _only_hr(150.0, sess={_utc(9, 1)})  # the session is the next minute
+    assert outside.total == 0
+
+
+def test_cadence_points_never_need_the_gate_and_the_max_still_applies() -> None:
+    m = _utc(9)
+    r = _only_hr(110.0, cad={m: 130.0})  # HR 55% -> 1, cadence 2: the cadence decides
+    assert (r.total, r.points_by_cadence, r.points_by_hr) == (2, 2, 0)
+    assert (r.hr_points, r.cadence_points) == (1, 2)
+
+
+def test_minutes_active_counts_each_minute_once_when_steps_and_session_overlap() -> None:
+    m = _utc(9)
+    r = hp.score_day({}, {m: 80.0}, 200, {m, _utc(9, 1)})
+    assert (r.minutes_by_steps, r.minutes_by_session, r.minutes_active) == (1, 2, 2)
+
+
+def test_the_signature_changes_with_the_rules_version(monkeypatch: pytest.MonkeyPatch) -> None:
+    s = _s(birth_year=1990)
+    before = hp.config_signature(s)
+    assert before == hp.config_signature(s)
+    monkeypatch.setattr(hp, "RULES_VERSION", hp.RULES_VERSION + 1)
+    assert hp.config_signature(s) != before
+    assert "1990" not in hp.config_signature(s)
+
+
 def test_without_hr_max_only_cadence_counts() -> None:
     r = hp.score_day({_utc(9): 190.0}, {_utc(9): 100.0}, None)
     assert (r.total, r.hr_points, r.cadence_points) == (1, 0, 1)
@@ -178,6 +254,14 @@ def _hr(hc: str, samples: list[tuple[str, int]]) -> dict[str, object]:
 
 def _at(h: int, m: int, day: str = D, off: str = "+02:00") -> str:
     return f"{day}T{h:02d}:{m:02d}:00{off}"
+
+
+def _active(hc: str, h: int, m: int, minutes: int, day: str = D) -> dict[str, object]:
+    """60 steps a minute: no cadence points (needs 100), but the minutes are ACTIVE."""
+    end = m + minutes
+    return record(
+        "Steps", hc, _at(h, m, day), _at(h + end // 60, end % 60, day), {"value": 60 * minutes}
+    )
 
 
 async def _sql(app: FastAPI, sql: str) -> None:
@@ -208,7 +292,7 @@ async def test_hr_points_with_exact_thresholds_end_to_end(
         + [(_at(10, 15 + m), high) for m in range(5)]  # exactly 70% -> 2
         + [(_at(10, 20), 60)]  # ends the carry
     )
-    await post_records(client, auth, [_hr("h1", samples)])
+    await post_records(client, auth, [_hr("h1", samples), _active("s1", 10, 0, 21)])
     day = _day(await _week(web))
     assert day["points"] == 5 * (0 + 1 + 1 + 2)
     assert (day["hr_points"], day["cadence_points"]) == (20, 0)
@@ -242,14 +326,16 @@ async def test_the_minute_is_the_max_of_hr_and_cadence_end_to_end(
     assert (day["hr_points"], day["cadence_points"]) == (10, 10)
 
 
-async def test_the_last_value_carries_for_five_minutes_only(
+async def test_the_last_value_carries_for_two_minutes_only(
     web: httpx.AsyncClient, client: httpx.AsyncClient, auth: dict[str, str], settings: Settings
 ) -> None:
     settings.birth_year = 1990
     _, mod, _ = hp_bpm(HR_MAX_1990)
-    await post_records(client, auth, [_hr("h1", [(_at(12, 0), mod), (_at(12, 30), 60)])])
+    await post_records(
+        client, auth, [_hr("h1", [(_at(12, 0), mod), (_at(12, 30), 60)]), _active("s1", 12, 0, 10)]
+    )
     day = _day(await _week(web))
-    assert day["points"] == 6  # the sample minute and the 5 after it, then nothing until 12:30
+    assert day["points"] == 3  # the sample minute and the 2 after it, then nothing until 12:30
 
 
 async def test_a_walk_logged_by_two_apps_is_counted_once(
@@ -284,8 +370,10 @@ async def test_the_hr_max_override_wins(
 ) -> None:
     settings.birth_year = 1990
     settings.hr_max = 200
-    # 130 bpm: 65% of 200 -> 1 point (with the 1990 birth year HRmax 184 it would be 70.6% -> 2)
-    await post_records(client, auth, [_hr("h1", [(_at(10, 0), 130), (_at(10, 1), 60)])])
+    # 130 bpm: 65% of 200 -> 1 point (with the 1990 birth year HRmax 181 it would be 71.8% -> 2)
+    await post_records(
+        client, auth, [_hr("h1", [(_at(10, 0), 130), (_at(10, 1), 60)]), _active("s1", 10, 0, 5)]
+    )
     assert _day(await _week(web))["points"] == 1
     rules = (await web.get("/api/v1/heart/points/rules")).json()["heart_rate"]
     assert (rules["hr_max"], rules["hr_max_source"]) == (200, "override")
@@ -328,7 +416,7 @@ async def test_dst_change_day_counts_both_hours_of_the_repeated_02_30(
 ) -> None:
     settings.birth_year = 1990
     day = "2026-10-25"  # clocks go back: 02:30 happens twice (+02:00 then +01:00)
-    _, mod, _ = hp_bpm(220 - (2026 - 1990))
+    _, mod, _ = hp_bpm(HR_MAX_1990)
     samples = [
         (_at(2, 30, day, "+02:00"), mod),
         (_at(2, 31, day, "+02:00"), 60),
@@ -354,6 +442,14 @@ async def test_dst_change_day_counts_both_hours_of_the_repeated_02_30(
                 {"samples": [{"time": t, "value": v} for t, v in samples[2:]]},
                 offset=3600,
             ),
+            record(  # a session across the repeated hour makes both minutes active
+                "ExerciseSession",
+                "dst",
+                _at(2, 0, day, "+02:00"),
+                _at(2, 45, day, "+01:00"),
+                {"exercise_type": "RUNNING"},
+                method="active",
+            ),
         ],
     )
     assert _day(await _week(web, day), day)["points"] == 2
@@ -365,18 +461,25 @@ async def test_the_week_is_monday_to_sunday(
     settings.birth_year = 1990
     # Sunday 2026-10-25 and Monday 2026-10-26: two different weeks
     for day, hc in (("2026-10-25", "a"), ("2026-10-26", "b")):
-        _, mod, _ = hp_bpm(184)
-        await post_records(client, auth, [_hr(hc, [(_at(10, 0, day), mod), (_at(10, 6, day), 60)])])
+        _, mod, _ = hp_bpm(HR_MAX_1990)
+        await post_records(
+            client,
+            auth,
+            [
+                _hr(hc, [(_at(10, 0, day), mod), (_at(10, 6, day), 60)]),
+                _active(f"s{hc}", 10, 0, 10, day),
+            ],
+        )
     week1 = await _week(web, "2026-10-25")
     week2 = await _week(web, "2026-10-26")
     assert (week1["week_start"], week1["week_end"]) == ("2026-10-19", "2026-10-25")
     assert (week2["week_start"], week2["week_end"]) == ("2026-10-26", "2026-11-01")
-    assert week1["total"] == 6 and week2["total"] == 6
+    assert week1["total"] == 3 and week2["total"] == 3  # the sample minute + 2 carried
     assert next(d["date"] for d in week1["days"]) == "2026-10-19" and len(week1["days"]) == 7
     series = (
         await web.get("/api/v1/heart/points?from=2026-10-19&to=2026-11-01&bucket=week")
     ).json()
-    assert [(p["t"], p["v"]) for p in series["points"]] == [("2026-10-19", 6), ("2026-10-26", 6)]
+    assert [(p["t"], p["v"]) for p in series["points"]] == [("2026-10-19", 3), ("2026-10-26", 3)]
 
 
 async def test_week_card_values(web: httpx.AsyncClient, app: FastAPI, settings: Settings) -> None:
@@ -465,7 +568,9 @@ async def test_points_follow_ingest_updates_and_deletions(
 ) -> None:
     settings.birth_year = 1990
     _, mod, _ = hp_bpm(HR_MAX_1990)
-    await post_records(client, auth, [_hr("h1", [(_at(10, 0), mod), (_at(10, 1), 60)])])
+    await post_records(
+        client, auth, [_hr("h1", [(_at(10, 0), mod), (_at(10, 1), 60)]), _active("s1", 10, 0, 10)]
+    )
     assert _day(await _week(web))["points"] == 1
     await post_records(
         client,
@@ -485,7 +590,7 @@ async def test_points_follow_ingest_updates_and_deletions(
         {
             "device_id": DEVICE,
             "sync_id": "1f9c2f1e-7d2b-4a55-8d1e-2c7e5d9f6a31",
-            "items": [{"hc_id": "h1"}],
+            "items": [{"hc_id": "h1"}, {"hc_id": "s1"}],
         },
     )
     assert r.status_code == 200
@@ -501,8 +606,10 @@ async def test_recompute_after_changing_the_settings_and_only_missing_at_startup
     app: FastAPI,
 ) -> None:
     settings.birth_year = 1990
-    await post_records(client, auth, [_hr("h1", [(_at(10, 0), 130), (_at(10, 1), 60)])])  # 130 bpm
-    assert _day(await _week(web))["points"] == 2  # 70.6% of 184
+    await post_records(
+        client, auth, [_hr("h1", [(_at(10, 0), 130), (_at(10, 1), 60)]), _active("s1", 10, 0, 5)]
+    )  # 130 bpm
+    assert _day(await _week(web))["points"] == 2  # 71.8% of 181
     async with app.state.sessionmaker() as s:
         assert await hp.days_to_compute(s, settings) == []  # up to date
     settings.hr_max = 200  # the user changes the setting: 130 bpm is now 65%
@@ -530,7 +637,9 @@ async def test_the_nightly_recompute_includes_heart_points(
     app: FastAPI,
 ) -> None:
     settings.birth_year = 1990
-    await post_records(client, auth, [_hr("h1", [(_at(10, 0), 130), (_at(10, 1), 60)])])
+    await post_records(
+        client, auth, [_hr("h1", [(_at(10, 0), 130), (_at(10, 1), 60)]), _active("s1", 10, 0, 5)]
+    )
     await _sql(app, "DELETE FROM daily_metric WHERE type='HeartPoints'")
     async with app.state.sessionmaker() as s:
         await maintenance.recompute_range(s, settings, DAY, DAY)
@@ -546,9 +655,12 @@ async def test_rules_endpoint_comes_from_the_constants_and_hides_the_birth_year(
     body = r.json()
     assert body == points_api.describe_points_rules(settings)
     hr = body["heart_rate"]
-    assert (hr["moderate_pct"], hr["vigorous_pct"], hr["carry_max_minutes"]) == (50, 70, 5)
+    assert (hr["moderate_pct"], hr["vigorous_pct"], hr["carry_max_minutes"]) == (50, 70, 2)
     assert hr["configured"] is True and hr["hr_max_source"] == "birth_year"
-    assert hr["hr_max"] == 220 - (TODAY.year - 1990)
+    assert hr["hr_max"] == int(205.8 - 0.685 * (TODAY.year - 1990) + 0.5)
+    assert hr["formula"] == {"intercept": 205.8, "slope": 0.685} and hr["needs_active_minute"]
+    assert body["active_minute"] == {"min_steps": 60, "exercise_session": True}
+    assert body["rules_version"] == hp.RULES_VERSION
     assert body["cadence"] == {
         "moderate_steps": 100,
         "vigorous_steps": 130,
@@ -656,3 +768,125 @@ async def test_day_bucket_widens_to_week_beyond_the_chart_point_limit(
 async def test_rules_include_the_daily_reference(web: httpx.AsyncClient) -> None:
     body = (await web.get("/api/v1/heart/points/rules")).json()
     assert body["daily_reference"] == pytest.approx(body["weekly_goal"] / 7)
+
+
+# --------------------------------------------------------------------------- active-minute gate
+
+
+async def test_high_hr_standing_still_earns_nothing_but_is_kept_in_the_detail(
+    web: httpx.AsyncClient, client: httpx.AsyncClient, auth: dict[str, str], settings: Settings
+) -> None:
+    settings.birth_year = 1990
+    _, _, high = hp_bpm(HR_MAX_1990)
+    # an hour at 70%+ with no steps and no session (stress, a coffee): no points
+    hr = _hr("h1", [(_at(15, m), high) for m in range(60)] + [(_at(16, 0), 60)])
+    await post_records(client, auth, [hr])
+    day = _day(await _week(web))
+    assert day["points"] == 0 and day["hr_points"] == 0
+    assert day["detail"]["hr_points_ungated"] == 120 and day["detail"]["minutes_active"] == 0
+
+
+async def test_a_cycling_session_without_steps_earns_the_heart_rate_points(
+    web: httpx.AsyncClient, client: httpx.AsyncClient, auth: dict[str, str], settings: Settings
+) -> None:
+    settings.birth_year = 1990
+    _, _, high = hp_bpm(HR_MAX_1990)
+    ride = record(
+        "ExerciseSession",
+        "ride",
+        _at(17, 0),
+        _at(17, 30),
+        {"exercise_type": "BIKING_STATIONARY"},
+        method="manual",  # even an automatic or manual session of any type counts
+    )
+    hr = _hr("h1", [(_at(17, m), high) for m in range(40)] + [(_at(17, 45), 60)])
+    await post_records(client, auth, [ride, hr])
+    day = _day(await _week(web))
+    assert day["points"] == 30 * 2  # only the 30 minutes of the session, the rest is outside it
+    d = day["detail"]
+    assert (d["minutes_by_session"], d["minutes_by_steps"], d["minutes_active"]) == (30, 0, 30)
+    assert (d["points_by_hr"], d["points_by_cadence"]) == (60, 0)
+    assert d["hr_points_ungated"] > d["hr_points"]  # the ten minutes after it were not active
+
+
+async def test_a_deleted_session_does_not_activate_the_minutes(
+    web: httpx.AsyncClient, client: httpx.AsyncClient, auth: dict[str, str], settings: Settings
+) -> None:
+    settings.birth_year = 1990
+    _, _, high = hp_bpm(HR_MAX_1990)
+    ride = record("ExerciseSession", "ride", _at(17, 0), _at(17, 30), {"exercise_type": "BIKING"})
+    hr = _hr("h1", [(_at(17, m), high) for m in range(10)] + [(_at(17, 10), 60)])
+    await post_records(client, auth, [ride, hr])
+    assert _day(await _week(web))["points"] == 20
+    body = {
+        "device_id": DEVICE,
+        "sync_id": "1f9c2f1e-7d2b-4a55-8d1e-2c7e5d9f6a32",
+        "items": [{"hc_id": "ride"}],
+    }
+    assert (await post(client, auth, "deletions", body)).status_code == 200
+    assert _day(await _week(web))["points"] == 0
+
+
+async def test_the_detail_is_summed_per_bucket_and_matches_the_days(
+    web: httpx.AsyncClient, client: httpx.AsyncClient, auth: dict[str, str], settings: Settings
+) -> None:
+    settings.birth_year = 1990
+    _, _, high = hp_bpm(HR_MAX_1990)
+    steps = record("Steps", "s1", _at(9, 0), _at(9, 10), {"value": 1300})  # 130/min: 2 each
+    hr = _hr("h1", [(_at(9, m), high) for m in range(10)] + [(_at(9, 10), 60)])
+    await post_records(client, auth, [steps, hr])
+    day = (await web.get(f"/api/v1/heart/points?from={D}&to={D}&bucket=day")).json()["points"][0]
+    week = (await web.get(f"/api/v1/heart/points?from={D}&to={D}&bucket=week")).json()["points"][0]
+    assert day["v"] == 20 and day["detail"] == week["detail"]
+    assert day["detail"]["minutes_by_steps"] == 10 and day["detail"]["cadence_points"] == 20
+    assert day["detail"]["points_by_hr"] == 20  # hr 2 == cadence 2: the heart rate "decided" (>=)
+
+
+async def test_changing_the_rules_version_recomputes_everything_in_the_background(
+    web: httpx.AsyncClient,
+    client: httpx.AsyncClient,
+    auth: dict[str, str],
+    settings: Settings,
+    app: FastAPI,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings.birth_year = 1990
+    await post_records(
+        client, auth, [_hr("h1", [(_at(10, 0), 130), (_at(10, 1), 60)]), _active("s1", 10, 0, 5)]
+    )
+    async with app.state.sessionmaker() as s:
+        assert await hp.days_to_compute(s, settings) == []
+    # an old row (written by a previous rules version, no "rules" marker, other signature)
+    await _sql(
+        app,
+        'UPDATE daily_metric SET detail = detail || \'{"config": "old"}\' '
+        "WHERE type='HeartPoints'",
+    )
+    async with app.state.sessionmaker() as s:
+        assert await hp.days_to_compute(s, settings) == [DAY]
+        assert await maintenance.recompute_heart_points(s, settings, only_missing=True) == 1
+        assert await hp.days_to_compute(s, settings) == []
+    monkeypatch.setattr(hp, "RULES_VERSION", hp.RULES_VERSION + 1)  # the next release
+    async with app.state.sessionmaker() as s:
+        assert await hp.days_to_compute(s, settings) == [DAY]
+        assert await maintenance.recompute_heart_points(s, settings, only_missing=True) == 1
+
+
+async def test_the_seed_stress_days_have_high_heart_rate_at_rest_and_no_points_for_it(
+    app: FastAPI, settings: Settings
+) -> None:
+    from app.seed.loader import load_synthetic
+    from app.seed.synthetic import SeedConfig, generate
+
+    settings.birth_year = 1990  # fictitious
+    cfg = SeedConfig(days=28, seed=5, end_date=TODAY, hr_interval_min=5, stress_days=True)
+    await load_synthetic(app.state.sessionmaker, settings, generate(cfg))
+    rows_ = await rows(
+        app,
+        "SELECT local_date, (detail->>'hr_points_ungated')::int, (detail->>'hr_points')::int, "
+        "(detail->>'minutes_by_session')::int FROM daily_metric WHERE type='HeartPoints' "
+        "AND extract(isodow FROM local_date) = 3",
+    )
+    stress = [(u, g, s_) for _, u, g, s_ in rows_ if u >= 50 and not s_]  # no session that day
+    assert stress, rows_  # Wednesdays with 50 minutes of high heart rate at rest ...
+    assert all(g == 0 for _, g, _ in stress)  # ... which earned nothing from the heart rate

@@ -653,6 +653,21 @@ class StorageResponse(BaseModel):
     limits: LimitsInfo
 
 
+class PointsDetail(BaseModel):
+    """Where the points of a day / bucket come from (diagnostic, to compare with Google Fit)."""
+
+    hr_points: int = Field(description="Points from the heart rate, active minutes only")
+    hr_points_ungated: int = Field(
+        description="What the heart rate would have given without the active-minute rule"
+    )
+    cadence_points: int = Field(description="Points from the step cadence")
+    points_by_hr: int = Field(description="Points of the minutes where the heart rate decided")
+    points_by_cadence: int = Field(description="Points of the minutes where only cadence scored")
+    minutes_active: int = Field(description="Active minutes (enough steps or in a session)")
+    minutes_by_session: int = Field(description="Active minutes inside an exercise session")
+    minutes_by_steps: int = Field(description="Active minutes with enough steps")
+
+
 class PointsBucket(BaseModel):
     t: str = Field(
         description="Bucket start: Monday of the week, first of the month or of the year"
@@ -660,6 +675,7 @@ class PointsBucket(BaseModel):
     v: float = Field(description="Heart Points earned in the bucket (days inside the range)")
     days: int = Field(description="Days of the bucket with a computed value")
     complete: bool = Field(description="Whole bucket inside the range and already over")
+    detail: PointsDetail
 
 
 class PointsTotal(BaseModel):
@@ -705,6 +721,7 @@ class PointsDay(BaseModel):
     points: float | None
     hr_points: int | None
     cadence_points: int | None
+    detail: PointsDetail | None = None
 
 
 class PointsWeek(BaseModel):
@@ -720,6 +737,16 @@ class PointsWeek(BaseModel):
     hr_configured: bool
 
 
+class PointsHrMaxFormula(BaseModel):
+    intercept: float
+    slope: float = Field(description="HRmax = intercept - slope x age")
+
+
+class PointsActiveMinuteRule(BaseModel):
+    min_steps: int = Field(description="Steps in a minute from which the minute is active")
+    exercise_session: bool = Field(description="A minute inside any exercise session is active")
+
+
 class PointsHeartRateRule(BaseModel):
     moderate_pct: int
     vigorous_pct: int
@@ -727,6 +754,8 @@ class PointsHeartRateRule(BaseModel):
     hr_max_source: Literal["override", "birth_year"] | None
     configured: bool
     carry_max_minutes: int
+    formula: PointsHrMaxFormula
+    needs_active_minute: bool
 
 
 class PointsCadenceRule(BaseModel):
@@ -743,6 +772,8 @@ class PointsValues(BaseModel):
 class PointsRules(BaseModel):
     heart_rate: PointsHeartRateRule
     cadence: PointsCadenceRule
+    active_minute: PointsActiveMinuteRule
+    rules_version: int
     points: PointsValues
     combine: Literal["max"]
     met_used: bool
