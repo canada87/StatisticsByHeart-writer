@@ -1268,3 +1268,167 @@ describe('navigation', () => {
     expect(within(menu).getAllByRole('link').map((a) => a.textContent)).toEqual(['Corpo', 'Report', 'Sync / Dati'])
   })
 })
+
+/** A tiny stateful stand-in for the server-side preference endpoint. */
+function fakePreferences(initial: unknown = null) {
+  const state = { value: initial as unknown, puts: [] as unknown[], deletes: 0, failPut: false }
+  const base = globalThis.fetch as typeof fetch
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = new URL(String(input), 'http://localhost').pathname
+      if (!path.startsWith('/api/v1/preferences/')) return base(input, init)
+      const method = init?.method ?? 'GET'
+      if (method === 'PUT') {
+        if (state.failPut) return json({ error: { code: 'boom', message: 'x' } }, 500)
+        const value = (JSON.parse(String(init?.body)) as { value: unknown }).value
+        state.puts.push(value)
+        state.value = value
+      } else if (method === 'DELETE') {
+        state.deletes += 1
+        state.value = null
+        return new Response(null, { status: 204 })
+      }
+      return json({ key: path.split('/').pop(), value: state.value, updated_at: null })
+    }),
+  )
+  return state
+}
+
+describe('report content (sections chosen by the user, saved on the server)', () => {
+  const PAGE = '/report?p=month&d=2026-09-10'
+
+  it('everything is shown by default, new or unknown ids never break the page', async () => {
+    fakePreferences({ 'section-from-the-future': false, steps: 'not-a-boolean' })
+    renderApp(PAGE)
+    await screen.findByTestId('report-row-steps')
+    for (const id of ['summary', 'monthly', 'workouts', 'charts', 'steps', 'hr_split', 'points']) {
+      expect(screen.getByTestId(`sel-${id}`)).toBeChecked()
+    }
+    expect(screen.getByTestId('report-summary')).toBeInTheDocument()
+    expect(screen.getByTestId('report-points')).toBeInTheDocument()
+  })
+
+  it('a section switched off vanishes, is saved on the server, and comes back with Ripristina', async () => {
+    const server = fakePreferences()
+    renderApp(PAGE)
+    const user = userEvent.setup()
+    await screen.findByTestId('report-row-hrv')
+    await user.click(screen.getByTestId('sel-hrv'))
+    await waitFor(() => expect(screen.queryByTestId('report-row-hrv')).toBeNull())
+    expect(server.puts.at(-1)).toEqual({ hrv: false })
+    await user.click(screen.getByTestId('sel-points'))
+    await waitFor(() => expect(screen.queryByTestId('report-points')).toBeNull())
+    expect(screen.queryByTestId('report-row-heart_points')).toBeNull()
+    expect(server.puts.at(-1)).toEqual({ hrv: false, points: false })
+    await user.click(screen.getByTestId('sel-summary'))
+    await waitFor(() => expect(screen.queryByTestId('report-summary')).toBeNull())
+    await user.click(screen.getByTestId('sel-reset'))
+    await waitFor(() => expect(screen.getByTestId('report-summary')).toBeInTheDocument())
+    expect(server.deletes).toBe(1)
+    expect(screen.getByTestId('report-row-hrv')).toBeInTheDocument()
+    expect(screen.getByTestId('report-points')).toBeInTheDocument()
+  })
+
+  it('a saved choice (from another device) is applied when the page opens', async () => {
+    fakePreferences({ workouts: false, monthly: false, charts: false, hr_split: false })
+    renderApp(PAGE)
+    await screen.findByTestId('report-summary')
+    expect(screen.queryByTestId('report-workouts')).toBeNull()
+    expect(screen.queryByTestId('report-monthly')).toBeNull()
+    expect(screen.queryByTestId('report-charts')).toBeNull()
+    expect(screen.queryByTestId('report-row-hr_day')).toBeNull()
+    expect(screen.queryByTestId('report-row-hr_night')).toBeNull()
+    expect(screen.getByTestId('report-row-heart_rate')).toBeInTheDocument()
+    expect(screen.getByTestId('sel-workouts')).not.toBeChecked()
+  })
+
+  it('a measure switched off disappears from the month table and from the charts too', async () => {
+    fakePreferences({ steps: false, weight: false })
+    renderApp('/report?p=custom&from=2026-07-20&to=2026-10-15')
+    const sum = await screen.findByTestId('monthly-sum')
+    expect(within(sum).queryByRole('columnheader', { name: /Passi/ })).toBeNull()
+    expect(screen.queryByTestId('trend-steps')).toBeNull()
+    expect(screen.queryByTestId('trend-weight')).toBeNull()
+    expect(screen.getByTestId('trend-sleep')).toBeInTheDocument()
+  })
+
+  it('with everything off it says so instead of showing an empty page', async () => {
+    fakePreferences(
+      Object.fromEntries(['summary', 'monthly', 'workouts', 'charts', 'sleep', 'points'].map((id) => [id, false])),
+    )
+    renderApp(PAGE)
+    expect(await screen.findByText(/Nessuna sezione selezionata/)).toBeInTheDocument()
+  })
+
+  it('if saving fails the choice still applies and the user is told', async () => {
+    const server = fakePreferences()
+    server.failPut = true
+    renderApp(PAGE)
+    const user = userEvent.setup()
+    await screen.findByTestId('report-row-hrv')
+    await user.click(screen.getByTestId('sel-hrv'))
+    expect(await screen.findByTestId('sel-save-error')).toBeInTheDocument()
+    expect(screen.queryByTestId('report-row-hrv')).toBeNull()
+  })
+
+  it('the preference cannot be read: the report is complete, nothing hidden', async () => {
+    renderApp(PAGE) // no stateful fake: the endpoint answers 404
+    await screen.findByTestId('report-row-hrv')
+    expect(screen.getByTestId('sel-summary')).toBeChecked()
+  })
+
+  it('CSV export stays complete whatever is selected', async () => {
+    fakePreferences({ steps: false })
+    renderApp(PAGE)
+    const user = userEvent.setup()
+    await screen.findByTestId('report-summary')
+    await user.click(screen.getByRole('button', { name: 'Esporta CSV giornaliero' }))
+    await waitFor(() => expect(csvDownloads.length).toBe(1))
+    expect(csvDownloads[0]?.text).toContain('steps')
+  })
+
+  it('the print footer carries title, period and generation date, and no address', async () => {
+    fakePreferences()
+    renderApp(PAGE)
+    const footer = await screen.findByTestId('print-footer')
+    expect(footer).toHaveTextContent('StatisticsByHeart · Report')
+    expect(footer).toHaveTextContent('settembre 2026')
+    expect(footer).toHaveTextContent('generato il')
+    expect(footer.textContent).not.toMatch(/https?:|localhost/)
+  })
+})
+
+describe('sync alarm and devices (Sync tab)', () => {
+  const stale = (over: Record<string, unknown>) => ({ body: { ...fx.syncStatus, alarm: { ...fx.syncStatus.alarm, ...over } } })
+
+  it('ok: shows the hours since the last successful sync and the threshold', async () => {
+    renderApp('/sync')
+    const alarm = await screen.findByTestId('sync-alarm')
+    expect(alarm).toHaveAttribute('data-alarm', 'ok')
+    expect(alarm).toHaveTextContent('Allarme: ok, ultima sync riuscita 0,5 ore fa (soglia 6)')
+  })
+
+  it('stale: "sync ferma da N ore"', async () => {
+    handlers['/api/v1/sync/status'] = () => stale({ status: 'stale', hours_since_sync: 7.4 })
+    renderApp('/sync')
+    const alarm = await screen.findByTestId('sync-alarm')
+    expect(alarm).toHaveAttribute('data-alarm', 'stale')
+    expect(alarm).toHaveTextContent('Allarme: sync ferma da 7,4 ore (soglia 6)')
+  })
+
+  it('never: no successful sync yet', async () => {
+    handlers['/api/v1/sync/status'] = () => stale({ status: 'never', hours_since_sync: null, last_sync_at: null })
+    renderApp('/sync')
+    expect(await screen.findByTestId('sync-alarm')).toHaveTextContent('nessuna sync riuscita ancora')
+  })
+
+  it('lists the last successful sync of every device', async () => {
+    renderApp('/sync')
+    const devices = await screen.findAllByTestId('sync-device')
+    expect(devices).toHaveLength(2)
+    expect(devices[0]).toHaveTextContent('ultima sync riuscita')
+    expect(devices[1]).toHaveTextContent('Second phone')
+    expect(devices[1]).toHaveTextContent('nessuna sync riuscita')
+  })
+})

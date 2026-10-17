@@ -115,6 +115,7 @@ export const syncStatus: SyncStatusResponse = {
   generated_at: '2026-10-15T10:00:00Z',
   last_success_at: new Date().toISOString(),
   last_activity_at: new Date().toISOString(),
+  alarm: { status: 'ok', last_sync_at: new Date().toISOString(), hours_since_sync: 0.5, threshold_hours: 6 },
   devices: [
     {
       id: 'd1d1d1d1-0000-0000-0000-000000000000',
@@ -123,6 +124,16 @@ export const syncStatus: SyncStatusResponse = {
       app_version: '0.1.0',
       first_seen_at: '2026-10-01T00:00:00Z',
       last_seen_at: new Date().toISOString(),
+      last_success_at: new Date().toISOString(),
+    },
+    {
+      id: 'd2d2d2d2-0000-0000-0000-000000000000',
+      name: 'Second phone',
+      model: null,
+      app_version: '0.1.0',
+      first_seen_at: '2026-10-01T00:00:00Z',
+      last_seen_at: new Date().toISOString(),
+      last_success_at: null,
     },
   ],
   runs: [

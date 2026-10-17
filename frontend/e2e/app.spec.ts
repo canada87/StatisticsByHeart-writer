@@ -171,7 +171,8 @@ test.describe('dashboard (synthetic data)', () => {
     await expect(page.getByRole('columnheader', { name: /Tabella/ })).toHaveAttribute('aria-sort', 'ascending')
     const names = await rows.evaluateAll((els) => els.map((el) => el.getAttribute('data-table') ?? ''))
     expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)))
-    await expect(page.getByTestId('limits-list').locator('li')).toHaveCount(10)
+    await expect(page.getByTestId('limits-list').locator('li')).toHaveCount(11)
+    await expect(page.getByTestId('limits-list')).toContainText('sync ferma')
     await expect(page.getByTestId('limits-list')).toContainText('Retention: nessuna')
     await expect(page.getByTestId('limits-list')).toContainText('500 record')
     await expect(page.getByRole('button', { name: /elimina|pulisci|purge/i })).toHaveCount(0)
@@ -634,7 +635,11 @@ test.describe('report (synthetic data)', () => {
     // charts: one per row, full width, tall, never cut between pages
     const charts = page.locator('.report-chart')
     expect(await charts.count()).toBeGreaterThanOrEqual(7)
-    const content = await page.locator('main').boundingBox()
+    // the printed content area: main minus its own page-margin padding
+    const content = await page.locator('main').evaluate((el) => {
+      const cs = getComputedStyle(el)
+      return { width: el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) }
+    })
     for (let i = 0; i < (await charts.count()); i++) {
       const box = await charts.nth(i).boundingBox()
       expect(box?.width ?? 0).toBeGreaterThan((content?.width ?? 0) * 0.95)
@@ -645,7 +650,6 @@ test.describe('report (synthetic data)', () => {
     expect(await charts.first().locator('canvas').first().evaluate((el) => getComputedStyle(el).filter)).toContain('invert')
     await expect(page.getByTestId('report-monthly')).toBeVisible()
     await page.screenshot({ path: join(SHOTS, 'report-print.png'), fullPage: true })
-    await page.pdf({ path: join(SHOTS, 'report-print.pdf'), format: 'A4', printBackground: false })
   })
 })
 
@@ -679,4 +683,127 @@ test.describe('all pages: screenshots, a11y, no horizontal scroll', () => {
       }
     })
   }
+})
+
+test.describe('report content, clean PDF, Home Assistant alarm', () => {
+  test('report content: the choice lives on the server, follows another browser, prints without the removed parts', async ({
+    page,
+    browser,
+  }) => {
+    test.setTimeout(120_000)
+    await login(page)
+    await page.goto(LONG_REPORT)
+    await settled(page)
+    const panel = page.getByTestId('report-content')
+    await panel.locator('summary').click()
+    const cleared = page.waitForResponse((r) => r.url().includes('/preferences/') && r.request().method() === 'DELETE')
+    await page.getByTestId('sel-reset').click() // start from the defaults whatever an earlier run left
+    await cleared
+    for (const id of ['summary', 'monthly', 'workouts', 'charts', 'steps', 'hr_split', 'hrv', 'points']) {
+      await expect(page.getByTestId(`sel-${id}`)).toBeChecked() // new sections default ON
+    }
+    await a11y(page)
+    // the sticky link bar would cover the top of the panel in the picture
+    await page.addStyleTag({ content: '[data-app-header] { visibility: hidden !important }' })
+    await panel.screenshot({ path: join(SHOTS, 'report-content.png') })
+    try {
+      const saved = page.waitForResponse((r) => r.url().includes('/api/v1/preferences/report-sections') && r.request().method() === 'PUT')
+      await page.getByTestId('sel-hrv').uncheck()
+      expect((await saved).status()).toBe(200)
+      await page.getByTestId('sel-workouts').uncheck()
+      await page.getByTestId('sel-points').uncheck()
+      await expect(page.getByTestId('report-row-hrv')).toHaveCount(0)
+      await expect(page.getByTestId('report-workouts')).toHaveCount(0)
+      await expect(page.getByTestId('report-points')).toHaveCount(0)
+      await expect(page.getByTestId('report-row-steps')).toBeVisible()
+
+      // same choice after a reload ...
+      await page.reload()
+      await settled(page)
+      await expect(page.getByTestId('report-row-hrv')).toHaveCount(0)
+      // ... and from a browser that never saw this page (another device)
+      const ctx = await browser.newContext({ baseURL: test.info().project.use.baseURL })
+      try {
+        const other = await ctx.newPage()
+        await login(other)
+        await other.goto(LONG_REPORT)
+        await settled(other)
+        await expect(other.getByTestId('report-row-hrv')).toHaveCount(0)
+        await expect(other.getByTestId('report-workouts')).toHaveCount(0)
+        await other.getByTestId('report-content').locator('summary').click()
+        await expect(other.getByTestId('sel-hrv')).not.toBeChecked()
+      } finally {
+        await ctx.close()
+      }
+
+      // print: what was switched off is not there, the panel itself is not printed
+      await page.emulateMedia({ media: 'print', reducedMotion: 'reduce' })
+      await expect(page.getByTestId('report-content')).toBeHidden()
+      await expect(page.getByTestId('report-row-hrv')).toHaveCount(0)
+      await expect(page.getByTestId('report-workouts')).toHaveCount(0)
+      await expect(page.getByTestId('report-summary')).toBeVisible()
+      await page.emulateMedia({ media: 'screen' })
+    } finally {
+      // leave the stack as found, whatever happened above
+      await page.request.delete('/api/v1/preferences/report-sections', { headers: { 'X-SBH-Client': 'web' } })
+    }
+    await page.reload()
+    await settled(page)
+    await expect(page.getByTestId('report-row-hrv')).toBeVisible()
+    await expect(page.getByTestId('report-workouts')).toBeVisible()
+    await page.getByTestId('report-content').locator('summary').click()
+    await expect(page.getByTestId('sel-hrv')).toBeChecked()
+    // "Ripristina predefiniti" brings everything back after switching a section off
+    await page.getByTestId('sel-charts').uncheck()
+    await expect(page.getByTestId('report-charts')).toHaveCount(0)
+    await page.getByTestId('sel-reset').click()
+    await expect(page.getByTestId('report-charts')).toBeVisible()
+    await expect(page.getByTestId('sel-charts')).toBeChecked()
+  })
+
+  test('PDF: no browser header or footer (page margin 0), own footer without address', async ({ page }) => {
+    test.setTimeout(120_000)
+    await page.setViewportSize({ width: 794, height: 1123 })
+    await login(page)
+    await page.goto(LONG_REPORT)
+    await settled(page)
+    await page.emulateMedia({ media: 'print', reducedMotion: 'reduce' })
+    // @page { margin: 0 }: with a page margin the browser prints title, URL and date in it
+    const pageMargin = await page.evaluate(() => {
+      for (const sheet of Array.from(document.styleSheets)) {
+        for (const rule of Array.from(sheet.cssRules)) {
+          if (rule instanceof CSSPageRule) return rule.style.getPropertyValue('margin')
+        }
+      }
+      return null
+    })
+    expect(pageMargin).toMatch(/^0(px|mm)?$/)
+    const footer = page.getByTestId('print-footer')
+    await expect(footer).toBeVisible()
+    expect(await footer.evaluate((el) => getComputedStyle(el).position)).toBe('fixed')
+    const text = (await footer.textContent()) ?? ''
+    expect(text).toContain('StatisticsByHeart · Report')
+    expect(text).toContain('generato il')
+    expect(text).not.toMatch(/https?:|localhost|127\.0\.0\.1/)
+    // the content keeps a margin of its own on the page
+    const main = await page.locator('main').evaluate((el) => getComputedStyle(el).paddingLeft)
+    expect(parseFloat(main)).toBeGreaterThan(40)
+    // header/footer requested on purpose: they must still not appear (nothing to draw them in)
+    await page.pdf({ path: join(SHOTS, 'report-print.pdf'), preferCSSPageSize: true, displayHeaderFooter: true, printBackground: false })
+  })
+
+  test('sync: the alarm Home Assistant sees, and the last sync of each device', async ({ page }) => {
+    await login(page)
+    await page.goto('/sync')
+    const alarm = page.getByTestId('sync-alarm')
+    await expect(alarm).toHaveAttribute('data-alarm', 'ok')
+    await expect(alarm).toContainText('Allarme: ok')
+    await expect(alarm).toContainText('soglia 6')
+    const devices = page.getByTestId('sync-device')
+    await expect(devices).toHaveCount(2)
+    await expect(devices.first()).toContainText('ultima sync riuscita')
+    await expect(devices.nth(1)).toContainText('ultima sync riuscita')
+    await a11y(page)
+    await page.getByTestId('panel-sync-status').screenshot({ path: join(SHOTS, 'sync-alarm.png') })
+  })
 })

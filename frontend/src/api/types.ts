@@ -222,12 +222,23 @@ export interface DeviceRow {
   app_version: string | null
   first_seen_at: string
   last_seen_at: string
+  /** Last SUCCESSFUL sync of this device. */
+  last_success_at?: string | null
+}
+
+export interface AlarmInfo {
+  status: 'ok' | 'stale' | 'never'
+  last_sync_at: string | null
+  hours_since_sync: number | null
+  threshold_hours: number
 }
 
 export interface SyncStatusResponse {
   generated_at: string
   last_success_at: string | null
   last_activity_at: string | null
+  /** What Home Assistant sees: the last successful sync of ANY device. */
+  alarm: AlarmInfo
   devices: DeviceRow[]
   runs: SyncRunRow[]
 }
@@ -477,6 +488,7 @@ export interface LimitItem {
     | 'soft_delete'
     | 'session_purge'
     | 'daily_recompute'
+    | 'stale_alarm'
     | 'ingest_batch'
     | 'ingest_body'
     | 'route_points'

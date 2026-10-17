@@ -26,6 +26,8 @@ export function limitText(item: LimitItem): string {
       return t('storage.limit.dailyRecompute', {
         time: `${String(p.hour).padStart(2, '0')}:${String(p.minute).padStart(2, '0')}`,
       })
+    case 'stale_alarm':
+      return t('storage.limit.staleAlarm', { hours: fmtNumber(p.threshold_hours) })
     case 'ingest_batch':
       return t('storage.limit.ingestBatch', { n: fmtNumber(p.max_records) })
     case 'ingest_body':

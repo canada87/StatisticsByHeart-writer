@@ -266,9 +266,15 @@
  * Print: light background, no HUD effects, sensible page breaks. The report page's
  * "Stampa / Salva PDF" uses the browser print dialog (no server-side PDF).
  * ---------------------------------------------------------------------------------------- */
+/* margin 0 on the page: with a page margin the browser prints its own header and footer (title, URL,
+   date) in it; with none it prints nothing there. The margins are padding of the printed content,
+   repeated on every page, and the report brings its own footer (no URL). */
 @page {
   size: A4;
-  margin: 14mm;
+  margin: 0;
+}
+.print-footer {
+  display: none;
 }
 @media print {
   :root {
@@ -313,8 +319,21 @@
     display: block !important;
   }
   main {
-    padding: 0 !important;
+    padding: 14mm 14mm 16mm !important;
     min-height: 0 !important;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+  .print-footer {
+    display: block;
+    position: fixed;
+    left: 14mm;
+    right: 14mm;
+    bottom: 6mm;
+    font-size: 8pt;
+    color: #475569;
+    border-top: 1px solid #cbd5e1;
+    padding-top: 1mm;
   }
   .hud-panel {
     background: #fff !important;

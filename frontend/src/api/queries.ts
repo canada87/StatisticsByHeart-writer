@@ -161,6 +161,15 @@ export const daypartQuery = (
     enabled,
   })
 
+/** A dashboard preference stored on the server (value is null when never saved). */
+export const preferenceQuery = (key: string) =>
+  queryOptions({
+    queryKey: ['preference', key],
+    queryFn: () => api<{ key: string; value: unknown; updated_at: string | null }>(`/api/v1/preferences/${key}`),
+    staleTime: 60_000,
+    retry: false,
+  })
+
 /** Space used, per-table sizes, growth estimate, disk and the limits/retention (read-only). */
 export const storageQuery = () =>
   queryOptions({

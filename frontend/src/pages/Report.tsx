@@ -25,6 +25,9 @@ import {
 } from '../lib/period'
 import { activityLabel } from '../components/DomainCharts'
 import { MonthlyTables, PointsBlock, ReportCharts, WorkoutTypes, WorkoutsRulesNote } from '../components/ReportExtras'
+import { ReportContentPanel } from '../components/ReportContent'
+import { type IsOn, ROW_GROUP } from '../lib/reportSections'
+import { useReportSections } from '../lib/useReportSections'
 
 const BY_KEY: Record<string, MetricDef> = Object.fromEntries(
   [...Object.values(METRICS), ...Object.values(REPORT_EXTRA_METRICS)].map((m) => [m.reportKey, m]),
@@ -234,14 +237,28 @@ function MetricRow({ m, report }: { m: ReportMetric; report: ReportResponse }) {
   )
 }
 
-function ReportBody({ report, period }: { report: ReportResponse; period: Period }) {
+function ReportBody({ report, period, isOn }: { report: ReportResponse; period: Period; isOn: IsOn }) {
   const byKey = new Map([...report.metrics, ...report.extra_metrics].map((m) => [m.key, m]))
   const sleep = report.sleep_regularity
   const w = report.workouts
   const allEmpty = report.metrics.every((m) => m.days_with_data === 0)
   if (allEmpty) return <EmptyState title={t('report.empty')} hint={t('report.emptyHint')} />
+  const rows = ROW_ORDER.filter((k) => isOn(ROW_GROUP[k] ?? k) && byKey.has(k))
+  const showSummary = isOn('summary') && rows.length > 0
+  const showSleep = isOn('sleep')
+  const showPoints = isOn('points')
+  const showWorkouts = isOn('workouts')
+  const anything =
+    showSummary ||
+    isOn('monthly') ||
+    isOn('charts') ||
+    showSleep ||
+    showPoints ||
+    showWorkouts
+  if (!anything) return <EmptyState title={t('report.sel.none')} />
   return (
     <div className="flex flex-col gap-3">
+      {showSummary && (
       <Panel title={t('report.summary')} accent="glow" testId="report-summary">
         <p className="text-sm text-fg-muted">
           {t('report.compared', { from: fmtDayLong(report.previous_from), to: fmtDayLong(report.previous_to) })}
@@ -262,7 +279,7 @@ function ReportBody({ report, period }: { report: ReportResponse; period: Period
               </tr>
             </thead>
             <tbody>
-              {ROW_ORDER.map((k) => {
+              {rows.map((k) => {
                 const m = byKey.get(k)
                 return m ? <MetricRow key={k} m={m} report={report} /> : null
               })}
@@ -270,10 +287,13 @@ function ReportBody({ report, period }: { report: ReportResponse; period: Period
           </table>
         </div>
       </Panel>
+      )}
 
-      <MonthlyTables report={report} period={period} />
+      {isOn('monthly') && <MonthlyTables report={report} period={period} isOn={isOn} />}
 
+      {(showSleep || showPoints || showWorkouts) && (
       <div className="grid gap-3 md:grid-cols-2 print-avoid-break">
+        {showSleep && (
         <Panel title={t('report.sleepBlock')} accent="sleep" testId="report-sleep">
           {sleep && sleep.nights > 0 ? (
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
@@ -288,7 +308,9 @@ function ReportBody({ report, period }: { report: ReportResponse; period: Period
             <EmptyState title={t('sleep.stages.empty')} />
           )}
         </Panel>
-        <PointsBlock report={report} />
+        )}
+        {showPoints && <PointsBlock report={report} />}
+        {showWorkouts && (
         <Panel title={t('report.workoutsBlock')} accent="activity" testId="report-workouts">
           {w.count > 0 ? (
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
@@ -310,8 +332,10 @@ function ReportBody({ report, period }: { report: ReportResponse; period: Period
             </p>
           )}
         </Panel>
+        )}
       </div>
-      <ReportCharts report={report} period={period} />
+      )}
+      {isOn('charts') && <ReportCharts report={report} period={period} isOn={isOn} />}
       <p className="text-xs text-fg-muted print-avoid-break">
         {t('report.footer', { generated: fmtDateTime(report.generated_at), days: period.days })}
       </p>
@@ -333,6 +357,7 @@ export function ReportPage() {
   const window = { from: period.start, to: period.last }
   const q = useQuery({ ...reportQuery(window), enabled: period.days > 0 })
   const queryClient = useQueryClient()
+  const sections = useReportSections()
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<unknown>(null)
 
@@ -377,6 +402,11 @@ export function ReportPage() {
   return (
     <div>
       <div className="print-only mb-2 text-xs">StatisticsByHeart · {t('report.title')}</div>
+      {q.data && (
+        <div className="print-footer" data-testid="print-footer">
+          {t('report.footer.print', { period: periodLabel(period), generated: fmtDateTime(q.data.generated_at) })}
+        </div>
+      )}
       <PageTitle sub={<span data-testid="period-label">{periodLabel(period)}</span>}>{t('report.title')}</PageTitle>
       <div className="mb-3 flex flex-col gap-3 no-print">
         <PeriodControls period={period} />
@@ -395,9 +425,16 @@ export function ReportPage() {
           </button>
         </div>
         {exportError !== null && <ErrorState error={exportError} onRetry={() => void exportCsv()} />}
+        <ReportContentPanel
+          isOn={sections.isOn}
+          onToggle={sections.toggle}
+          onReset={sections.reset}
+          loading={sections.loading}
+          saveFailed={sections.saveFailed}
+        />
       </div>
       <Async query={q} skeleton={<SkeletonLines lines={8} height="h-9" />}>
-        {(report) => <ReportBody report={report} period={period} />}
+        {(report) => <ReportBody report={report} period={period} isOn={sections.isOn} />}
       </Async>
     </div>
   )

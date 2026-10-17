@@ -6,6 +6,7 @@ import { fmtDay, fmtDuration, fmtNumber } from '../lib/format'
 import { METRICS } from '../lib/metrics'
 import type { Period } from '../lib/period'
 import type { ResolvedRange } from '../lib/range'
+import { COLUMN_GROUP, type IsOn } from '../lib/reportSections'
 import { activityLabel } from './DomainCharts'
 import { HeartPointsChart, HrMaxWarning } from './HeartPoints'
 import { Panel } from './hud'
@@ -122,12 +123,14 @@ function MonthTable({ title, keys, monthly, id }: { title: string; keys: string[
 }
 
 /** Month by month over the whole period: daily means of the month, then the month totals. */
-export function MonthlyTables({ report, period }: { report: ReportResponse; period: Period }) {
+export function MonthlyTables({ report, period, isOn }: { report: ReportResponse; period: Period; isOn: IsOn }) {
   const monthly = report.monthly
+  const shown = (key: string) => isOn(COLUMN_GROUP[key] ?? key)
   // one whole week inside one month would only repeat the summary table above
   if (monthly.months.length === 0 || (monthly.months.length === 1 && period.kind === 'week')) return null
-  const avgKeys = monthly.columns.filter((c) => c.kind === 'avg' && monthly.months.some((m) => m.values[c.key] !== null)).map((c) => c.key)
-  const sumKeys = monthly.columns.filter((c) => c.kind === 'sum' && monthly.months.some((m) => m.values[c.key] !== null)).map((c) => c.key)
+  const avgKeys = monthly.columns.filter((c) => c.kind === 'avg' && shown(c.key) && monthly.months.some((m) => m.values[c.key] !== null)).map((c) => c.key)
+  const sumKeys = monthly.columns.filter((c) => c.kind === 'sum' && shown(c.key) && monthly.months.some((m) => m.values[c.key] !== null)).map((c) => c.key)
+  if (avgKeys.length === 0 && sumKeys.length === 0) return null
   return (
     <Panel title={t('report.monthly.title')} icon={CalendarBlank} accent="glow" testId="report-monthly">
       <p className="text-sm text-fg-muted">{t('report.monthly.intro')}</p>
@@ -204,13 +207,13 @@ export function WorkoutsRulesNote() {
 }
 
 /** Big charts of the period, one per row; the PDF is the priority (full A4 width, tall, no cuts). */
-export function ReportCharts({ report, period }: { report: ReportResponse; period: Period }) {
+export function ReportCharts({ report, period, isOn }: { report: ReportResponse; period: Period; isOn: IsOn }) {
   const M = METRICS
   const range: ResolvedRange = { preset: 'custom', from: period.start, to: period.last, days: period.days, current: true }
   const months = report.monthly.months.length
   // a period over several months reads best per month
   const bucket: Bucket | undefined = months >= 3 ? 'month' : undefined
-  const has = (key: string) => (report.metrics.find((m) => m.key === key)?.days_with_data ?? 0) > 0
+  const has = (key: string, group = key) => isOn(group) && (report.metrics.find((m) => m.key === key)?.days_with_data ?? 0) > 0
   const common = { range, height: 340, defaultBucket: bucket, perDay: true } as const
   return (
     <section className="flex flex-col gap-3" aria-labelledby="report-charts-title" data-testid="report-charts">
@@ -223,7 +226,7 @@ export function ReportCharts({ report, period }: { report: ReportResponse; perio
           <TrendChart def={M.steps} icon={CalendarBlank} accent="activity" {...common} />
         </div>
       )}
-      {has('heart_rate') && (
+      {(has('heart_rate', 'hr') || has('heart_rate', 'hr_split')) && (
         <div className="report-chart">
           <TrendChart def={M.heartRate} daypart icon={Lightning} accent="heart" {...common} />
         </div>
@@ -253,12 +256,12 @@ export function ReportCharts({ report, period }: { report: ReportResponse; perio
           <TrendChart def={M.weight} icon={Lightning} accent="glow" {...common} />
         </div>
       )}
-      {has('blood_pressure') && (
+      {has('blood_pressure', 'bp') && (
         <div className="report-chart">
           <TrendChart def={M.systolic} pair={M.diastolic} icon={Lightning} accent="heart" {...common} />
         </div>
       )}
-      {report.points.total > 0 && (
+      {isOn('points') && report.points.total > 0 && (
         <div className="report-chart">
           <HeartPointsChart range={range} height={340} initialBucket={months >= 3 ? 'month' : undefined} />
         </div>

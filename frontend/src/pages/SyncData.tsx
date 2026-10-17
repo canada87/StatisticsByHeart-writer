@@ -14,7 +14,7 @@ import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useReducedMotion } from 'motion/react'
 import { useMemo, useState } from 'react'
 import { inventoryQuery, reconciliationQuery, syncStatusQuery } from '../api/queries'
-import type { ReconStatus, ReconciliationRow, SyncRunRow } from '../api/types'
+import type { AlarmInfo, ReconStatus, ReconciliationRow, SyncRunRow } from '../api/types'
 import { ChartFrame, type TableSpec } from '../components/ChartCard'
 import { Badge, PageTitle, Panel } from '../components/hud'
 import { StorageTab } from '../components/StoragePanel'
@@ -145,6 +145,28 @@ function RunItem({ run }: { run: SyncRunRow }) {
   )
 }
 
+function AlarmLine({ alarm }: { alarm: AlarmInfo }) {
+  const threshold = fmtNumber(alarm.threshold_hours, alarm.threshold_hours % 1 === 0 ? 0 : 1)
+  const hours = alarm.hours_since_sync === null ? '—' : fmtNumber(alarm.hours_since_sync, 1)
+  const text =
+    alarm.status === 'never'
+      ? t('sync.alarm.never', { threshold })
+      : alarm.status === 'stale'
+        ? t('sync.alarm.stale', { hours, threshold })
+        : t('sync.alarm.ok', { hours, threshold })
+  const tone = alarm.status === 'ok' ? 'ok' : alarm.status === 'stale' ? 'danger' : 'muted'
+  const Icon = alarm.status === 'ok' ? CheckCircle : alarm.status === 'stale' ? Warning : MinusCircle
+  return (
+    <div data-testid="sync-alarm" data-alarm={alarm.status} role="status">
+      <div className="hud-label">{t('sync.alarm')}</div>
+      <Badge tone={tone} icon={Icon}>
+        {text}
+      </Badge>
+      <p className="mt-1 text-xs text-fg-muted">{t('sync.alarm.hint')}</p>
+    </div>
+  )
+}
+
 function SyncTab() {
   const q = useQuery(syncStatusQuery())
   return (
@@ -158,6 +180,7 @@ function SyncTab() {
                 <div className="text-lg">{d.last_success_at ? timeAgo(d.last_success_at) : t('link.never')}</div>
                 <div className="text-fg-muted">{fmtDateTime(d.last_success_at)}</div>
               </div>
+              <AlarmLine alarm={d.alarm} />
               <div>
                 <div className="hud-label">{t('sync.devices')}</div>
                 {d.devices.length === 0 ? (
@@ -165,10 +188,14 @@ function SyncTab() {
                 ) : (
                   <ul className="flex flex-col gap-1">
                     {d.devices.map((dev) => (
-                      <li key={dev.id}>
+                      <li key={dev.id} data-testid="sync-device">
                         {dev.name ?? dev.model ?? dev.id.slice(0, 8)}
                         {dev.app_version && <span className="text-fg-muted"> · v{dev.app_version}</span>}
                         <span className="block text-xs text-fg-muted">
+                          {dev.last_success_at
+                            ? t('sync.deviceSuccess', { when: timeAgo(dev.last_success_at) })
+                            : t('sync.deviceNoSuccess')}
+                          {' · '}
                           {t('sync.seen', { when: timeAgo(dev.last_seen_at) })}
                         </span>
                       </li>
