@@ -391,14 +391,53 @@ class ReportMetric(BaseModel):
     sessions: int | None = Field(default=None, description="Workouts only: number of sessions")
 
 
+class WorkoutTypeDetail(BaseModel):
+    type: str
+    count: int
+    duration_s: float
+
+
 class ReportWorkouts(BaseModel):
     count: int
     duration_s: float
     avg_duration_s: float | None
     per_week: float | None
     by_type: dict[str, int]
+    by_type_detail: list[WorkoutTypeDetail] = Field(
+        default=[], description="Real workouts per type: number and total time, longest first"
+    )
     scope: Literal["real"] = Field(default="real", description="Only real workouts are counted")
     excluded: int = Field(default=0, description="Sessions left out because they are not real")
+
+
+class ReportPoints(BaseModel):
+    total: float = Field(description="Heart Points earned in the period")
+    previous_total: float
+    weekly_avg: float | None = Field(description="total / (period days / 7)")
+    weeks_complete: int = Field(description="Whole Monday-Sunday weeks inside the period, over")
+    weeks_over_goal: int
+    goal: int
+    hr_configured: bool
+
+
+class MonthlyColumn(BaseModel):
+    key: str
+    kind: Literal["avg", "sum"] = Field(
+        description="avg = mean of the daily values of the month, sum = total of the month"
+    )
+    unit: str | None
+
+
+class MonthRow(BaseModel):
+    month: Date = Field(description="First day of the month")
+    days: int = Field(description="Days of this month inside the period")
+    partial: bool = Field(description="The period does not cover the whole calendar month")
+    values: dict[str, float | None]
+
+
+class ReportMonthly(BaseModel):
+    columns: list[MonthlyColumn]
+    months: list[MonthRow]
 
 
 class ReportResponse(BaseModel):
@@ -412,8 +451,14 @@ class ReportResponse(BaseModel):
     generated_at: datetime
     timezone: str
     metrics: list[ReportMetric]
+    extra_metrics: list[ReportMetric] = Field(
+        default=[],
+        description="Day/night heart rate (ADR 0005/0006) and Heart Points (ADR 0008), same shape",
+    )
     sleep_regularity: SleepStats | None
     workouts: ReportWorkouts
+    points: ReportPoints
+    monthly: ReportMonthly
 
 
 class ReportColumn(BaseModel):

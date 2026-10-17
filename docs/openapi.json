@@ -1527,6 +1527,83 @@
         "title": "MetricValue",
         "type": "object"
       },
+      "MonthRow": {
+        "properties": {
+          "days": {
+            "description": "Days of this month inside the period",
+            "title": "Days",
+            "type": "integer"
+          },
+          "month": {
+            "description": "First day of the month",
+            "format": "date",
+            "title": "Month",
+            "type": "string"
+          },
+          "partial": {
+            "description": "The period does not cover the whole calendar month",
+            "title": "Partial",
+            "type": "boolean"
+          },
+          "values": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Values",
+            "type": "object"
+          }
+        },
+        "required": [
+          "month",
+          "days",
+          "partial",
+          "values"
+        ],
+        "title": "MonthRow",
+        "type": "object"
+      },
+      "MonthlyColumn": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "description": "avg = mean of the daily values of the month, sum = total of the month",
+            "enum": [
+              "avg",
+              "sum"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "key",
+          "kind",
+          "unit"
+        ],
+        "title": "MonthlyColumn",
+        "type": "object"
+      },
       "NightInterval": {
         "properties": {
           "date": {
@@ -2920,11 +2997,97 @@
         "title": "ReportMetric",
         "type": "object"
       },
+      "ReportMonthly": {
+        "properties": {
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/MonthlyColumn"
+            },
+            "title": "Columns",
+            "type": "array"
+          },
+          "months": {
+            "items": {
+              "$ref": "#/components/schemas/MonthRow"
+            },
+            "title": "Months",
+            "type": "array"
+          }
+        },
+        "required": [
+          "columns",
+          "months"
+        ],
+        "title": "ReportMonthly",
+        "type": "object"
+      },
+      "ReportPoints": {
+        "properties": {
+          "goal": {
+            "title": "Goal",
+            "type": "integer"
+          },
+          "hr_configured": {
+            "title": "Hr Configured",
+            "type": "boolean"
+          },
+          "previous_total": {
+            "title": "Previous Total",
+            "type": "number"
+          },
+          "total": {
+            "description": "Heart Points earned in the period",
+            "title": "Total",
+            "type": "number"
+          },
+          "weekly_avg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "total / (period days / 7)",
+            "title": "Weekly Avg"
+          },
+          "weeks_complete": {
+            "description": "Whole Monday-Sunday weeks inside the period, over",
+            "title": "Weeks Complete",
+            "type": "integer"
+          },
+          "weeks_over_goal": {
+            "title": "Weeks Over Goal",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "previous_total",
+          "weekly_avg",
+          "weeks_complete",
+          "weeks_over_goal",
+          "goal",
+          "hr_configured"
+        ],
+        "title": "ReportPoints",
+        "type": "object"
+      },
       "ReportResponse": {
         "properties": {
           "days": {
             "title": "Days",
             "type": "integer"
+          },
+          "extra_metrics": {
+            "default": [],
+            "description": "Day/night heart rate (ADR 0005/0006) and Heart Points (ADR 0008), same shape",
+            "items": {
+              "$ref": "#/components/schemas/ReportMetric"
+            },
+            "title": "Extra Metrics",
+            "type": "array"
           },
           "from": {
             "format": "date",
@@ -2942,6 +3105,12 @@
             },
             "title": "Metrics",
             "type": "array"
+          },
+          "monthly": {
+            "$ref": "#/components/schemas/ReportMonthly"
+          },
+          "points": {
+            "$ref": "#/components/schemas/ReportPoints"
           },
           "previous_from": {
             "format": "date",
@@ -2986,7 +3155,9 @@
           "timezone",
           "metrics",
           "sleep_regularity",
-          "workouts"
+          "workouts",
+          "points",
+          "monthly"
         ],
         "title": "ReportResponse",
         "type": "object"
@@ -3010,6 +3181,15 @@
             },
             "title": "By Type",
             "type": "object"
+          },
+          "by_type_detail": {
+            "default": [],
+            "description": "Real workouts per type: number and total time, longest first",
+            "items": {
+              "$ref": "#/components/schemas/WorkoutTypeDetail"
+            },
+            "title": "By Type Detail",
+            "type": "array"
           },
           "count": {
             "title": "Count",
@@ -4904,6 +5084,29 @@
           "recovery_end"
         ],
         "title": "WorkoutInterval",
+        "type": "object"
+      },
+      "WorkoutTypeDetail": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "duration_s": {
+            "title": "Duration S",
+            "type": "number"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "count",
+          "duration_s"
+        ],
+        "title": "WorkoutTypeDetail",
         "type": "object"
       }
     }

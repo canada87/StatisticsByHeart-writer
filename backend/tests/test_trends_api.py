@@ -334,7 +334,7 @@ async def test_report_without_data_is_all_empty(web: httpx.AsyncClient) -> None:
 async def test_report_daily_table(seeded: None, web: httpx.AsyncClient) -> None:
     first = TODAY - timedelta(days=4)
     body = (await web.get(f"/api/v1/report/daily?{_qs(first, TODAY)}")).json()
-    assert len(body["columns"]) == 16 and len(body["rows"]) == 5
+    assert len(body["columns"]) == 19 and len(body["rows"]) == 5
     assert [r["date"] for r in body["rows"]] == sorted(r["date"] for r in body["rows"])
     last = body["rows"][-1]["values"]
     steps_series = (

@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from statistics import mean, pstdev
-from typing import Literal
+from typing import Any, Literal
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,17 +20,22 @@ from app.dash_schemas import (
     ExerciseRow,
     ExerciseStats,
     ExerciseWeek,
+    MonthlyColumn,
+    MonthRow,
     PeriodStats,
     ReportColumn,
     ReportDailyResponse,
     ReportDailyRow,
     ReportMetric,
+    ReportMonthly,
+    ReportPoints,
     ReportResponse,
     ReportWorkouts,
     SeriesPoint,
     SleepNight,
     SleepNightsResponse,
     SleepStats,
+    WorkoutTypeDetail,
 )
 from app.errors import ApiError
 from app.health_types import SPECS
@@ -419,13 +424,141 @@ def _spark_bucket(span: int) -> Literal["day", "week", "month"]:
     return "week" if _bucket_count(span, "day") <= 800 else "month"
 
 
+def _metric_from_points(
+    *,
+    key: str,
+    type_: str,
+    unit: str | None,
+    kind: Literal["sum", "avg", "range"],
+    cur: list[SeriesPoint],
+    prev: list[SeriesPoint],
+    spark_pts: list[SeriesPoint],
+    spark_bucket: Literal["day", "week", "month"],
+    higher_is_better: bool | None,
+    diastolic: PeriodStats | None = None,
+    sessions: int | None = None,
+) -> ReportMetric:
+    ranged = kind == "range"
+    cur_stats = _period(cur, kind, ranged)
+    prev_stats = _period(prev, kind, ranged)
+    basis = "total" if kind == "sum" else "avg"
+    c, p = getattr(cur_stats, basis), getattr(prev_stats, basis)
+    delta = c - p if c is not None and p is not None else None
+    pct = delta / p * 100 if delta is not None and p not in (None, 0) else None
+    with_val = [(pt.t, pt.v) for pt in cur if pt.v is not None]
+    best = worst = None
+    if higher_is_better is not None and with_val:
+        hi_pt = max(with_val, key=lambda x: x[1])
+        lo_pt = min(with_val, key=lambda x: x[1])
+        b_, w_ = (hi_pt, lo_pt) if higher_is_better else (lo_pt, hi_pt)
+        best = DayValue(date=date.fromisoformat(b_[0]), value=b_[1])
+        worst = DayValue(date=date.fromisoformat(w_[0]), value=w_[1])
+    return ReportMetric(
+        key=key,
+        type=type_,
+        unit=unit,
+        kind=kind,
+        days_with_data=cur_stats.days,
+        current=cur_stats,
+        previous=prev_stats,
+        delta_abs=delta,
+        delta_pct=pct,
+        higher_is_better=higher_is_better,
+        best_day=best,
+        worst_day=worst,
+        first=with_val[0][1] if with_val else None,
+        last=with_val[-1][1] if with_val else None,
+        spark=[pt.v for pt in spark_pts],
+        spark_bucket=spark_bucket,
+        diastolic=diastolic,
+        sessions=sessions,
+    )
+
+
+def _day_points(first: date, last: date, values: dict[date, float]) -> list[SeriesPoint]:
+    """One SeriesPoint per calendar day of the range (v is None where there is no value)."""
+    out: list[SeriesPoint] = []
+    day = first
+    while day <= last:
+        out.append(SeriesPoint(t=day.isoformat(), v=values.get(day)))
+        day += timedelta(days=1)
+    return out
+
+
+def _rebucket(
+    first: date, last: date, values: dict[date, float], bucket: str, how: Literal["sum", "avg"]
+) -> list[SeriesPoint]:
+    """Daily values grouped into week/month buckets (sum or mean of the days that have a value)."""
+    groups: dict[date, list[float]] = defaultdict(list)
+    for d, v in values.items():
+        groups[bucket_start(d, bucket)].append(v)
+    out: list[SeriesPoint] = []
+    cursor = bucket_start(first, bucket)
+    while cursor <= last:
+        vals = groups.get(cursor, [])
+        out.append(
+            SeriesPoint(
+                t=cursor.isoformat(),
+                v=(sum(vals) if how == "sum" else sum(vals) / len(vals)) if vals else None,
+            )
+        )
+        if bucket == "week":
+            cursor += timedelta(days=7)
+        else:
+            cursor = (cursor.replace(day=28) + timedelta(days=4)).replace(day=1)
+    return out
+
+
+def _by_month(values: dict[date, float], how: Literal["sum", "avg"]) -> dict[date, float]:
+    groups: dict[date, list[float]] = defaultdict(list)
+    for d, v in values.items():
+        groups[d.replace(day=1)].append(v)
+    return {m: (sum(v) if how == "sum" else sum(v) / len(v)) for m, v in groups.items()}
+
+
+def _month_starts(first: date, last: date) -> list[date]:
+    out: list[date] = []
+    cursor = first.replace(day=1)
+    while cursor <= last:
+        out.append(cursor)
+        cursor = (cursor.replace(day=28) + timedelta(days=4)).replace(day=1)
+    return out
+
+
+# (key, kind, unit): what the month-by-month table holds, in column order
+MONTHLY_COLUMNS: list[tuple[str, Literal["avg", "sum"], str | None]] = [
+    ("heart_rate", "avg", "bpm"),
+    ("hr_day", "avg", "bpm"),
+    ("hr_night", "avg", "bpm"),
+    ("resting_hr", "avg", "bpm"),
+    ("hrv", "avg", "ms"),
+    ("spo2", "avg", "percent"),
+    ("sleep", "avg", "s"),
+    ("weight", "avg", "kg"),
+    ("systolic", "avg", "mmHg"),
+    ("diastolic", "avg", "mmHg"),
+    ("steps", "sum", "count"),
+    ("distance", "sum", "m"),
+    ("active_kcal", "sum", "kcal"),
+    ("total_kcal", "sum", "kcal"),
+    ("heart_points", "sum", "points"),
+    ("workouts", "sum", "count"),
+    ("workouts_s", "sum", "s"),
+]
+
+
 async def report(
     session: AsyncSession, settings: Settings, first: date, last: date
 ) -> ReportResponse:
+    # lazy: daypart / points_api import this module (previous_range) at the top
+    from app.services import points_api
+    from app.services.daypart import _compute
+
     span = _check_range(first, last)
     pf, pl = previous_range(first, last)
     spark_bucket = _spark_bucket(span)
     metrics: list[ReportMetric] = []
+    monthly: dict[str, dict[date, float]] = {}
     all_now = await _exercise_records(session, settings, first, last)
     real_now = [c for c in all_now if c.is_real]
     real_prev = await _exercise_records(session, settings, pf, pl, "real")
@@ -449,49 +582,136 @@ async def report(
                 spark_pts, _ = await _day_series(
                     session, spec, first, last, spark_bucket, m.agg, "auto"
                 )
-        ranged = m.kind == "range"
-        cur_stats = _period(cur, m.kind, ranged)
-        prev_stats = _period(prev, m.kind, ranged)
-        basis = "total" if m.kind == "sum" else "avg"
-        c, p = getattr(cur_stats, basis), getattr(prev_stats, basis)
-        delta = c - p if c is not None and p is not None else None
-        pct = delta / p * 100 if delta is not None and p not in (None, 0) else None
-        with_val = [(pt.t, pt.v) for pt in cur if pt.v is not None]
-        best = worst = None
-        if m.higher_is_better is not None and with_val:
-            hi_pt = max(with_val, key=lambda x: x[1])
-            lo_pt = min(with_val, key=lambda x: x[1])
-            b, w = (hi_pt, lo_pt) if m.higher_is_better else (lo_pt, hi_pt)
-            best = DayValue(date=date.fromisoformat(b[0]), value=b[1])
-            worst = DayValue(date=date.fromisoformat(w[0]), value=w[1])
         diastolic = None
         if m.type == "BloodPressure":
             dia, _ = await _day_series(
                 session, spec, first, last, "day", "avg", "auto", "diastolic"
             )
             diastolic = _period(dia, "avg")
+            monthly["diastolic"] = _by_month(
+                {date.fromisoformat(p.t): p.v for p in dia if p.v is not None}, "avg"
+            )
+        if m.key != "workouts":
+            how: Literal["sum", "avg"] = "sum" if m.kind == "sum" else "avg"
+            key = "systolic" if m.key == "blood_pressure" else m.key
+            monthly[key] = _by_month(
+                {date.fromisoformat(p.t): p.v for p in cur if p.v is not None}, how
+            )
         metrics.append(
-            ReportMetric(
+            _metric_from_points(
                 key=m.key,
-                type=m.type,
+                type_=m.type,
                 unit=unit_of(spec),
                 kind=m.kind,
-                days_with_data=cur_stats.days,
-                current=cur_stats,
-                previous=prev_stats,
-                delta_abs=delta,
-                delta_pct=pct,
-                higher_is_better=m.higher_is_better,
-                best_day=best,
-                worst_day=worst,
-                first=with_val[0][1] if with_val else None,
-                last=with_val[-1][1] if with_val else None,
-                spark=[pt.v for pt in spark_pts],
+                cur=cur,
+                prev=prev,
+                spark_pts=spark_pts,
                 spark_bucket=spark_bucket,
+                higher_is_better=m.higher_is_better,
                 diastolic=diastolic,
                 sessions=sum(pt.n or 0 for pt in cur) if m.key == "workouts" else None,
             )
         )
+
+    # --- day / night heart rate (same definition as /heart/daypart: night = sleep, daytime
+    # without real workouts and the 30 minutes after) and Heart Points
+    _, days_now, _w = await _compute(session, settings, first, last)
+    _, days_prev, _w2 = await _compute(session, settings, pf, pl)
+
+    def _hr_values(per_day: dict[date, Any], night: bool) -> dict[date, float]:
+        out: dict[date, float] = {}
+        for d, st in per_day.items():
+            v = st.night_avg if night else st.daytime(False)[0]
+            if v is not None:
+                out[d] = v
+        return out
+
+    pts_now = await points_api._daily(session, first, last)
+    pts_prev = await points_api._daily(session, pf, pl)
+    extras: list[
+        tuple[
+            str, str, str, Literal["sum", "avg"], dict[date, float], dict[date, float], bool | None
+        ]
+    ] = [
+        (
+            "hr_day",
+            "HeartRateDay",
+            "bpm",
+            "avg",
+            _hr_values(days_now, False),
+            _hr_values(days_prev, False),
+            None,
+        ),
+        (
+            "hr_night",
+            "HeartRateNight",
+            "bpm",
+            "avg",
+            _hr_values(days_now, True),
+            _hr_values(days_prev, True),
+            None,
+        ),
+        ("heart_points", "HeartPoints", "points", "sum", pts_now, pts_prev, True),
+    ]
+    extra_metrics: list[ReportMetric] = []
+    for key, type_, unit, how, vals_now, vals_prev, better in extras:
+        monthly[key] = _by_month(vals_now, how)
+        cur = _day_points(first, last, vals_now)
+        spark = (
+            cur if spark_bucket == "day" else _rebucket(first, last, vals_now, spark_bucket, how)
+        )
+        extra_metrics.append(
+            _metric_from_points(
+                key=key,
+                type_=type_,
+                unit=unit,
+                kind="sum" if how == "sum" else "avg",
+                cur=cur,
+                prev=_day_points(pf, pl, vals_prev),
+                spark_pts=spark,
+                spark_bucket=spark_bucket,
+                higher_is_better=better,
+            )
+        )
+
+    # --- workouts: only real ones (ADR 0006): number and time, per month and per type
+    wk_count: dict[date, float] = defaultdict(float)
+    wk_secs: dict[date, float] = defaultdict(float)
+    detail: dict[str, list[float]] = defaultdict(lambda: [0, 0.0])
+    for c in real_now:
+        month = c.workout.local_date.replace(day=1)
+        wk_count[month] += 1
+        wk_secs[month] += c.workout.duration_s
+        d_ = detail[c.workout.exercise_type]
+        d_[0] += 1
+        d_[1] += c.workout.duration_s
+    monthly["workouts"] = dict(wk_count)
+    monthly["workouts_s"] = dict(wk_secs)
+
+    months: list[MonthRow] = []
+    for month in _month_starts(first, last):
+        month_last = (month.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+        lo, hi = max(first, month), min(last, month_last)
+        months.append(
+            MonthRow(
+                month=month,
+                days=(hi - lo).days + 1,
+                partial=month < first or month_last > last,
+                values={key: monthly.get(key, {}).get(month) for key, _k, _u in MONTHLY_COLUMNS},
+            )
+        )
+
+    week_series = await points_api.points_series(session, settings, first, last, "week")
+    total_points = float(week_series["summary"]["total"])
+    points = ReportPoints(
+        total=total_points,
+        previous_total=float(week_series["previous_summary"]["total"]),
+        weekly_avg=total_points / (span / 7) if span else None,
+        weeks_complete=int(week_series["summary"]["buckets_complete"]),
+        weeks_over_goal=int(week_series["summary"]["weeks_over_goal"] or 0),
+        goal=int(week_series["weekly_goal"]),
+        hr_configured=bool(week_series["hr_configured"]),
+    )
 
     nights = await _nights(session, settings, first, last)
     stats = _exercise_stats(real_now)
@@ -504,6 +724,7 @@ async def report(
         generated_at=datetime.now(UTC),
         timezone=settings.local_timezone,
         metrics=metrics,
+        extra_metrics=extra_metrics,
         sleep_regularity=sleep_stats(nights) if nights else None,
         workouts=ReportWorkouts(
             count=stats.count,
@@ -511,8 +732,17 @@ async def report(
             avg_duration_s=stats.avg_duration_s,
             per_week=stats.count / (span / 7) if span else None,
             by_type=stats.by_type,
+            by_type_detail=[
+                WorkoutTypeDetail(type=t, count=int(v[0]), duration_s=v[1])
+                for t, v in sorted(detail.items(), key=lambda kv: (-kv[1][1], kv[0]))
+            ],
             scope="real",
             excluded=len(all_now) - len(real_now),
+        ),
+        points=points,
+        monthly=ReportMonthly(
+            columns=[MonthlyColumn(key=k, kind=kind, unit=u) for k, kind, u in MONTHLY_COLUMNS],
+            months=months,
         ),
     )
 
@@ -528,6 +758,8 @@ DAILY_COLUMNS: list[tuple[str, str, str | None, str, str, str | None]] = [
     ("hr_avg", "FC media", "bpm", "HeartRate", "avg", None),
     ("hr_min", "FC min", "bpm", "HeartRate", "min", None),
     ("hr_max", "FC max", "bpm", "HeartRate", "max", None),
+    ("hr_day", "FC diurna", "bpm", "_daypart_day", "avg", None),
+    ("hr_night", "FC notturna", "bpm", "_daypart_night", "avg", None),
     ("resting_hr", "FC a riposo", "bpm", "RestingHeartRate", "avg", None),
     ("hrv", "HRV", "ms", "HeartRateVariabilityRmssd", "avg", None),
     ("spo2", "SpO2", "percent", "OxygenSaturation", "avg", None),
@@ -537,6 +769,7 @@ DAILY_COLUMNS: list[tuple[str, str, str | None, str, str, str | None]] = [
     ("weight_kg", "Peso", "kg", "Weight", "avg", None),
     ("bp_systolic", "Pressione sistolica", "mmHg", "BloodPressure", "avg", "systolic"),
     ("bp_diastolic", "Pressione diastolica", "mmHg", "BloodPressure", "avg", "diastolic"),
+    ("heart_points", "Punti cardio", "points", "HeartPoints", "sum", None),
 ]
 
 
@@ -547,7 +780,7 @@ async def report_daily(
     rows = (
         await session.execute(
             select(DailyMetric).where(
-                DailyMetric.type.in_(DASHBOARD_TYPES),
+                DailyMetric.type.in_([*DASHBOARD_TYPES, "HeartPoints"]),
                 DailyMetric.local_date.between(first, last),
             )
         )
@@ -558,12 +791,25 @@ async def report_daily(
     real_by_day: dict[date, list[Classified]] = defaultdict(list)
     for c in await _exercise_records(session, settings, first, last, "real"):
         real_by_day[c.workout.local_date].append(c)
+    from app.services.daypart import _compute  # lazy: it imports this module
+
+    _, per_day, _w = await _compute(session, settings, first, last)
     out: list[ReportDailyRow] = []
     day = first
     while day <= last:
         values: dict[str, float | None] = {}
         has_any = False
         for key, _label, _unit, type_, agg, field in DAILY_COLUMNS:
+            if type_.startswith("_daypart"):
+                st = per_day.get(day)
+                dv = (
+                    None
+                    if st is None
+                    else (st.daytime(False)[0] if type_.endswith("day") else st.night_avg)
+                )
+                values[key] = dv
+                has_any = has_any or dv is not None
+                continue
             sources = by_key.get((type_, day), {})
             value: float | None = None
             # "count" always comes from what the writer computed (official rows carry no sessions)
