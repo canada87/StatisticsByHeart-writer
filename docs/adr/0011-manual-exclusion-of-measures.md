@@ -105,6 +105,30 @@ già coerenti, senza nessun campo nuovo.
 - Accessibilità (§8.5): nessuna azione solo al passaggio del mouse, ogni controllo ha un'etichetta che nomina la misura,
   finestra di dialogo (Radix) con focus intrappolato e restituito al pulsante che l'ha aperta, bersagli ≥ 44 px.
 
+### 8. Aggregato ufficiale di Health Connect (correzione 0.9.1)
+
+Per ogni giorno e tipo la lettura preferisce la riga `daily_metric` con `source = 'hc_official'` (calcolata da HC dai
+suoi dati) a quella `computed`. L'aggregato ufficiale **include** la misura esclusa, quindi nella 0.9.0 l'esclusione
+ricalcolava la riga `computed` ma non cambiava ciò che si vedeva nei giorni con un ufficiale (caso reale: due pesi nello
+stesso giorno, ufficiale = la loro media).
+
+Regola: se nel giorno locale D esiste almeno un record **escluso e non cancellato** di tipo T (stessa attribuzione al
+giorno del ricalcolo: `health_record.local_date`, il giorno del risveglio per il sonno), la riga `hc_official` di (T, D)
+**viene ignorata** e vale la `computed`.
+
+- Un solo punto: `visibility.daily_visible()` (predicato SQL, `NOT (source = 'hc_official' AND giorno con esclusione)`),
+  aggiunto a **ogni** lettura di `daily_metric` che alimenta grafici, KPI, Panoramica, Report e CSV
+  (`queries._daily`, ultimi valori, sonno, serie; `analytics._nights`, `report_daily`).
+- È valutato **in lettura**: niente colonna o ricalcolo in più. Perciò copre l'aggregato che il Reader rimanda dopo
+  l'esclusione (la riga ufficiale viene aggiornata ma resta ignorata), «Ripristina» riporta subito l'ufficiale, e le
+  esclusioni già fatte con la 0.9.0 si correggono da sole al deploy.
+- Se il record escluso è stato cancellato in Health Connect non impone più nulla: il prossimo ufficiale non lo contiene.
+- Solo `ExerciseSession`/`count` e i Punti cardio leggono già solo `computed`.
+- La riga ufficiale resta **memorizzata** intatta; l'inventario e la scheda **Riconciliazione** la mostrano ancora, con
+  il campo `official_ignored` e una nota sobria («Esclusione manuale: …») nel giorno interessato. Nei grafici nessun
+  segno, come deciso.
+- Costo: una `NOT EXISTS` sulle sole righe ufficiali, con join sulla tabella delle esclusioni (di poche righe).
+
 ## Conseguenze
 
 - **Migrazione `0005`**: una tabella nuova, nessuna colonna toccata, nessun dato spostato. Reversibile (`downgrade`

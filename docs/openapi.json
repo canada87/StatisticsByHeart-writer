@@ -3036,6 +3036,12 @@
             ],
             "title": "Official"
           },
+          "official_ignored": {
+            "default": false,
+            "description": "A manual exclusion on this day: charts and reports use the computed value",
+            "title": "Official Ignored",
+            "type": "boolean"
+          },
           "sources": {
             "items": {
               "$ref": "#/components/schemas/SourceBreakdown"
@@ -5824,7 +5830,7 @@
   "info": {
     "description": "Ingest API (contract v1: docs/api-contract.md) and admin endpoints.",
     "title": "StatisticsByHeart Writer",
-    "version": "0.9.0"
+    "version": "0.9.1"
   },
   "openapi": "3.1.0",
   "paths": {

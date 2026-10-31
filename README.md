@@ -118,8 +118,8 @@ L'immagine **non si builda sulla VM**: la costruisce GitHub Actions e Portainer 
 Per rilasciare (dal tuo PC):
 
 ```bash
-git tag v0.9.0
-git push origin main v0.9.0
+git tag v0.9.1
+git push origin main v0.9.1
 ```
 
 ### Una tantum: rendere pubblico il pacchetto
@@ -163,7 +163,7 @@ variables* (vedi `docker/.env.example`; puoi usare «Load variables from .env fi
 | Variabile | Valore |
 |---|---|
 | `SBH_DB_PASSWORD` | **obbligatoria**, es. output di `openssl rand -hex 24` |
-| `SBH_IMAGE_TAG` | `0.9.0` (la versione da usare) oppure `latest` |
+| `SBH_IMAGE_TAG` | `0.9.1` (la versione da usare) oppure `latest` |
 | `SBH_HTTP_PORT` | `8742` (o quella libera che hai scelto) |
 | `SBH_DATA_DIR` | cartella locale della VM che contiene `db/` (default nel compose) |
 | `SBH_BIRTH_YEAR` | opzionale ma consigliata: il tuo anno di nascita, per la FCmax dei Punti cardio (`205,8 − 0,685 × età`, come Google Fit). **Valore personale: solo qui, mai nel repository** |
@@ -312,6 +312,10 @@ La risposta non contiene alcun valore sanitario: solo date, ore e lo stato. Lo s
 4. **Rollback**: rimetti il tag precedente (`SBH_IMAGE_TAG=0.6.1`) e aggiorna lo stack. Le migrazioni sono solo «in
    avanti»: se una migrazione va annullata ripristina lo snapshot PBS (o il dump) invece di fare `downgrade`.
 
+> **Aggiornamento alla 0.9.1: nessuna migrazione e nessun comando.** Corregge l'esclusione nei giorni con un aggregato ufficiale di
+> Health Connect (prima prevaleva l'ufficiale, che include la misura esclusa). Vale subito dopo il deploy, anche per le esclusioni
+> già fatte: la scelta ufficiale/calcolato avviene in lettura. Se arrivi da una versione prima della 0.9.0 vale la nota seguente (`0005`).
+>
 > **Aggiornamento alla 0.9.0 (c'è una migrazione, `0005`):** crea la tabella `record_exclusion` (le misure escluse a mano);
 > non tocca nessuna tabella esistente e nessun dato. **Prima del deploy fai il `pg_dump`** (sezione *Backup*) o lo snapshot
 > PBS; l'app applica la migrazione da sola all'avvio. Nessuna variabile nuova: nel compose di Portainer cambia solo

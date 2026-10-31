@@ -5,6 +5,14 @@ Cosa cambia a ogni versione, in breve. I dettagli e le motivazioni stanno negli 
 
 Ogni nuova versione aggiunge qui una voce, nello stesso commit che aumenta la versione.
 
+## 0.9.1 — 2026-11-01
+- **Correzione:** l'esclusione di una misura non aveva effetto nei giorni con un aggregato ufficiale di Health Connect
+  (il valore ufficiale, che include la misura esclusa, prevaleva sul calcolato: ad esempio il peso del 27/10 restava la
+  media tra il peso vero e quello escluso). Ora, per quel tipo e quel giorno, si usa il valore calcolato ovunque
+  (grafici, medie mobili, KPI, Report, CSV); con «Ripristina» torna l'ufficiale. Nessuna migrazione e nessun comando di
+  ricalcolo: vale subito dopo il deploy, anche per le esclusioni già fatte. La scheda Riconciliazione segnala i giorni
+  interessati. ADR 0011.
+
 ## 0.9.0 — 2026-10-31 · ⚠️ migrazione `0005`
 - **Esclusione manuale di misure errate** (peso, pressione, SpO₂, FC a riposo, HRV, sonno, allenamenti), per il caso
   del peso di un altro profilo importato da Google Fit. La misura non si cancella: sparisce da grafici, KPI, medie,
