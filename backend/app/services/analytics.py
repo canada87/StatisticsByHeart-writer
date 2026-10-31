@@ -50,6 +50,7 @@ from app.services.queries import (
     bucket_start,
     unit_of,
 )
+from app.services.visibility import daily_visible
 from app.services.workouts import MIN_DURATION, Classified, Workout, classify
 
 DASHBOARD_TYPES = [
@@ -134,7 +135,9 @@ async def _nights(
     rows = (
         await session.execute(
             select(DailyMetric).where(
-                DailyMetric.type == "SleepSession", DailyMetric.local_date.between(first, last)
+                DailyMetric.type == "SleepSession",
+                DailyMetric.local_date.between(first, last),
+                daily_visible(),
             )
         )
     ).scalars()
@@ -791,6 +794,7 @@ async def report_daily(
             select(DailyMetric).where(
                 DailyMetric.type.in_([*DASHBOARD_TYPES, "HeartPoints"]),
                 DailyMetric.local_date.between(first, last),
+                daily_visible(),
             )
         )
     ).scalars()

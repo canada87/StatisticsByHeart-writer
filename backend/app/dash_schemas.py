@@ -193,6 +193,10 @@ class ReconciliationRow(BaseModel):
     diff: float | None = Field(description="computed - official")
     diff_pct: float | None
     status: Literal["match", "diff", "no_official", "no_computed", "no_data"]
+    official_ignored: bool = Field(
+        default=False,
+        description="A manual exclusion on this day: charts and reports use the computed value",
+    )
     naive_exceeds_official: bool = Field(
         description="True when summing all sources would overshoot the official value by >5%"
     )

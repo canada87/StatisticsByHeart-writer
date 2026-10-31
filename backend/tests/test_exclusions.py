@@ -485,7 +485,11 @@ async def test_the_seed_has_a_foreign_weight_to_demo_the_feature(
     weights = await _measures(web, "Weight", first, str(TODAY))
     odd = [m for m in weights if m["value"] == 32.0]
     assert len(odd) == 1 and odd[0]["sources"] == ["synthetic.phone", "synthetic.scale"]
+    day = odd[0]["local_date"]
+    # the demo has the official aggregate too, which averages the foreign weight with the real one
+    assert (await _series_values(web, "Weight", day, day))[day] < 60
     await _exclude(web, odd[0]["ids"][0])
+    assert (await _series_values(web, "Weight", day, day))[day] > 70
     series = (
         await web.get(f"/api/v1/metrics/Weight/series?from={first}&to={TODAY}&bucket=day")
     ).json()

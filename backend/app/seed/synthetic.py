@@ -366,6 +366,28 @@ class _Builder:
                 if r["type"] == "HeartRate" and r["start_time"].startswith(day.isoformat())
                 for s in r["data"]["samples"]
             ]
+            # HC aggregates every weight of the day, the foreign one included: only an exclusion
+            # in the writer takes it out (the mirrored phone copy is the same measure)
+            kg = [
+                r["data"]["value"]
+                for r in self.records
+                if r["type"] == "Weight"
+                and r["source"]["package"] == SCALE
+                and r["start_time"].startswith(day.isoformat())
+            ]
+            if kg:
+                out.append(
+                    {
+                        "date": day.isoformat(),
+                        "type": "Weight",
+                        "avg": round(sum(kg) / len(kg), 3),
+                        "min": min(kg),
+                        "max": max(kg),
+                        "count": len(kg),
+                        "data_origins": [SCALE],
+                        "snapshot_at": snap,
+                    }
+                )
             out.append(
                 {
                     "date": day.isoformat(),

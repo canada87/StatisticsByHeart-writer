@@ -40,7 +40,7 @@ from app.errors import ApiError
 from app.health_types import SPECS, DailyKind, TypeSpec
 from app.models import DailyMetric, Device, HealthRecord, HealthSample, SyncRun
 from app.services.daily import Coverage, Row, counted_values, rank_sources
-from app.services.visibility import not_excluded
+from app.services.visibility import daily_visible, not_excluded, official_ignored
 
 MAX_SERIES_DAYS = 3660
 INTRADAY_MAX_DAYS = {"15min": 3, "hour": 31}
@@ -75,15 +75,19 @@ def today_local(settings: Settings) -> date:
 
 
 async def _daily(
-    session: AsyncSession, types: Sequence[str], first: date, last: date
+    session: AsyncSession,
+    types: Sequence[str],
+    first: date,
+    last: date,
+    *,
+    keep_ignored_official: bool = False,
 ) -> dict[tuple[str, date, str], DailyMetric]:
-    rows = (
-        await session.execute(
-            select(DailyMetric).where(
-                DailyMetric.type.in_(types), DailyMetric.local_date.between(first, last)
-            )
-        )
-    ).scalars()
+    stmt = select(DailyMetric).where(
+        DailyMetric.type.in_(types), DailyMetric.local_date.between(first, last)
+    )
+    if not keep_ignored_official:  # only the reconciliation shows what exclusions override
+        stmt = stmt.where(daily_visible())
+    rows = (await session.execute(stmt)).scalars()
     return {(r.type, r.local_date, r.source): r for r in rows}
 
 
@@ -123,6 +127,7 @@ async def _latest_instant(
                 DailyMetric.type == type_,
                 DailyMetric.local_date.between(day - timedelta(days=LATEST_LOOKBACK_DAYS), day),
                 DailyMetric.avg_value.is_not(None),
+                daily_visible(),
             )
             .order_by(DailyMetric.local_date.desc())
         )
@@ -145,6 +150,7 @@ async def _sleep_summary(session: AsyncSession, day: date) -> SleepSummary | Non
             .where(
                 DailyMetric.type == "SleepSession",
                 DailyMetric.local_date.between(day - timedelta(days=2), day),
+                daily_visible(),
             )
             .order_by(DailyMetric.local_date.desc())
         )
@@ -392,7 +398,9 @@ async def _day_series(
     rows = (
         await session.execute(
             select(DailyMetric).where(
-                DailyMetric.type == spec.name, DailyMetric.local_date.between(first, last)
+                DailyMetric.type == spec.name,
+                DailyMetric.local_date.between(first, last),
+                daily_visible(),
             )
         )
     ).scalars()
@@ -793,7 +801,18 @@ async def reconciliation(
         if spec is None or spec.daily not in (DailyKind.SUM, DailyKind.SLEEP, DailyKind.SESSION):
             raise ApiError(422, "type_not_supported", f"{t} has no comparable daily total")
 
-    daily = await _daily(session, types, first, last)
+    daily = await _daily(session, types, first, last, keep_ignored_official=True)
+    # days whose official aggregate an exclusion overrides: shown here, ignored everywhere else
+    overridden = {
+        (r[0], r[1])
+        for r in await session.execute(
+            select(DailyMetric.type, DailyMetric.local_date).where(
+                DailyMetric.type.in_(types),
+                DailyMetric.local_date.between(first, last),
+                official_ignored(),
+            )
+        )
+    }
     raw: dict[tuple[str, date], dict[str, tuple[int, float]]] = defaultdict(dict)
     for t in types:
         spec = SPECS[t]
@@ -867,6 +886,7 @@ async def reconciliation(
                     diff=diff,
                     diff_pct=diff_pct,
                     status=status,
+                    official_ignored=(t, day) in overridden,
                     naive_exceeds_official=bool(
                         naive is not None
                         and official

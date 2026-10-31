@@ -1,3 +1,3 @@
 """The writer version (one place: the API, the HA endpoint and the docs read it)."""
 
-VERSION = "0.9.0"
+VERSION = "0.9.1"
