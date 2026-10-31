@@ -556,7 +556,10 @@ test.describe('report (synthetic data)', () => {
     const rows = avg.getByTestId('month-row')
     expect(await rows.count()).toBeGreaterThanOrEqual(4)
     await expect(rows.first()).toHaveAttribute('data-partial', 'true')
-    await expect(rows.last()).toHaveAttribute('data-partial', 'true')
+    // the running month is partial, except on its last day (the dashboard counts the day as complete)
+    const tomorrow = daysAgo(-1)
+    const lastIsPartial = tomorrow.slice(0, 7) === daysAgo(0).slice(0, 7)
+    await expect(rows.last()).toHaveAttribute('data-partial', String(lastIsPartial))
     await expect(rows.nth(1)).toHaveAttribute('data-partial', 'false')
     await expect(avg.getByRole('columnheader', { name: /FC notturna/ })).toBeVisible()
     await expect(page.getByTestId('monthly-sum').getByRole('columnheader', { name: /Punti cardio/ })).toBeVisible()
@@ -677,6 +680,7 @@ test.describe('all pages: screenshots, a11y, no horizontal scroll', () => {
         ['inventory', 'Inventario'],
         ['recon', 'Riconciliazione'],
         ['storage', 'Spazio e limiti'],
+        ['excluded', 'Dati esclusi'],
       ] as const) {
         await page.goto(tab === 'sync' ? '/sync' : `/sync?tab=${tab}`)
         await expect(page.getByRole('tab', { name: label })).toHaveAttribute('data-state', 'active')
@@ -809,5 +813,165 @@ test.describe('report content, clean PDF, Home Assistant alarm', () => {
     await expect(devices.nth(1)).toContainText('ultima sync riuscita')
     await a11y(page)
     await page.getByTestId('panel-sync-status').screenshot({ path: join(SHOTS, 'sync-alarm.png') })
+  })
+})
+
+test.describe('manual exclusion of wrong measures (synthetic data)', () => {
+  /** The seed has a foreign 32 kg weight three days ago, from two sources (scale + phone). */
+  const WEIGHT_RANGE = '/body?r=7d'
+
+  async function weightMeasures(page: Page): Promise<{ value: number | null; ids: number[] }[]> {
+    const res = await page.request.get(`/api/v1/measures?type=Weight&from=${daysAgo(10)}&to=${daysAgo(0)}`)
+    expect(res.ok()).toBeTruthy()
+    return (await res.json()).measures
+  }
+
+  async function restoreAll(page: Page) {
+    const list = await (await page.request.get('/api/v1/exclusions')).json()
+    for (const it of list.items) {
+      await page.request.delete(`/api/v1/exclusions/${it.group_id}`, { headers: { 'X-SBH-Client': 'dashboard' } })
+    }
+  }
+
+  test('exclude from the chart: the value disappears everywhere, no signal in the chart, restore from "Dati esclusi"', async ({ page }) => {
+    test.setTimeout(120_000)
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await login(page)
+    await restoreAll(page)
+    await page.goto(WEIGHT_RANGE)
+    await settled(page)
+    const panel = page.getByTestId('trend-weight')
+    expect((await weightMeasures(page)).some((m) => m.value === 32)).toBe(true)
+    const before = await panel.getByTestId('chart-summary').innerText()
+
+    // keyboard path: the permanent button, then the list of single measures of the range
+    await panel.getByTestId('exclude-open').focus()
+    await page.keyboard.press('Enter')
+    const dialog = page.getByTestId('exclude-dialog')
+    await expect(dialog).toBeVisible()
+    await expect(dialog.getByTestId('exclude-measure').filter({ hasText: '32 kg' })).toHaveCount(1) // the two copies are one measure
+    await dialog.getByRole('button', { name: /32 kg/ }).click()
+    await expect(dialog.getByTestId('confirm-type')).toHaveText('Peso')
+    await expect(dialog.getByTestId('confirm-value')).toHaveText('32 kg')
+    await expect(dialog.getByTestId('confirm-date')).toContainText('07:40')
+    await dialog.getByTestId('exclude-reason').fill('Peso di mio figlio (Google Fit)')
+    await page.screenshot({ path: join(SHOTS, 'exclude-confirm.png') })
+    await dialog.getByTestId('exclude-confirm-button').click()
+
+    // feedback with undo
+    const toast = page.getByTestId('toast')
+    await expect(toast).toContainText('Escluso')
+    await expect(toast.getByTestId('toast-action')).toHaveText('Annulla')
+    await page.screenshot({ path: join(SHOTS, 'exclude-toast.png') })
+
+    // gone from the API and from the page; the chart carries no sign of it
+    await expect.poll(async () => (await weightMeasures(page)).some((m) => m.value === 32)).toBe(false)
+    await settled(page)
+    const after = await panel.getByTestId('chart-summary').innerText()
+    expect(after).not.toBe(before)
+    expect(await panel.innerText()).not.toMatch(/esclus/i)
+    await panel.getByRole('button', { name: 'Mostra tabella' }).click()
+    await expect(panel.getByRole('table')).not.toContainText('32 kg')
+
+    // the dedicated page is the only place where it shows, with a restore button
+    await page.goto('/sync?tab=excluded')
+    const row = page.getByTestId('excluded-row')
+    await expect(row).toHaveCount(1)
+    await expect(row).toContainText('Peso')
+    await expect(row).toContainText('32 kg')
+    await expect(row).toContainText('Peso di mio figlio')
+    await settled(page)
+    await a11y(page)
+    await row.getByTestId('restore-button').click()
+    await expect(page.getByTestId('excluded-row')).toHaveCount(0)
+    await expect.poll(async () => (await weightMeasures(page)).some((m) => m.value === 32)).toBe(true)
+  })
+
+  test('click or tap on a chart point opens the measures of that day (pointer path)', async ({ page }) => {
+    test.setTimeout(120_000)
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await login(page)
+    await restoreAll(page)
+    await page.goto(WEIGHT_RANGE)
+    await settled(page)
+    const canvas = page.getByTestId('trend-weight').locator('canvas').first()
+    const box = await canvas.boundingBox()
+    expect(box).not.toBeNull()
+    // 7 daily points over the plot area: the foreign weight (three days ago) sits in the middle
+    await page.mouse.click((box?.x ?? 0) + (box?.width ?? 0) * 0.5, (box?.y ?? 0) + (box?.height ?? 0) * 0.5)
+    const dialog = page.getByTestId('exclude-dialog')
+    await expect(dialog).toBeVisible()
+    await expect(dialog.getByRole('button', { name: /32 kg/ })).toBeVisible()
+    await page.screenshot({ path: join(SHOTS, 'exclude-list.png') })
+    await page.keyboard.press('Escape')
+    await expect(dialog).toHaveCount(0)
+    expect((await weightMeasures(page)).some((m) => m.value === 32)).toBe(true) // nothing was excluded
+  })
+
+  test('exclude from a row of the data table, and undo from the toast', async ({ page }) => {
+    test.setTimeout(120_000)
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await login(page)
+    await restoreAll(page)
+    await page.goto(WEIGHT_RANGE)
+    await settled(page)
+    const panel = page.getByTestId('trend-weight')
+    await panel.getByRole('button', { name: 'Mostra tabella' }).click()
+    const buttons = panel.getByTestId('exclude-row-button')
+    await expect(buttons.first()).toBeVisible()
+    // the table lists the days with data: the row of the foreign weight is the one where the dialog offers 32 kg
+    const count = await buttons.count()
+    let found = false
+    for (let i = 0; i < count && !found; i++) {
+      await buttons.nth(i).click()
+      const dialog = page.getByTestId('exclude-dialog')
+      await expect(dialog).toBeVisible()
+      // a day with a single measure goes straight to the confirmation, otherwise the list of its measures
+      await expect(dialog.getByTestId('exclude-confirm').or(dialog.getByTestId('exclude-list')).or(dialog.getByTestId('exclude-empty'))).toBeVisible()
+      if ((await dialog.getByTestId('exclude-list').count()) > 0 && (await dialog.getByRole('button', { name: /32 kg/ }).count()) > 0) {
+        await dialog.getByRole('button', { name: /32 kg/ }).click()
+      }
+      if ((await dialog.getByTestId('exclude-confirm').count()) > 0 && (await dialog.getByTestId('confirm-value').innerText()) === '32 kg') {
+        found = true
+        await dialog.getByTestId('exclude-confirm-button').click()
+      } else {
+        await page.keyboard.press('Escape')
+        await expect(dialog).toHaveCount(0)
+      }
+    }
+    expect(found).toBe(true)
+    await expect(page.getByTestId('toast')).toContainText('Escluso')
+    await expect.poll(async () => (await weightMeasures(page)).some((m) => m.value === 32)).toBe(false)
+    await page.getByTestId('toast-action').click()
+    await expect(page.getByTestId('toast')).toContainText('annullata')
+    await expect.poll(async () => (await weightMeasures(page)).some((m) => m.value === 32)).toBe(true)
+  })
+
+  test('the Dati esclusi tab: empty state, then the list on every viewport', async ({ page }) => {
+    test.setTimeout(180_000)
+    await login(page)
+    await restoreAll(page)
+    await page.goto('/sync?tab=excluded')
+    await expect(page.getByRole('tab', { name: 'Dati esclusi' })).toHaveAttribute('data-state', 'active')
+    await expect(page.getByTestId('panel-excluded')).toContainText('Nessun dato escluso')
+    const foreign = (await weightMeasures(page)).find((m) => m.value === 32)
+    const made = await page.request.post('/api/v1/exclusions', {
+      headers: { 'X-SBH-Client': 'dashboard' },
+      data: { record_id: foreign?.ids[0], reason: 'Altra persona' },
+    })
+    expect(made.status()).toBe(201)
+    try {
+      for (const vp of VIEWPORTS) {
+        await page.setViewportSize(vp)
+        await page.goto('/sync?tab=excluded')
+        await expect(page.getByTestId('excluded-row')).toHaveCount(1)
+        await settled(page)
+        await noHorizontalScroll(page)
+        await a11y(page)
+        await page.screenshot({ path: join(SHOTS, `excluded-${vp.name}.png`), fullPage: true })
+      }
+    } finally {
+      await restoreAll(page)
+    }
   })
 })
