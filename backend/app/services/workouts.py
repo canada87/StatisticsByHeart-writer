@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import Settings
 from app.models import ExerciseOverride, HealthRecord, HealthSample
 from app.services.daily import Coverage, rank_sources
+from app.services.visibility import not_excluded
 
 # --- the rule: ONE place to refine it ------------------------------------------------------
 NOT_REAL_TYPES = frozenset({"WALKING"})
@@ -148,6 +149,7 @@ async def load_workouts(session: AsyncSession, first: date, last: date) -> list[
             ).where(
                 HealthRecord.type == "ExerciseSession",
                 HealthRecord.deleted_at.is_(None),
+                not_excluded(),
                 HealthRecord.local_date.between(first, last),
             )
         )

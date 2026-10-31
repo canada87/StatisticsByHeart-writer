@@ -212,6 +212,7 @@ async def test_no_health_value_leaves_the_endpoint(
         "user_session",
         "admin_user",
         "exercise_override",
+        "record_exclusion",
         "user_preference",
         "alembic_version",
     }

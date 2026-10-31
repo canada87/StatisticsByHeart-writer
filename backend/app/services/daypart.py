@@ -32,6 +32,7 @@ from app.errors import ApiError
 from app.models import HealthRecord
 from app.services.analytics import previous_range
 from app.services.queries import MAX_SERIES_DAYS, _span_days, bucket_start, local_bounds
+from app.services.visibility import not_excluded
 from app.services.workouts import classify, recovery_end
 
 FIXED_START = time(23, 0)
@@ -75,6 +76,7 @@ async def _sleep_spans(session: AsyncSession, first: date, last: date) -> list[S
             select(HealthRecord.start_ts, HealthRecord.end_ts, HealthRecord.local_date).where(
                 HealthRecord.type == "SleepSession",
                 HealthRecord.deleted_at.is_(None),
+                not_excluded(),
                 HealthRecord.end_ts.is_not(None),
                 HealthRecord.local_date.between(first, last),
             )

@@ -126,7 +126,9 @@ async def check_month_by_month_table(web: httpx.AsyncClient) -> None:
     months = monthly["months"]
     assert len(months) in (4, 5)
     # the first and the last month are partial, the ones in between are whole
-    assert months[0]["partial"] is True and months[-1]["partial"] is True
+    # (on the last day of a month that month is already whole: the test must not depend on today)
+    last_is_partial = (TODAY + timedelta(days=1)).month == TODAY.month
+    assert months[0]["partial"] is True and months[-1]["partial"] is last_is_partial
     assert all(m["partial"] is False for m in months[1:-1])
     assert months[0]["month"] == FIRST.replace(day=1).isoformat()
     assert sum(m["days"] for m in months) == body["days"]

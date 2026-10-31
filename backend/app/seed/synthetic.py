@@ -234,6 +234,17 @@ class _Builder:
         self.add("Weight", SCALE, when, None, {"value": w}, method="manual")
         self.add("Weight", PHONE, when, None, {"value": w}, method="manual")  # mirrored copy
 
+    def foreign_weight(self, day: date, end: date) -> None:
+        """A clearly foreign reading (32 kg: a child weighed on another profile of the scale app).
+
+        Demo of the manual exclusion: it shows up as a plain point until the user excludes it.
+        """
+        if day != end - timedelta(days=3):
+            return
+        when = self.at(day, 7, 40)
+        self.add("Weight", SCALE, when, None, {"value": 32.0}, method="manual")
+        self.add("Weight", PHONE, when, None, {"value": 32.0}, method="manual")
+
     # (exercise_type, HC constant, title, minutes range, has GPS route)
     WORKOUTS = (
         ("WALKING", 79, "Evening walk", (30, 55), True, True),
@@ -391,6 +402,7 @@ def generate(cfg: SeedConfig | None = None) -> SyntheticData:
         builder.heart(day, index)
         builder.night(day)
         builder.weight(day, index)
+        builder.foreign_weight(day, end)
         builder.workout(day, index)
         builder.automatic_walk(day, index)
         builder.short_session(day, index)

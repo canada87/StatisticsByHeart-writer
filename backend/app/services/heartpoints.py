@@ -35,6 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import Settings
 from app.models import DailyMetric, HealthRecord
 from app.services.daily import Row, counted_values
+from app.services.visibility import not_excluded
 
 log = logging.getLogger("sbh.heartpoints")
 
@@ -262,6 +263,7 @@ async def session_minutes(session: AsyncSession, settings: Settings, day: date) 
             select(HealthRecord.start_ts, HealthRecord.end_ts).where(
                 HealthRecord.type == "ExerciseSession",
                 HealthRecord.deleted_at.is_(None),
+                not_excluded(),
                 HealthRecord.start_ts < end,
                 HealthRecord.end_ts > start,
             )

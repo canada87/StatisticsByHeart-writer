@@ -231,3 +231,26 @@ class UserPreference(Base):
     key: Mapped[str] = mapped_column(String(64), primary_key=True)
     value: Mapped[Any] = mapped_column(JSONB)
     updated_at: Mapped[datetime] = mapped_column(TZ, server_default=NOW)
+
+
+class RecordExclusion(Base):
+    """A measure the user excluded from every analysis (wrong person's weight, a bad reading...).
+
+    Keyed by (type, hc_id) like the records themselves and kept in its own table, so re-ingesting or
+    updating the record can never reset it and it survives a deletion in Health Connect (ADR 0011).
+    The record stays in ``health_record``: restoring is just deleting the row. Copies of the same
+    measure reported by several apps are excluded together and share a ``group_id``.
+    """
+
+    __tablename__ = "record_exclusion"
+
+    type: Mapped[str] = mapped_column(String(64))
+    hc_id: Mapped[str] = mapped_column(String(128))
+    group_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    reason: Mapped[str | None] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(TZ, server_default=NOW)
+
+    __table_args__ = (
+        PrimaryKeyConstraint("type", "hc_id", name="pk_record_exclusion"),
+        Index("ix_record_exclusion_group", "group_id"),
+    )

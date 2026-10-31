@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import Settings
 from app.health_types import NOT_ASLEEP_STAGES, SPECS, DailyKind, TypeSpec
 from app.models import DailyMetric, HealthRecord, HealthSample
+from app.services.visibility import not_excluded
 
 SESSION_DUPLICATE_OVERLAP = 0.5
 
@@ -278,6 +279,7 @@ async def _fetch_rows(session: AsyncSession, type_: str, dates: set[date]) -> di
         HealthRecord.type == type_,
         HealthRecord.local_date.in_(dates),
         HealthRecord.deleted_at.is_(None),
+        not_excluded(),
     )
     out: dict[date, list[Row]] = defaultdict(list)
     for ld, start, end, source, data in (await session.execute(stmt)).all():

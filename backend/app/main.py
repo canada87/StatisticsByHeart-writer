@@ -17,7 +17,7 @@ from app.deps import require_admin
 from app.errors import install_error_handlers
 from app.middleware import BodyGuardMiddleware
 from app.ratelimit import LoginLimiter, RequestLimiter
-from app.routers import admin, auth, dashboard, ha, ingest, preferences, public
+from app.routers import admin, auth, dashboard, exclusions, ha, ingest, preferences, public
 from app.scheduler import build_scheduler
 from app.services import maintenance
 from app.spa import install_spa
@@ -109,6 +109,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth.router)
     app.include_router(admin.router)
     app.include_router(dashboard.router)
+    app.include_router(exclusions.router)
     app.include_router(preferences.router)
     app.include_router(ha.router)
 

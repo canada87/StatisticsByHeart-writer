@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date as Date
 from datetime import datetime
 from typing import Any, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -781,3 +782,64 @@ class PointsRules(BaseModel):
     daily_reference: float = Field(description="weekly_goal / 7: indicative, not a goal")
     week_starts: Literal["monday"]
     timezone: str
+
+
+# --------------------------------------------------------------------------- exclusions (ADR 0011)
+
+
+class MeasureItem(BaseModel):
+    """One measure as the user knows it: copies of it reported by several apps are merged."""
+
+    ids: list[int] = Field(description="health_record ids of every copy (send any one to exclude)")
+    type: str
+    start: datetime
+    end: datetime | None
+    local_date: Date
+    value: float | None = Field(description="Weight, SpO2, ...; systolic; or duration in seconds")
+    value2: float | None = Field(default=None, description="Diastolic pressure")
+    unit: str | None
+    label: str | None = Field(default=None, description="Workout type or title, sleep title")
+    sources: list[str]
+
+
+class MeasuresResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    type: str
+    from_: Date = Field(alias="from")
+    to: Date
+    measures: list[MeasureItem]
+
+
+class ExcludeBody(BaseModel):
+    record_id: int = Field(description="Any copy of the measure, from /measures")
+    reason: str | None = Field(default=None, max_length=200)
+
+
+class ExcludeResult(BaseModel):
+    group_id: UUID
+    records: int = Field(description="Copies excluded together")
+    days: int = Field(description="Local days recomputed")
+    measure: MeasureItem
+
+
+class ExclusionItem(BaseModel):
+    group_id: UUID
+    type: str
+    start: datetime | None
+    end: datetime | None
+    local_date: Date | None
+    value: float | None
+    value2: float | None
+    unit: str | None
+    label: str | None
+    sources: list[str]
+    reason: str | None
+    created_at: datetime
+    state: Literal["present", "deleted_in_hc", "missing"] = Field(
+        description="deleted_in_hc: removed from Health Connect since; missing: not stored any more"
+    )
+
+
+class ExclusionsResponse(BaseModel):
+    items: list[ExclusionItem]

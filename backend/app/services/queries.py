@@ -40,6 +40,7 @@ from app.errors import ApiError
 from app.health_types import SPECS, DailyKind, TypeSpec
 from app.models import DailyMetric, Device, HealthRecord, HealthSample, SyncRun
 from app.services.daily import Coverage, Row, counted_values, rank_sources
+from app.services.visibility import not_excluded
 
 MAX_SERIES_DAYS = 3660
 INTRADAY_MAX_DAYS = {"15min": 3, "hour": 31}
@@ -209,7 +210,11 @@ async def recent_activities(
         (
             await session.execute(
                 select(HealthRecord)
-                .where(HealthRecord.type == "ExerciseSession", HealthRecord.deleted_at.is_(None))
+                .where(
+                    HealthRecord.type == "ExerciseSession",
+                    HealthRecord.deleted_at.is_(None),
+                    not_excluded(),
+                )
                 .order_by(HealthRecord.start_ts.desc())
                 .limit(limit * 6)
             )
@@ -503,6 +508,7 @@ async def _intraday_series(
             ).where(
                 HealthRecord.type == spec.name,
                 HealthRecord.deleted_at.is_(None),
+                not_excluded(),
                 HealthRecord.start_ts >= start,
                 HealthRecord.start_ts < end,
             )
@@ -809,6 +815,7 @@ async def reconciliation(
                     and_(
                         HealthRecord.type == t,
                         HealthRecord.deleted_at.is_(None),
+                        not_excluded(),
                         HealthRecord.local_date.between(first, last),
                     )
                 )
