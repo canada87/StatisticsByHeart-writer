@@ -168,6 +168,7 @@ export interface ReconciliationRow {
   diff: number | null
   diff_pct: number | null
   status: ReconStatus
+  official_ignored: boolean
   naive_exceeds_official: boolean
   sources: SourceBreakdown[]
 }

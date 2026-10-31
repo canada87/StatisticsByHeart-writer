@@ -189,6 +189,22 @@ describe('sync / dati', () => {
     expect(await screen.findByTestId('chart-summary')).toHaveTextContent('1 coincidono')
   })
 
+  it('reconciliation explains a day whose official value an exclusion overrides, and only that day', async () => {
+    const [first] = fx.reconciliation.rows
+    handlers['/api/v1/data/reconciliation'] = () => ({
+      body: {
+        ...fx.reconciliation,
+        rows: [{ ...first, official_ignored: true }, { ...first, date: '2026-10-14', official_ignored: false }],
+      },
+    })
+    renderApp('/sync?tab=recon')
+    const rows = await screen.findAllByTestId('recon-row')
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toHaveTextContent('Esclusione manuale')
+    expect(rows[0]).toHaveTextContent('valore calcolato')
+    expect(rows[1]).not.toHaveTextContent('Esclusione manuale')
+  })
+
   it('switching tabs updates the URL', async () => {
     const { router } = renderApp('/sync')
     await userEvent.setup().click(await screen.findByRole('tab', { name: 'Inventario' }))

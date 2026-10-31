@@ -212,6 +212,7 @@ export const reconciliation: ReconciliationResponse = {
       diff: 0,
       diff_pct: 0,
       status: 'match',
+      official_ignored: false,
       naive_exceeds_official: true,
       sources: [
         { package: 'synthetic.phone', records: 60, raw: 10200, counted: 10200 },

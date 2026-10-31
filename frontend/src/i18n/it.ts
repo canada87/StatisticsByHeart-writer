@@ -225,6 +225,9 @@ export const it = {
   'recon.summary':
     '{type}, {days} giorni: {matches} coincidono, {diffs} differiscono, {noOfficial} senza valore ufficiale, {overlap} con sorgenti sovrapposte.',
   'recon.overlap': 'Sovrapposizione',
+  'recon.ignored': 'Esclusione manuale',
+  'recon.ignored.hint':
+    'Una misura di questo giorno è stata esclusa: grafici e report usano il valore calcolato, non quello ufficiale (che la include).',
   'recon.col.day': 'Giorno',
   'recon.col.official': 'Ufficiale HC',
   'recon.col.computed': 'Calcolato',

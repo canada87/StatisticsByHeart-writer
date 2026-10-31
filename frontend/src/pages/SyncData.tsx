@@ -366,6 +366,11 @@ function ReconRowItem({ row }: { row: ReconciliationRow }) {
         <Badge tone={view.tone} icon={view.icon}>
           {t(`recon.status.${row.status}` as const)}
         </Badge>
+        {row.official_ignored && (
+          <span className="mt-1 block text-xs text-fg-muted" data-testid="recon-ignored">
+            {t('recon.ignored')}: {t('recon.ignored.hint')}
+          </span>
+        )}
       </td>
       <td className="px-2 py-1.5">
         <ul className="flex flex-col gap-0.5 text-xs">
