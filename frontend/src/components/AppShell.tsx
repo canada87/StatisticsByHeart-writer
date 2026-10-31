@@ -20,6 +20,7 @@ import { t } from '../i18n'
 import { timeAgo } from '../lib/format'
 import { useRange } from '../lib/useRange'
 import { RangeSelector } from './RangeSelector'
+import { ToastProvider } from './Toast'
 
 const NAV = [
   { to: '/', label: 'nav.overview', icon: SquaresFour },
@@ -189,6 +190,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
   const showRange = !path.startsWith('/report')
   return (
     <MotionConfig reducedMotion="user">
+      <ToastProvider>
       <a href="#main" className="sr-only-focusable fixed left-2 top-2 z-50 border border-accent-glow bg-bg px-3 py-2">
         {t('a11y.skip')}
       </a>
@@ -235,6 +237,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
       </div>
 
       <BottomNav />
+      </ToastProvider>
     </MotionConfig>
   )
 }

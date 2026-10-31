@@ -5,9 +5,11 @@ import type {
   Bucket,
   DataBounds,
   DaypartResponse,
+  ExclusionsResponse,
   ExerciseResponse,
   ExerciseRules,
   InventoryResponse,
+  MeasuresResponse,
   OverrideResult,
   PointsRules,
   PointsSeriesResponse,
@@ -197,4 +199,21 @@ export const pointsRulesQuery = () =>
     queryKey: ['points-rules'],
     queryFn: () => api<PointsRules>('/api/v1/heart/points/rules'),
     staleTime: 10 * 60_000,
+  })
+
+/** The individual measures of a period (what a chart point aggregates): candidates for exclusion. */
+export const measuresQuery = (p: { type: string; from: string; to: string }, enabled = true) =>
+  queryOptions({
+    queryKey: ['measures', p],
+    queryFn: () => api<MeasuresResponse>(withQuery('/api/v1/measures', { ...p })),
+    enabled,
+    gcTime: 0, // always fresh: a measure may have been excluded since
+    staleTime: 0,
+  })
+
+/** Everything the user excluded, newest exclusion first. */
+export const exclusionsQuery = () =>
+  queryOptions({
+    queryKey: ['exclusions'],
+    queryFn: () => api<ExclusionsResponse>('/api/v1/exclusions'),
   })

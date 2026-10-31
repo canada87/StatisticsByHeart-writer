@@ -20,10 +20,11 @@ import type { ExerciseResponse, ExerciseRow, SleepNight } from '../api/types'
 import { type MessageKey, t } from '../i18n'
 import { baseOption, palette } from '../lib/charts'
 import { csvName, downloadCsv, toCsv } from '../lib/csv'
-import { fmtDateTime, fmtDay, fmtDayShort, fmtDuration, fmtNumber } from '../lib/format'
+import { fmtDateTime, todayLocal, fmtDay, fmtDayShort, fmtDuration, fmtNumber } from '../lib/format'
 import type { ResolvedRange } from '../lib/range'
 import { useWorkoutScope } from '../lib/useFlags'
 import { ChartFrame } from './ChartCard'
+import { ExcludeButton } from './ExcludeButton'
 import { Panel } from './hud'
 import { Async, EmptyState, Skeleton } from './states'
 
@@ -114,6 +115,15 @@ export function SleepStagesChart({ range }: { range: ResolvedRange }) {
               table={built.table}
               csv={built.csv}
               cursor={{ count: built.nights.length, index: cursor, onChange: setCursor, readout: cursor === null ? '' : built.readout(cursor) }}
+              rowAction={{
+                header: t('excl.col.action'),
+                render: (i) => {
+                  const n = built.nights[i]
+                  return n ? (
+                    <ExcludeButton type="SleepSession" from={n.date} to={n.date} label={fmtDay(n.date)} />
+                  ) : null
+                },
+              }}
             />
           )
         }
@@ -185,6 +195,15 @@ export function SleepScheduleChart({ range }: { range: ResolvedRange }) {
               table={built.table}
               csv={built.csv}
               cursor={{ count: built.nights.length, index: cursor, onChange: setCursor, readout: cursor === null ? '' : built.readout(cursor) }}
+              rowAction={{
+                header: t('excl.col.action'),
+                render: (i) => {
+                  const n = built.nights[i]
+                  return n ? (
+                    <ExcludeButton type="SleepSession" from={n.date} to={n.date} label={fmtDay(n.date)} />
+                  ) : null
+                },
+              }}
             />
           )
         }
@@ -441,6 +460,9 @@ export function WorkoutsTable({ sessions, from, to }: { sessions: ExerciseRow[];
                   {t(k)}
                 </th>
               ))}
+              <th scope="col" className="whitespace-nowrap px-2 py-1.5 text-left font-normal text-fg-muted">
+                {t('excl.col.action')}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -462,6 +484,15 @@ export function WorkoutsTable({ sessions, from, to }: { sessions: ExerciseRow[];
                     <Verdict s={s} />
                     <OverrideSelect s={s} />
                   </div>
+                </td>
+                <td className="px-2 py-1.5">
+                  <ExcludeButton
+                    type="ExerciseSession"
+                    from={todayLocal(new Date(s.start))}
+                    to={todayLocal(new Date(s.start))}
+                    label={`${s.title || activityLabel(s.type)}, ${fmtDateTime(s.start)}`}
+                    preselectId={s.id}
+                  />
                 </td>
               </tr>
             ))}

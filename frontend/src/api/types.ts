@@ -607,3 +607,52 @@ export interface PointsRules {
   week_starts: 'monday'
   timezone: string
 }
+
+// --- manual exclusion of single measures (ADR 0011)
+
+export interface MeasureItem {
+  ids: number[]
+  type: string
+  start: string
+  end: string | null
+  local_date: string
+  value: number | null
+  value2: number | null
+  unit: string | null
+  label: string | null
+  sources: string[]
+}
+
+export interface MeasuresResponse {
+  type: string
+  from: string
+  to: string
+  measures: MeasureItem[]
+}
+
+export interface ExcludeResult {
+  group_id: string
+  records: number
+  days: number
+  measure: MeasureItem
+}
+
+export interface ExclusionItem {
+  group_id: string
+  type: string
+  start: string | null
+  end: string | null
+  local_date: string | null
+  value: number | null
+  value2: number | null
+  unit: string | null
+  label: string | null
+  sources: string[]
+  reason: string | null
+  created_at: string
+  state: 'present' | 'deleted_in_hc' | 'missing'
+}
+
+export interface ExclusionsResponse {
+  items: ExclusionItem[]
+}

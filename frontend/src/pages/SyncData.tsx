@@ -1,3 +1,4 @@
+import { ExcludedPanel } from '../components/ExcludedPanel'
 import {
   ArrowsClockwise,
   CheckCircle,
@@ -33,7 +34,7 @@ import {
 } from '../lib/format'
 import { useRange } from '../lib/useRange'
 
-const TABS = ['sync', 'inventory', 'recon', 'storage'] as const
+const TABS = ['sync', 'inventory', 'recon', 'storage', 'excluded'] as const
 type TabId = (typeof TABS)[number]
 
 const RECON_TYPES = ['Steps', 'Distance', 'ActiveCaloriesBurned', 'TotalCaloriesBurned', 'SleepSession']
@@ -545,6 +546,9 @@ export function SyncDataPage() {
         </Tabs.Content>
         <Tabs.Content value="recon" className="outline-offset-4">
           <ReconTab />
+        </Tabs.Content>
+        <Tabs.Content value="excluded" className="outline-offset-4">
+          <ExcludedPanel />
         </Tabs.Content>
         <Tabs.Content value="storage" className="outline-offset-4">
           <StorageTab />

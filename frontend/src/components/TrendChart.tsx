@@ -1,7 +1,8 @@
+import { EyeSlash } from '@phosphor-icons/react'
 import type { Icon } from '@phosphor-icons/react'
 import { useQuery } from '@tanstack/react-query'
 import { useReducedMotion } from 'motion/react'
-import { useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { daypartQuery, seriesQuery } from '../api/queries'
 import type { Bucket, SeriesResponse } from '../api/types'
 import { t } from '../i18n'
@@ -13,7 +14,10 @@ import { fmtNumber } from '../lib/format'
 import { type MetricDef, fmtMetric, scaled, withUnit } from '../lib/metrics'
 import type { ResolvedRange } from '../lib/range'
 import { ChartFrame, type TableSpec } from './ChartCard'
+import { bucketWindow, isExcludable } from '../lib/exclusions'
 import { useIncludeWorkouts } from '../lib/useFlags'
+import { ExcludeButton } from './ExcludeButton'
+import { ExcludeDialog } from './ExcludeDialog'
 import { type Accent, Panel } from './hud'
 import { Async, Skeleton } from './states'
 
@@ -105,11 +109,18 @@ export function TrendChart({
   const [showMa, setShowMa] = useState(false)
   const [showPrev, setShowPrev] = useState(false)
   const [cursor, setCursor] = useState<number | null>(null)
+  // exclusion of a single measure (weight, pressure, SpO2, ...): the dialog lists the measures of
+  // the chart point that was clicked / last focused, or of the whole range
+  const excludable = isExcludable(def.type)
+  const [lastIdx, setLastIdx] = useState<number | null>(null)
+  const [excl, setExcl] = useState<{ from: string; to: string } | null>(null)
   const bucketId = useId()
   const hourOk = hourlyAllowed(def, range.days)
   const choice: Bucket = bucket === 'hour' && !hourOk ? 'auto' : bucket
   const buckets: PickableBucket[] = hourOk ? ['auto', 'hour', 'day', 'week', 'month'] : ['auto', 'day', 'week', 'month']
   const effective: Bucket = choice === 'auto' ? (defaultBucketProp ?? defaultBucket(range.days)) : choice
+
+  useEffect(() => setLastIdx(null), [range.from, range.to, effective])
 
   const query = useQuery(
     seriesQuery({
@@ -503,9 +514,56 @@ export function TrendChart({
               cursor={{
                 count: built.d.points.length,
                 index: cursor,
-                onChange: setCursor,
+                onChange: (i) => {
+                  setCursor(i)
+                  if (i !== null) setLastIdx(i)
+                },
                 readout: cursor === null ? '' : built.readout(cursor),
               }}
+              onPointClick={
+                excludable
+                  ? (i) => {
+                      const x = built.d.points[i]
+                      if (x) setExcl(bucketWindow(x.t, built.d.bucket, range))
+                    }
+                  : undefined
+              }
+              rowAction={
+                excludable
+                  ? {
+                      header: t('excl.col.action'),
+                      render: (i) => {
+                        const x = built.d.points[i]
+                        if (!x) return null
+                        const w = bucketWindow(x.t, built.d.bucket, range)
+                        return (
+                          <ExcludeButton
+                            type={def.type}
+                            from={w.from}
+                            to={w.to}
+                            label={bucketLabelLong(x.t, built.d.bucket)}
+                          />
+                        )
+                      },
+                    }
+                  : undefined
+              }
+              actions={
+                excludable ? (
+                  <button
+                    type="button"
+                    className="btn min-h-11 text-xs"
+                    data-testid="exclude-open"
+                    onClick={() => {
+                      const x = lastIdx === null ? undefined : built.d.points[lastIdx]
+                      setExcl(x ? bucketWindow(x.t, built.d.bucket, range) : { from: range.from, to: range.to })
+                    }}
+                  >
+                    <EyeSlash size={16} aria-hidden />
+                    {t('excl.open')}
+                  </button>
+                ) : undefined
+              }
               note={
                 <>
                   {built.d.coarsened && (
@@ -539,6 +597,20 @@ export function TrendChart({
           )
         }
       </Async>
+      {excludable && excl && (
+        <ExcludeDialog
+          open
+          onOpenChange={(o) => !o && setExcl(null)}
+          type={def.type}
+          from={excl.from}
+          to={excl.to}
+          onWiden={
+            excl.from !== range.from || excl.to !== range.to
+              ? () => setExcl({ from: range.from, to: range.to })
+              : undefined
+          }
+        />
+      )}
     </Panel>
   )
 }

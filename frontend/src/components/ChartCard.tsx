@@ -45,6 +45,12 @@ interface ChartFrameProps {
   controls?: ReactNode
   cursor?: CursorSpec
   note?: ReactNode
+  /** Click/tap on a chart point (exclusion dialog). Keyboard users have `actions`. */
+  onPointClick?: (index: number) => void
+  /** An extra action cell at the end of every table row (index = row). */
+  rowAction?: { header: string; render: (rowIndex: number) => ReactNode }
+  /** Extra buttons next to "Mostra tabella" / "Esporta CSV". */
+  actions?: ReactNode
 }
 
 /** Arrow keys / Home / End move the cursor over the points, Escape clears it (PROJECT_GUIDE 8.5.3). */
@@ -76,7 +82,19 @@ function onChartKey(e: KeyboardEvent<HTMLDivElement>, cursor: CursorSpec) {
 }
 
 /** A chart is never alone: summary above, focusable chart with keyboard cursor, table alternative and CSV export below. */
-export function ChartFrame({ summary, option, height = 220, table, csv, controls, cursor, note }: ChartFrameProps) {
+export function ChartFrame({
+  summary,
+  option,
+  height = 220,
+  table,
+  csv,
+  controls,
+  cursor,
+  note,
+  onPointClick,
+  rowAction,
+  actions,
+}: ChartFrameProps) {
   const [showTable, setShowTable] = useState(false)
   const summaryId = useId()
   const keysId = useId()
@@ -97,6 +115,11 @@ export function ChartFrame({ summary, option, height = 220, table, csv, controls
                     {c}
                   </th>
                 ))}
+                {rowAction && (
+                  <th scope="col" className="px-2 py-1 font-normal text-fg-muted">
+                    {rowAction.header}
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -107,6 +130,7 @@ export function ChartFrame({ summary, option, height = 220, table, csv, controls
                       {cell}
                     </td>
                   ))}
+                  {rowAction && <td className="px-2 py-1">{rowAction.render(i)}</td>}
                 </tr>
               ))}
             </tbody>
@@ -131,6 +155,7 @@ export function ChartFrame({ summary, option, height = 220, table, csv, controls
                 label={table.caption}
                 describedBy={summaryId}
                 activeIndex={cursor?.index ?? null}
+                onPointClick={onPointClick}
               />
             </Suspense>
           </div>
@@ -167,6 +192,7 @@ export function ChartFrame({ summary, option, height = 220, table, csv, controls
             {t('chart.exportCsv')}
           </button>
         )}
+        {actions}
       </div>
     </div>
   )
