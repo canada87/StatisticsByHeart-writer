@@ -619,7 +619,8 @@ test.describe('report (synthetic data)', () => {
     await page.reload()
     await expect(page).toHaveURL(/d=\d{4}-\d{2}-\d{2}/) // reopening the URL restores the same report
 
-    await page.goto('/report?p=month')
+    // not the running month: on its first days it has too few rows
+    await page.goto(`/report?p=custom&from=${daysAgo(30)}&to=${daysAgo(0)}`)
     await settled(page)
     const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Esporta CSV giornaliero' }).click()])
     const csv = readFileSync(await download.path(), 'utf8').split('\r\n')
@@ -826,6 +827,14 @@ test.describe('manual exclusion of wrong measures (synthetic data)', () => {
     return (await res.json()).measures
   }
 
+  /** The weight of the day of the foreign reading, as the chart gets it (official aggregate or computed). */
+  async function foreignDayWeight(page: Page): Promise<number | null> {
+    const day = daysAgo(3)
+    const res = await page.request.get(`/api/v1/metrics/Weight/series?from=${day}&to=${day}&bucket=day`)
+    expect(res.ok()).toBeTruthy()
+    return (await res.json()).points[0]?.v ?? null
+  }
+
   async function restoreAll(page: Page) {
     const list = await (await page.request.get('/api/v1/exclusions')).json()
     for (const it of list.items) {
@@ -843,6 +852,8 @@ test.describe('manual exclusion of wrong measures (synthetic data)', () => {
     const panel = page.getByTestId('trend-weight')
     expect((await weightMeasures(page)).some((m) => m.value === 32)).toBe(true)
     const before = await panel.getByTestId('chart-summary').innerText()
+    // the seed carries the official Health Connect aggregate of that day, which averages the foreign weight in
+    expect(await foreignDayWeight(page)).toBeLessThan(60)
 
     // keyboard path: the permanent button, then the list of single measures of the range
     await panel.getByTestId('exclude-open').focus()
@@ -866,6 +877,8 @@ test.describe('manual exclusion of wrong measures (synthetic data)', () => {
 
     // gone from the API and from the page; the chart carries no sign of it
     await expect.poll(async () => (await weightMeasures(page)).some((m) => m.value === 32)).toBe(false)
+    // ...and the exclusion wins over that official aggregate: the day is the real weight only
+    expect(await foreignDayWeight(page)).toBeGreaterThan(70)
     await settled(page)
     const after = await panel.getByTestId('chart-summary').innerText()
     expect(after).not.toBe(before)
@@ -885,6 +898,7 @@ test.describe('manual exclusion of wrong measures (synthetic data)', () => {
     await row.getByTestId('restore-button').click()
     await expect(page.getByTestId('excluded-row')).toHaveCount(0)
     await expect.poll(async () => (await weightMeasures(page)).some((m) => m.value === 32)).toBe(true)
+    expect(await foreignDayWeight(page)).toBeLessThan(60) // restored: the official value is back
   })
 
   test('click or tap on a chart point opens the measures of that day (pointer path)', async ({ page }) => {
