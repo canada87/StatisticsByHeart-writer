@@ -11,6 +11,7 @@ import pytest
 from app.config import Settings
 from app.models import Device, SyncRun
 from app.services import alarm
+from app.version import VERSION
 
 URL = "/api/v1/ha/status"
 NOW = datetime(2026, 10, 18, 12, 0, tzinfo=UTC)
@@ -89,7 +90,7 @@ async def test_ok_and_response_shape(
         "version",
     }
     assert 0.9 < body["hours_since_sync"] < 1.1
-    assert body["version"] == "0.8.1"
+    assert body["version"] == VERSION
 
 
 async def test_stale_when_over_threshold(

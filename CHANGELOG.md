@@ -5,6 +5,14 @@ Cosa cambia a ogni versione, in breve. I dettagli e le motivazioni stanno negli 
 
 Ogni nuova versione aggiunge qui una voce, nello stesso commit che aumenta la versione.
 
+## 0.9.0 — 2026-10-31 · ⚠️ migrazione `0005`
+- **Esclusione manuale di misure errate** (peso, pressione, SpO₂, FC a riposo, HRV, sonno, allenamenti), per il caso
+  del peso di un altro profilo importato da Google Fit. La misura non si cancella: sparisce da grafici, KPI, medie,
+  Report (PDF e CSV), aggregati e calcoli derivati, e resta ripristinabile.
+- Si esclude da un punto del grafico (clic, tocco o tastiera) o da una riga di «Mostra tabella», con motivo facoltativo,
+  conferma e «Annulla». Nessun segno nei grafici: le esclusioni stanno in **Sync / Dati › Dati esclusi**, con «Ripristina».
+- L'esclusione sopravvive alle sincronizzazioni e non va in errore se Health Connect cancella il record. ADR 0011.
+
 ## 0.8.1 — 2026-10-17
 - Punti cardio più fedeli: FC max = 205,8 − 0,685 × età; la FC dà punti solo nei minuti attivi; riporto di 2 minuti;
   dettaglio diagnostico del calcolo.

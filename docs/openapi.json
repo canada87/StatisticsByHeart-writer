@@ -905,6 +905,221 @@
         "title": "ErrorResponse",
         "type": "object"
       },
+      "ExcludeBody": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "record_id": {
+            "description": "Any copy of the measure, from /measures",
+            "title": "Record Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "record_id"
+        ],
+        "title": "ExcludeBody",
+        "type": "object"
+      },
+      "ExcludeResult": {
+        "properties": {
+          "days": {
+            "description": "Local days recomputed",
+            "title": "Days",
+            "type": "integer"
+          },
+          "group_id": {
+            "format": "uuid",
+            "title": "Group Id",
+            "type": "string"
+          },
+          "measure": {
+            "$ref": "#/components/schemas/MeasureItem"
+          },
+          "records": {
+            "description": "Copies excluded together",
+            "title": "Records",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "group_id",
+          "records",
+          "days",
+          "measure"
+        ],
+        "title": "ExcludeResult",
+        "type": "object"
+      },
+      "ExclusionItem": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End"
+          },
+          "group_id": {
+            "format": "uuid",
+            "title": "Group Id",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "local_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Local Date"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "sources": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "state": {
+            "description": "deleted_in_hc: removed from Health Connect since; missing: not stored any more",
+            "enum": [
+              "present",
+              "deleted_in_hc",
+              "missing"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "value2": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value2"
+          }
+        },
+        "required": [
+          "group_id",
+          "type",
+          "start",
+          "end",
+          "local_date",
+          "value",
+          "value2",
+          "unit",
+          "label",
+          "sources",
+          "reason",
+          "created_at",
+          "state"
+        ],
+        "title": "ExclusionItem",
+        "type": "object"
+      },
+      "ExclusionsResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ExclusionItem"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ExclusionsResponse",
+        "type": "object"
+      },
       "ExerciseResponse": {
         "properties": {
           "from": {
@@ -1573,6 +1788,144 @@
           "password"
         ],
         "title": "LoginRequest",
+        "type": "object"
+      },
+      "MeasureItem": {
+        "description": "One measure as the user knows it: copies of it reported by several apps are merged.",
+        "properties": {
+          "end": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End"
+          },
+          "ids": {
+            "description": "health_record ids of every copy (send any one to exclude)",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Ids",
+            "type": "array"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Workout type or title, sleep title",
+            "title": "Label"
+          },
+          "local_date": {
+            "format": "date",
+            "title": "Local Date",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "start": {
+            "format": "date-time",
+            "title": "Start",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Weight, SpO2, ...; systolic; or duration in seconds",
+            "title": "Value"
+          },
+          "value2": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Diastolic pressure",
+            "title": "Value2"
+          }
+        },
+        "required": [
+          "ids",
+          "type",
+          "start",
+          "end",
+          "local_date",
+          "value",
+          "unit",
+          "sources"
+        ],
+        "title": "MeasureItem",
+        "type": "object"
+      },
+      "MeasuresResponse": {
+        "properties": {
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "measures": {
+            "items": {
+              "$ref": "#/components/schemas/MeasureItem"
+            },
+            "title": "Measures",
+            "type": "array"
+          },
+          "to": {
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "from",
+          "to",
+          "measures"
+        ],
+        "title": "MeasuresResponse",
         "type": "object"
       },
       "MetricValue": {
@@ -5471,7 +5824,7 @@
   "info": {
     "description": "Ingest API (contract v1: docs/api-contract.md) and admin endpoints.",
     "title": "StatisticsByHeart Writer",
-    "version": "0.8.1"
+    "version": "0.9.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -5974,6 +6327,182 @@
         "summary": "Official Health Connect daily totals vs totals computed from raw records",
         "tags": [
           "dashboard"
+        ]
+      }
+    },
+    "/api/v1/exclusions": {
+      "get": {
+        "operationId": "list_exclusions_api_v1_exclusions_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExclusionsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          }
+        },
+        "summary": "Excluded measures, newest exclusion first",
+        "tags": [
+          "exclusions"
+        ]
+      },
+      "post": {
+        "operationId": "exclude_measure_api_v1_exclusions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExcludeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExcludeResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Exclude one measure (and its copies from other apps) from every analysis",
+        "tags": [
+          "exclusions"
+        ]
+      }
+    },
+    "/api/v1/exclusions/{group_id}": {
+      "delete": {
+        "operationId": "restore_exclusion_api_v1_exclusions__group_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Group Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore an excluded measure (the data was never deleted)",
+        "tags": [
+          "exclusions"
         ]
       }
     },
@@ -6784,6 +7313,88 @@
         "summary": "Close a sync run",
         "tags": [
           "ingest"
+        ]
+      }
+    },
+    "/api/v1/measures": {
+      "get": {
+        "operationId": "list_measures_api_v1_measures_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeasuresResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Individual measures of a period (what a chart point aggregates), excludable ones only",
+        "tags": [
+          "exclusions"
         ]
       }
     },

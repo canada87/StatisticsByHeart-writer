@@ -393,7 +393,10 @@ generate dalle costanti del writer), `GET /api/v1/storage` (spazio, limiti e ret
 una metrica **calcolata** del writer, non un tipo di record: il Reader non lo invia), `?scope=real` su
 `/exercise/sessions` e `?include_workouts` su `/heart/daypart` (ADR 0006). Dalla 0.8.0 anche `GET/PUT/DELETE /api/v1/preferences/{key}`
 (scelte della dashboard salvate sul server, sessione admin + header CSRF) e `GET /api/v1/ha/status` (stato dell'allarme «sync ferma» per
-Home Assistant: token con scope `ha`, nessun valore sanitario; ADR 0010).
+Home Assistant: token con scope `ha`, nessun valore sanitario; ADR 0010). Dalla 0.9.0 anche `GET /api/v1/measures`, `POST /api/v1/exclusions`,
+`GET /api/v1/exclusions` e `DELETE /api/v1/exclusions/{group_id}` (esclusione manuale di singole misure errate: sessione admin, le scritture con header CSRF;
+ADR 0011). **Il Reader non è toccato:** gli endpoint di ingest non cambiano e i record esclusi restano in database; una misura esclusa non si ritrova
+nei totali calcolati e nelle API di lettura del writer, ma l'esclusione sopravvive a ogni nuovo invio (stesso `type` e `id`).
 
 ---
 

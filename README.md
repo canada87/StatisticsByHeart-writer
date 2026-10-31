@@ -28,7 +28,17 @@ design-system/   MASTER.md + override per pagina
 | **Attività** | Passi, distanza, calorie attive e totali, elenco allenamenti (kcal, FC media, segnali FC/GPS/avvio e verdetto) con filtro **Solo veri / Tutti** e correzione manuale, volume settimanale |
 | **Corpo** | Peso e pressione arteriosa (sistolica continua, diastolica tratteggiata; fasce solo indicative) |
 | **Report** | Riepilogo per settimana/mese/anno/personalizzato su tutto il periodo: medie e totali di ogni metrica con variazione vs periodo precedente e giorni migliori/peggiori, **FC diurna e notturna**, **Punti cardio** (totale, media a settimana, settimane sopra 150), solo **allenamenti veri** (numero e tempo, per tipo e mese per mese), tabelle **mese su mese** (medie giornaliere e totali del mese, mesi parziali segnalati), **grafici grandi** (uno per riga a tutta larghezza, mensili se il periodo copre più mesi), pannello **Contenuto del report** (spunti sezioni e misure; la scelta è salvata sul server e vale da ogni dispositivo, con «Ripristina predefiniti»), stampa/PDF **senza intestazione e piè di pagina del browser** (con un piè di pagina proprio: titolo, periodo, data) e CSV giornaliero e mensile (sempre completi) |
-| **Sync / Dati** | Verifica: **allarme «sync ferma»** (lo stesso stato che legge Home Assistant) e ultima sync riuscita di ogni dispositivo, ultime sync (rifiutati/errori), inventario per tipo e sorgente, ufficiale Health Connect vs somma dei record, e la scheda **Spazio e limiti** (sola lettura): dimensione del database e di ogni tabella (dati, indici, righe esatte o stimate), record cancellati, primo/ultimo dato, crescita degli ultimi 30 giorni con proiezione a un anno (stima), disco libero della VM (stima, dal filesystem che vede l'app) e l'elenco di retention e limiti generato dalle costanti vere |
+| **Sync / Dati** | Scheda **Dati esclusi** (elenco delle misure escluse a mano, con «Ripristina»). Verifica: **allarme «sync ferma»** (lo stesso stato che legge Home Assistant) e ultima sync riuscita di ogni dispositivo, ultime sync (rifiutati/errori), inventario per tipo e sorgente, ufficiale Health Connect vs somma dei record, e la scheda **Spazio e limiti** (sola lettura): dimensione del database e di ogni tabella (dati, indici, righe esatte o stimate), record cancellati, primo/ultimo dato, crescita degli ultimi 30 giorni con proiezione a un anno (stima), disco libero della VM (stima, dal filesystem che vede l'app) e l'elenco di retention e limiti generato dalle costanti vere |
+
+**Dati esclusi (scheda in Sync / Dati).** Se una misura è sbagliata (per esempio il peso di un altro profilo della bilancia,
+importato da Google Fit) e Fit/Health Connect non permettono di cancellarla, la si **esclude** dal writer: dal grafico (clic o tocco su un
+punto, oppure il pulsante «Escludi un valore…» per la tastiera) o da una riga di «Mostra tabella». Si sceglie la misura tra quelle del punto
+(una settimana o un mese ne aggregano molte), si controlla tipo, data e valore, si scrive un motivo facoltativo e si conferma; «Annulla» nel
+messaggio la rimette subito. La misura **non viene cancellata**: sparisce da grafici, KPI, medie, minimi/massimi, Report (anche PDF e CSV),
+aggregati e calcoli derivati, e **nei grafici non resta nessun segno**. L'elenco (tipo, data, valore, sorgente, motivo, quando) e il pulsante
+**Ripristina** stanno in *Sync / Dati › Dati esclusi*. Valgono solo le misure singole (peso, pressione, SpO₂, FC a riposo, HRV, sonno,
+allenamenti), non i giorni interi né i totali (passi, distanza, calorie, Punti cardio). L'esclusione sopravvive alle sincronizzazioni. Se la
+stessa misura arriva da due app, si escludono insieme; una copia che arriva **dopo** va esclusa a parte (ADR 0011).
 
 Ogni pagina di trend ha KPI del periodo con variazione (freccia **e** testo), grafici con granularità ora (fino a 31 giorni)/giorno/settimana/mese
 (automatica per intervallo), media mobile e confronto con il periodo precedente attivabili, valori raggiungibili da tastiera
@@ -108,8 +118,8 @@ L'immagine **non si builda sulla VM**: la costruisce GitHub Actions e Portainer 
 Per rilasciare (dal tuo PC):
 
 ```bash
-git tag v0.8.1
-git push origin main v0.8.1
+git tag v0.9.0
+git push origin main v0.9.0
 ```
 
 ### Una tantum: rendere pubblico il pacchetto
@@ -153,7 +163,7 @@ variables* (vedi `docker/.env.example`; puoi usare «Load variables from .env fi
 | Variabile | Valore |
 |---|---|
 | `SBH_DB_PASSWORD` | **obbligatoria**, es. output di `openssl rand -hex 24` |
-| `SBH_IMAGE_TAG` | `0.8.1` (la versione da usare) oppure `latest` |
+| `SBH_IMAGE_TAG` | `0.9.0` (la versione da usare) oppure `latest` |
 | `SBH_HTTP_PORT` | `8742` (o quella libera che hai scelto) |
 | `SBH_DATA_DIR` | cartella locale della VM che contiene `db/` (default nel compose) |
 | `SBH_BIRTH_YEAR` | opzionale ma consigliata: il tuo anno di nascita, per la FCmax dei Punti cardio (`205,8 − 0,685 × età`, come Google Fit). **Valore personale: solo qui, mai nel repository** |
@@ -302,6 +312,11 @@ La risposta non contiene alcun valore sanitario: solo date, ore e lo stato. Lo s
 4. **Rollback**: rimetti il tag precedente (`SBH_IMAGE_TAG=0.6.1`) e aggiorna lo stack. Le migrazioni sono solo «in
    avanti»: se una migrazione va annullata ripristina lo snapshot PBS (o il dump) invece di fare `downgrade`.
 
+> **Aggiornamento alla 0.9.0 (c'è una migrazione, `0005`):** crea la tabella `record_exclusion` (le misure escluse a mano);
+> non tocca nessuna tabella esistente e nessun dato. **Prima del deploy fai il `pg_dump`** (sezione *Backup*) o lo snapshot
+> PBS; l'app applica la migrazione da sola all'avvio. Nessuna variabile nuova: nel compose di Portainer cambia solo
+> `SBH_IMAGE_TAG=0.9.0`. Annullarla = ripristino del dump (il `downgrade` elimina la tabella e quindi le esclusioni).
+>
 > **Aggiornamento alla 0.8.1: nessuna migrazione.** Regole più severe per i Punti cardio (FCmax `205,8 − 0,685 × età`; la
 > frequenza cardiaca dà punti solo nei minuti attivi, cioè con almeno 60 passi o dentro un allenamento; carry-forward di
 > 2 minuti; dettaglio per giorno nella tabella e nel CSV del grafico). **Non serve lanciare nessun comando:** al primo avvio
